@@ -1,0 +1,16 @@
+{
+  "name": "estacion-impresion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Servidor de impresión que corre en el Android o PC de cada sede. Se despliega aparte de la aplicación web -- no sube a Vercel.",
+  "scripts": {
+    "start": "tsx index.ts",
+    "dev": "tsx watch index.ts"
+  },
+  "dependencies": {
+    "tsx": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
