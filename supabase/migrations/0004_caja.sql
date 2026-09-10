@@ -85,32 +85,24 @@ create table existencia (
   primary key (repuesto_id, sede_id)
 );
 
--- Consumir un repuesto en una orden lo descuenta del inventario de la
--- sede de esa orden. Una sola transacción: no puede quedar la orden
--- con el repuesto anotado y el inventario sin descontar.
+-- Consumir un repuesto descuenta del inventario de una sede concreta.
+-- Recibe la sede explícitamente -- no la deriva de una orden -- porque
+-- una venta de mostrador no tiene orden detrás, solo sede. Una sola
+-- transacción: no puede quedar la venta o la orden registrada con el
+-- repuesto anotado y el inventario sin descontar.
 create or replace function consumir_repuesto(
-  p_repuesto_id uuid, p_orden_id uuid, p_cantidad int
+  p_repuesto_id uuid, p_sede_id uuid, p_cantidad int
 ) returns void
 language plpgsql security definer set search_path = public as $$
-declare
-  v_sede_id uuid;
-  v_empresa_id uuid;
 begin
-  select sede_id, empresa_id into v_sede_id, v_empresa_id
-    from orden where id = p_orden_id and empresa_id = empresa_actual();
-
-  if v_sede_id is null then
-    raise exception 'orden % no encontrada en esta empresa', p_orden_id;
-  end if;
-
   update existencia
      set cantidad = cantidad - p_cantidad
    where repuesto_id = p_repuesto_id
-     and sede_id = v_sede_id
-     and empresa_id = v_empresa_id;
+     and sede_id = p_sede_id
+     and empresa_id = empresa_actual();
 
   if not found then
-    raise exception 'no hay existencia registrada de % en esta sede', p_repuesto_id;
+    raise exception 'no hay existencia registrada de % en la sede %', p_repuesto_id, p_sede_id;
   end if;
 end;
 $$;
