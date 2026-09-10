@@ -130,7 +130,6 @@ npm start
 Estas páginas existen como esqueleto navegable, con un comentario que
 dice exactamente qué construir y contra qué ruta de API:
 
-- `app/(taller)/orden/[id]/evidencia`
 - `app/(admin)/reportes`
 
 Ya son reales:
@@ -146,6 +145,13 @@ Ya son reales:
   faltante -- lo que aparece de inmediato en `/compras`, que dejó de
   ser de solo lectura: el botón "marcar recibido" cierra el ciclo de
   la sección 4 del documento original.
+- **`app/(taller)/orden/[id]/evidencia`**: foto o video en cualquier
+  fase (entrada, salida o general), con casilla de visibilidad para
+  el cliente. El video estaba contemplado en el esquema desde el
+  principio pero el plano lo dejaba fuera de la v1 por peso y por la
+  red del taller -- se activó a pedido, con un límite de 50MB por
+  archivo en el bucket (`0012_limite_evidencia.sql`) para que no se
+  coma la cuota gratuita de Storage.
 
 El resto de `(pos)` ya es real, de principio a fin, sin datos de
 relleno:

@@ -28,7 +28,6 @@ begin
 end;
 $$;
 
-select _aplica_rls_empresa('empresa');
 select _aplica_rls_empresa('sede');
 select _aplica_rls_empresa('perfil');
 select _aplica_rls_empresa('cliente');
@@ -39,9 +38,10 @@ select _aplica_rls_empresa('evidencia');
 select _aplica_rls_empresa('cotizacion');
 select _aplica_rls_empresa('repuesto_solicitud');
 
--- empresa necesita su propia policy de lectura para el propio registro,
--- porque empresa.id no es empresa_id -- el helper genérico no aplica igual.
-drop policy if exists empresa_de_mi_empresa on empresa;
+-- empresa no pasa por el helper genérico: su columna de aislamiento es
+-- `id`, no `empresa_id` -- es la única tabla donde esas dos cosas son
+-- la misma columna.
+alter table empresa enable row level security;
 create policy empresa_de_mi_empresa on empresa
   for all to authenticated
   using (id = empresa_actual())
