@@ -130,13 +130,22 @@ npm start
 Estas páginas existen como esqueleto navegable, con un comentario que
 dice exactamente qué construir y contra qué ruta de API:
 
-- `app/(pos)/entregar`, `app/(pos)/turno`
 - `app/(taller)/orden/[id]/evidencia`, `.../diagnostico`, `.../repuestos`
 - `app/(admin)/reportes`
 
-`app/(pos)/recibir` ya es real: busca cliente por documento y equipo
-por serial, crea la orden con `POST /api/ordenes`, e imprime
-comprobante + etiqueta -- de principio a fin, sin datos de relleno.
+El resto de `(pos)` ya es real, de principio a fin, sin datos de
+relleno:
+
+- **`recibir`** busca cliente por documento y equipo por serial, crea
+  la orden con `POST /api/ordenes`, e imprime comprobante + etiqueta.
+- **`turno`** abre con base inicial, muestra el resumen en vivo
+  (`GET /api/turno/actual`) y cierra comparando lo contado contra
+  `lib/caja.ts` (`POST /api/turno/cerrar`), con su comprobante impreso.
+- **`entregar`** busca la orden por número, cobra el saldo pendiente si
+  lo hay, captura firma (canvas, sin librería) y foto de salida, sube
+  ambas a Storage (`lib/subir-evidencia.ts`) y solo entonces intenta la
+  transición a `entregada` -- que el servidor rechaza si falta
+  cualquiera de los tres requisitos reales.
 
 Y una pieza que es decisión de negocio, no de código, y por eso no está
 resuelta aquí:
