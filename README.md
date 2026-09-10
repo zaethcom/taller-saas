@@ -130,8 +130,14 @@ npm start
 Estas páginas existen como esqueleto navegable, con un comentario que
 dice exactamente qué construir y contra qué ruta de API:
 
-- `app/(taller)/orden/[id]/evidencia`, `.../diagnostico`, `.../repuestos`
+- `app/(taller)/orden/[id]/evidencia`, `.../repuestos`
 - `app/(admin)/reportes`
+
+`app/(taller)/orden/[id]/diagnostico` ya es real: líneas de repuestos y
+servicios con total en vivo, mano de obra, y un botón que crea la
+cotización, mueve la orden a `esperando_aprobacion`
+(`POST /api/ordenes/[id]/cotizacion`) y entrega el enlace de
+seguimiento para copiar y mandar por WhatsApp.
 
 El resto de `(pos)` ya es real, de principio a fin, sin datos de
 relleno:
