@@ -8,6 +8,7 @@
  */
 import { redirect } from "next/navigation";
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
+import { SelectorPuertas } from "@/componentes/ui/selector-puertas";
 import { puedeEntrarA } from "@/lib/permisos";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { clienteServidor } from "@/lib/supabase/servidor";
@@ -43,6 +44,7 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
           <a href="/compras">Compras</a>
           <a href="/usuarios">Usuarios</a>
           <a href="/reportes">Reportes</a>
+          <SelectorPuertas rol={perfil.rol} actual="admin" />
           <CerrarSesion />
         </nav>
       </header>

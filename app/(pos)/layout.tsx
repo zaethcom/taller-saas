@@ -8,6 +8,7 @@
  */
 import { redirect } from "next/navigation";
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
+import { SelectorPuertas } from "@/componentes/ui/selector-puertas";
 import { puedeEntrarA } from "@/lib/permisos";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { clienteServidor } from "@/lib/supabase/servidor";
@@ -42,6 +43,7 @@ export default async function LayoutPos({ children }: { children: React.ReactNod
           <a href="/recibir">Recibir equipo</a>
           <a href="/entregar">Entregar</a>
           <a href="/turno">Turno</a>
+          <SelectorPuertas rol={perfil.rol} actual="pos" />
           <CerrarSesion />
         </nav>
       </header>

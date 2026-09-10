@@ -6,6 +6,7 @@
  */
 import { redirect } from "next/navigation";
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
+import { SelectorPuertas } from "@/componentes/ui/selector-puertas";
 import { puedeEntrarA } from "@/lib/permisos";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { clienteServidor } from "@/lib/supabase/servidor";
@@ -35,7 +36,10 @@ export default async function LayoutTaller({ children }: { children: React.React
         }}
       >
         <strong>Taller · {perfil.nombre}</strong>
-        <CerrarSesion />
+        <nav style={{ display: "flex", gap: 16, alignItems: "center" }}>
+          <SelectorPuertas rol={perfil.rol} actual="taller" />
+          <CerrarSesion />
+        </nav>
       </header>
       <div style={{ padding: 20, maxWidth: 480, margin: "0 auto" }}>{children}</div>
     </div>
