@@ -127,12 +127,7 @@ npm start
 
 ## Qué falta (a propósito)
 
-Estas páginas existen como esqueleto navegable, con un comentario que
-dice exactamente qué construir y contra qué ruta de API:
-
-- `app/(admin)/reportes`
-
-Ya son reales:
+Con esto, ninguna página del MVP queda como esqueleto. Ya son reales:
 
 - **`app/(taller)/orden/[id]/diagnostico`**: líneas de repuestos y
   servicios con total en vivo, mano de obra, y un botón que crea la
@@ -152,6 +147,15 @@ Ya son reales:
   red del taller -- se activó a pedido, con un límite de 50MB por
   archivo en el bucket (`0012_limite_evidencia.sql`) para que no se
   coma la cuota gratuita de Storage.
+- **`app/(admin)/reportes`**: tres de las cuatro métricas de éxito del
+  piloto, calculadas de datos reales -- % de órdenes entregadas con
+  evidencia de entrada y salida, tiempo promedio hasta la aprobación
+  de la cotización, y % de faltantes resueltos en menos de 48 horas
+  (`0013_recibido_en.sql` agregó el timestamp que faltaba para poder
+  calcular esta última). La cuarta -- tiempo de recepción bajo 3
+  minutos -- no tiene de dónde salir de la base de datos: se muestra
+  como instrucción para cronometrar a mano durante el piloto, nunca
+  como un número inventado.
 
 El resto de `(pos)` ya es real, de principio a fin, sin datos de
 relleno:

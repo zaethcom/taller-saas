@@ -22,7 +22,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   const { data, error } = await supabase
     .from("repuesto_solicitud")
-    .update({ estado: "recibido" })
+    .update({ estado: "recibido", recibido_en: new Date().toISOString() })
     .eq("id", id)
     .eq("estado", "faltante")
     .select("id, orden_id")
