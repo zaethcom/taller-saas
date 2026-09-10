@@ -2,14 +2,40 @@
  * Puerta del técnico. Botones grandes, una tarea por pantalla -- se usa
  * con guantes y con una sola mano mientras se sostiene el equipo.
  *
- * El control de acceso real (sesión + rol "tecnico") va aquí una vez
- * exista el flujo de login -- ver lib/permisos.ts puedeEntrarA("taller").
+ * Solo entran admin y técnico -- ver lib/permisos.ts, ROLES_POR_PUERTA.taller.
  */
-export default function LayoutTaller({ children }: { children: React.ReactNode }) {
+import { redirect } from "next/navigation";
+import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
+import { puedeEntrarA } from "@/lib/permisos";
+import { obtenerPerfilActual } from "@/lib/perfil";
+import { clienteServidor } from "@/lib/supabase/servidor";
+
+export default async function LayoutTaller({ children }: { children: React.ReactNode }) {
+  const supabase = await clienteServidor();
+  const perfil = await obtenerPerfilActual(supabase);
+
+  if (!perfil) redirect("/login");
+  if (!puedeEntrarA(perfil.rol, "taller")) {
+    return (
+      <main style={{ padding: 40, background: "#0b1418", color: "white", minHeight: "100vh" }}>
+        <p>Tu rol ({perfil.rol}) no tiene acceso a la app del taller.</p>
+        <CerrarSesion />
+      </main>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "#0b1418", color: "white" }}>
-      <header style={{ padding: "14px 20px", borderBottom: "1px solid #223038" }}>
-        <strong>Taller</strong>
+      <header
+        style={{
+          padding: "14px 20px",
+          borderBottom: "1px solid #223038",
+          display: "flex",
+          justifyContent: "space-between",
+        }}
+      >
+        <strong>Taller · {perfil.nombre}</strong>
+        <CerrarSesion />
       </header>
       <div style={{ padding: 20, maxWidth: 480, margin: "0 auto" }}>{children}</div>
     </div>

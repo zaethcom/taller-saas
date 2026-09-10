@@ -134,10 +134,17 @@ dice exactamente qué construir y contra qué ruta de API:
 - `app/(taller)/orden/[id]/evidencia`, `.../diagnostico`, `.../repuestos`
 - `app/(admin)/reportes`
 
-Y dos piezas de infraestructura que son decisión de negocio, no de
-código, y por eso no están resueltas aquí:
+Y una pieza que es decisión de negocio, no de código, y por eso no está
+resuelta aquí:
 
-- **Un integrador DIAN.** Cotizar antes de implementar.
-- **Login y sesión de usuario.** Las rutas ya asumen `auth.getUser()`
-  de Supabase Auth; falta la pantalla de login y el middleware que
-  refresca la sesión en cada request.
+- **Un integrador DIAN.** Cotizar antes de implementar -- ver
+  `lib/dian/proveedor.ts`.
+
+Login, sesión y guardas de rol por puerta ya están conectados:
+`middleware.ts` refresca la sesión en cada request, `/login` autentica
+contra Supabase Auth y redirige según el rol (`lib/perfil.ts`), y cada
+layout de `(pos)`, `(taller)`, `(admin)` verifica con
+`puedeEntrarA()` antes de mostrar nada. Falta crear los usuarios reales
+-- hoy solo existen en `seed.sql` como filas de `perfil` sin una cuenta
+de Supabase Auth detrás; crearlos es responsabilidad del admin desde
+el panel de Supabase o con la Auth Admin API.
