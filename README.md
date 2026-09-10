@@ -130,14 +130,22 @@ npm start
 Estas páginas existen como esqueleto navegable, con un comentario que
 dice exactamente qué construir y contra qué ruta de API:
 
-- `app/(taller)/orden/[id]/evidencia`, `.../repuestos`
+- `app/(taller)/orden/[id]/evidencia`
 - `app/(admin)/reportes`
 
-`app/(taller)/orden/[id]/diagnostico` ya es real: líneas de repuestos y
-servicios con total en vivo, mano de obra, y un botón que crea la
-cotización, mueve la orden a `esperando_aprobacion`
-(`POST /api/ordenes/[id]/cotizacion`) y entrega el enlace de
-seguimiento para copiar y mandar por WhatsApp.
+Ya son reales:
+
+- **`app/(taller)/orden/[id]/diagnostico`**: líneas de repuestos y
+  servicios con total en vivo, mano de obra, y un botón que crea la
+  cotización, mueve la orden a `esperando_aprobacion`
+  (`POST /api/ordenes/[id]/cotizacion`) y entrega el enlace de
+  seguimiento para copiar y mandar por WhatsApp.
+- **`app/(taller)/orden/[id]/repuestos`**: buscar en el catálogo con
+  existencia por sede y consumir (descuenta inventario de verdad vía
+  `consumir_repuesto`, y deja rastro en `orden_repuesto`), o marcar
+  faltante -- lo que aparece de inmediato en `/compras`, que dejó de
+  ser de solo lectura: el botón "marcar recibido" cierra el ciclo de
+  la sección 4 del documento original.
 
 El resto de `(pos)` ya es real, de principio a fin, sin datos de
 relleno:
