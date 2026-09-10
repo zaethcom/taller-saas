@@ -130,9 +130,13 @@ npm start
 Estas páginas existen como esqueleto navegable, con un comentario que
 dice exactamente qué construir y contra qué ruta de API:
 
-- `app/(pos)/recibir`, `app/(pos)/entregar`, `app/(pos)/turno`
+- `app/(pos)/entregar`, `app/(pos)/turno`
 - `app/(taller)/orden/[id]/evidencia`, `.../diagnostico`, `.../repuestos`
 - `app/(admin)/reportes`
+
+`app/(pos)/recibir` ya es real: busca cliente por documento y equipo
+por serial, crea la orden con `POST /api/ordenes`, e imprime
+comprobante + etiqueta -- de principio a fin, sin datos de relleno.
 
 Y una pieza que es decisión de negocio, no de código, y por eso no está
 resuelta aquí:

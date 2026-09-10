@@ -21,6 +21,7 @@ interface CargaEtiquetaQr {
   marca: string | null;
   modelo: string | null;
   numeroOrden: number;
+  contenidoQr: string;
 }
 
 interface CargaReciboVenta {
@@ -70,6 +71,13 @@ export async function encolarImpresion<T extends TipoTrabajo>(
     tipo: T;
     carga: CargaPorTipo[T];
     creadoPor: string;
+    /**
+     * De qué orden es este trabajo -- por ahora solo importa para
+     * 'etiqueta_qr', que es lo que el requisito tiene_etiqueta de
+     * lib/estados.ts verifica contra un hecho real, no contra una
+     * suposición.
+     */
+    ordenId?: string;
   },
 ): Promise<{ id: string }> {
   const { data, error } = await supabase
@@ -80,6 +88,7 @@ export async function encolarImpresion<T extends TipoTrabajo>(
       tipo: params.tipo,
       carga: params.carga,
       creado_por: params.creadoPor,
+      orden_id: params.ordenId ?? null,
     })
     .select("id")
     .single();
