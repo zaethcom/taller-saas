@@ -10,6 +10,26 @@ Este README cubre cómo levantar lo que ya existe; el plano completo
 (arquitectura, modelo de negocio, fases) vive en las conversaciones que
 lo originaron y en los comentarios de cabecera de cada archivo.
 
+## Por qué es una web y no una app nativa
+
+Cajero y taller trabajan desde tablets o celulares Android (y el
+cajero, si prefiere, desde un PC con Windows). Esta app funciona en
+los tres por ser web -- un solo código sirve a cualquier navegador, en
+vez de mantener una app de Android y otra de Windows por separado.
+
+En Android/Chrome se puede **instalar** desde el navegador (menú →
+"Agregar a pantalla de inicio" o el aviso que Chrome ofrece solo):
+queda con su propio ícono y abre en pantalla completa, sin la barra
+del navegador -- se siente como una app nativa aunque no lo sea. Eso
+lo habilita `public/manifest.json` + `metadata.manifest` en
+`app/layout.tsx`.
+
+Lo único que **no** es una página web es el servidor de impresión
+(`estacion/`) -- ver más abajo -- porque un navegador no puede
+hablarle a una impresora USB ni abrir un cajón monedero. Es el único
+programa del proyecto que se instala aparte, en el Android o PC fijo
+de cada sede.
+
 ## Las dos promesas del proyecto
 
 1. **El técnico escanea el QR de un equipo y ve su historial completo.**
