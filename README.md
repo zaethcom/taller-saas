@@ -58,6 +58,7 @@ lib/
 ├─ caja.ts            # cálculos de turno y saldo
 ├─ estacion-auth.ts    # autenticación de las estaciones de impresión
 ├─ dian/               # interfaz de facturación, con proveedor real pendiente
+├─ mensajeria/         # avisar al cliente -- correo real, WhatsApp pendiente
 └─ supabase/           # clientes de navegador y de servidor
 
 estacion/       # el servidor de impresión -- NO se despliega en Vercel
@@ -123,6 +124,8 @@ npm start
 | `NEXT_PUBLIC_SUPABASE_URL` | navegador y servidor | URL del proyecto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | navegador y servidor | respeta RLS |
 | `SUPABASE_SERVICE_ROLE_KEY` | solo servidor | se salta RLS -- nunca exponer al navegador |
+| `RESEND_API_KEY`, `RESEND_FROM` | solo servidor | correo al recibir un equipo (`lib/mensajeria/correo.ts`) |
+| `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`, `WHATSAPP_PHONE_ID_SECUNDARIO` | solo servidor | pendientes -- ver más abajo |
 
 ## Decisiones que ya están tomadas (y por qué)
 
@@ -144,6 +147,20 @@ npm start
 - **La facturación DIAN es un stub a propósito.** `lib/dian/proveedor.ts`
   lanza `DianNoConfiguradoError` hasta que se elija un integrador real.
   Nunca se implementa la DIAN a mano.
+- **El correo al cliente es real (Resend); el WhatsApp es un stub, mismo
+  patrón que la DIAN.** Al recibir un equipo, `POST /api/ordenes` llama
+  a `lib/mensajeria/notificarCliente()`, que manda el correo con el
+  enlace de seguimiento y, en paralelo, intenta el WhatsApp. Ninguno de
+  los dos puede tumbar la recepción -- si falla, solo queda en el log.
+  El WhatsApp está pendiente de que exista la cuenta de WhatsApp
+  Business Platform (Meta); ver el porqué y qué falta en el comentario
+  de cabecera de `lib/mensajeria/whatsapp.ts` -- en corto: es una
+  llamada de servidor a la API de Meta, no una app de WhatsApp instalada
+  en ningún dispositivo, así que **no** necesita nada en la estación
+  Android (esa sigue siendo solo para imprimir). El "segundo WhatsApp"
+  para celulares recibidos sin WhatsApp propio es, con la Cloud API,
+  solo un segundo número dentro de la misma cuenta de Meta -- no un
+  segundo servidor.
 
 ## Qué falta (a propósito)
 

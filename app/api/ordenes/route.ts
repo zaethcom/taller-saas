@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { encolarImpresion } from "@/lib/impresion";
+import { notificarCliente } from "@/lib/mensajeria/notificar";
 
 interface ClienteNuevo {
   nombre: string;
@@ -127,11 +128,12 @@ export async function POST(req: NextRequest) {
 
   const { data: producto } = await supabase
     .from("producto")
-    .select("serial, tipo, marca, modelo, cliente:cliente_id ( nombre )")
+    .select("serial, tipo, marca, modelo, cliente:cliente_id ( nombre, telefono, correo )")
     .eq("id", productoId)
     .single();
 
   const urlSeguimiento = `${process.env.NEXT_PUBLIC_APP_URL}/seguimiento/${orden.token_publico}`;
+  const nombreProducto = [producto?.marca, producto?.modelo].filter(Boolean).join(" ") || producto?.tipo || "";
 
   await encolarImpresion(supabase, {
     empresaId: perfil.empresa_id,
@@ -142,7 +144,7 @@ export async function POST(req: NextRequest) {
       numeroOrden: orden.numero,
       // @ts-expect-error -- join inferido como array por el tipado genérico
       clienteNombre: producto?.cliente?.nombre ?? "",
-      producto: [producto?.marca, producto?.modelo].filter(Boolean).join(" ") || producto?.tipo || "",
+      producto: nombreProducto,
       motivo: body.motivo.trim(),
       fecha: new Date().toLocaleDateString("es-CO"),
       urlSeguimiento,
@@ -163,6 +165,25 @@ export async function POST(req: NextRequest) {
       numeroOrden: orden.numero,
       contenidoQr: urlSeguimiento,
     },
+  });
+
+  // El join de Supabase infiere `cliente` como arreglo aunque la relación
+  // sea 1:1 -- mismo caso que en el bloque de arriba.
+  const cliente = producto?.cliente as unknown as
+    | { nombre: string; telefono: string | null; correo: string | null }
+    | undefined;
+  const esCelular = /cel|tel[eé]fono|smartphone/i.test(producto?.tipo ?? "");
+  await notificarCliente({
+    clienteNombre: cliente?.nombre ?? "",
+    clienteTelefono: cliente?.telefono,
+    clienteCorreo: cliente?.correo,
+    numeroOrden: orden.numero,
+    producto: nombreProducto,
+    urlSeguimiento,
+    // Si el equipo recibido es el celular del cliente, puede no tener
+    // su propio WhatsApp disponible para recibir el aviso -- ahí se usa
+    // el número secundario dedicado a estos casos (ver lib/mensajeria/whatsapp.ts).
+    usarWhatsappSecundario: esCelular,
   });
 
   return NextResponse.json({ ok: true, ordenId: orden.id, numero: orden.numero });
