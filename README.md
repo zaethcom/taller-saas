@@ -214,6 +214,36 @@ npm start
   revisarlo. `lib/perfil.ts` ni siquiera necesitó un chequeo aparte
   para esto: la fila de un usuario de una empresa suspendida deja de
   ser visible por RLS, sola.
+- **Personalización visual por empresa** (`0021_empresa_config.sql`,
+  `/configuracion`): logo, color de marca, tema (claro/oscuro/alto
+  contraste), y los datos que aparecen en cada recibo impreso
+  (dirección, teléfono, mensaje al pie). No se pre-llena una fila por
+  empresa -- `GET /api/configuracion` devuelve valores por defecto
+  hasta que un admin guarda algo por primera vez, momento en el que
+  nace la fila (upsert).
+
+  El logo vive en un bucket de Storage **público** (`logos`), a
+  diferencia de `evidencia` -- se muestra en `/login` antes de que
+  exista sesión, así que no puede depender de RLS para leerse. El
+  color se aplica como variable CSS (`--accent`) puesta inline en
+  `<html>` desde el layout raíz (que ahora es async: consulta perfil +
+  configuración en cada request); el tema alterna un pequeño grupo de
+  variables (`--ink`, `--ground`, `--surface`, `--rule`) vía
+  `[data-tema]` en `globals.css`. Esto cambia el fondo/texto/bordes
+  por defecto de toda la aplicación, pero **no** repinta cada color
+  fijo que ya existía en el estilo en línea de una pantalla puntual
+  (un rojo de error, por ejemplo) -- eso es un rediseño pantalla por
+  pantalla, no una personalización, y queda fuera de este alcance a
+  propósito. La puerta del taller sigue siempre oscura sin importar el
+  tema elegido (visibilidad y batería en un celular usado con una
+  mano, sí toma la marca de la empresa).
+
+  Los recibos impresos (venta, recepción, cierre de caja, traslado)
+  reciben el nombre/dirección/teléfono/pie de la empresa automáticamente
+  -- `encolarImpresion()` (`lib/impresion.ts`) los agrega él solo para
+  esos cuatro tipos, sin que cada ruta que encola un trabajo tenga que
+  pedirlos. Las etiquetas pequeñas (`etiqueta_qr`, `etiqueta_articulo`)
+  no llevan esto -- no hay espacio.
 - **Fase "POS y taller" de la expansión a SaaS multiempresa**
   (`0019_codigo_categoria_metodo_pago.sql`): código corto por
   cajero/técnico (`perfil.codigo`, para recibos y reportes -- nunca un

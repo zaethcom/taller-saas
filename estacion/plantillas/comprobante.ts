@@ -1,6 +1,7 @@
 import { alinear, componer, cortar, inicializar, negrita, qr, salto, tamano, texto } from "../escpos";
+import { encabezadoEmpresa, piePersonalizado, type CargaMarcaEmpresa } from "../marca";
 
-export interface CargaComprobanteRecepcion {
+export interface CargaComprobanteRecepcion extends CargaMarcaEmpresa {
   numeroOrden: number;
   clienteNombre: string;
   producto: string;
@@ -12,13 +13,12 @@ export interface CargaComprobanteRecepcion {
 export function comprobanteRecepcion(c: CargaComprobanteRecepcion): Buffer {
   return componer(
     inicializar(),
-    alinear("centro"),
-    negrita(true),
-    tamano(true),
-    texto("Comprobante de recepción"),
+    ...encabezadoEmpresa(c),
     salto(),
-    tamano(false),
+    negrita(true),
+    texto("Comprobante de recepción"),
     negrita(false),
+    salto(),
     texto(`Orden #${c.numeroOrden} · ${c.fecha}`),
     salto(2),
     alinear("izquierda"),
@@ -43,6 +43,8 @@ export function comprobanteRecepcion(c: CargaComprobanteRecepcion): Buffer {
     qr(c.urlSeguimiento),
     salto(),
     texto(c.urlSeguimiento),
+    salto(2),
+    ...piePersonalizado(c),
     salto(3),
     cortar(),
     // El comprobante de recepción a menudo se cobra un anticipo al

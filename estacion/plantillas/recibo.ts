@@ -9,8 +9,9 @@ import {
   tamano,
   texto,
 } from "../escpos";
+import { encabezadoEmpresa, piePersonalizado, type CargaMarcaEmpresa } from "../marca";
 
-export interface CargaReciboVenta {
+export interface CargaReciboVenta extends CargaMarcaEmpresa {
   numeroVenta: number;
   items: { descripcion: string; cantidad: number; precioUnit: number }[];
   total: number;
@@ -26,14 +27,11 @@ const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 export function reciboVenta(c: CargaReciboVenta): Buffer {
   const partes = [
     inicializar(),
-    alinear("centro"),
-    negrita(true),
-    tamano(true),
-    texto("Recibo de venta"),
+    ...encabezadoEmpresa(c),
     salto(),
-    tamano(false),
-    negrita(false),
+    negrita(true),
     texto(`Venta #${c.numeroVenta}`),
+    negrita(false),
     salto(2),
     alinear("izquierda"),
   ];
@@ -65,13 +63,7 @@ export function reciboVenta(c: CargaReciboVenta): Buffer {
     partes.push(texto(`Atendió: ${c.cajero}`), salto());
   }
 
-  partes.push(
-    salto(2),
-    alinear("centro"),
-    texto("Gracias por su compra"),
-    salto(3),
-    cortar(),
-  );
+  partes.push(salto(2), ...piePersonalizado(c), salto(3), cortar());
 
   if (c.abreCajon) {
     partes.push(abrirCajon());

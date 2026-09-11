@@ -7,8 +7,10 @@
 import { redirect } from "next/navigation";
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
 import { SelectorPuertas } from "@/componentes/ui/selector-puertas";
+import { Marca } from "@/componentes/ui/marca";
 import { puedeEntrarA } from "@/lib/permisos";
 import { obtenerPerfilActual } from "@/lib/perfil";
+import { obtenerConfiguracion } from "@/lib/configuracion";
 import { clienteServidor } from "@/lib/supabase/servidor";
 
 export default async function LayoutTaller({ children }: { children: React.ReactNode }) {
@@ -25,6 +27,12 @@ export default async function LayoutTaller({ children }: { children: React.React
     );
   }
 
+  // La puerta del taller es siempre oscura a propósito -- visibilidad y
+  // batería en un celular usado con una mano, sin importar el tema
+  // claro/oscuro/alto contraste que la empresa haya elegido para el
+  // resto de la aplicación. Lo que sí toma de la empresa es su marca.
+  const config = await obtenerConfiguracion(supabase, perfil.empresaId);
+
   return (
     <div style={{ minHeight: "100vh", background: "#0b1418", color: "white" }}>
       <header
@@ -35,9 +43,10 @@ export default async function LayoutTaller({ children }: { children: React.React
           justifyContent: "space-between",
         }}
       >
-        <strong>Taller · {perfil.nombre}</strong>
+        <Marca logoUrl={config.logoUrl} nombreEmpresa={perfil.empresaNombre} etiqueta="Taller" />
         <nav style={{ display: "flex", gap: 16, alignItems: "center" }}>
           <SelectorPuertas rol={perfil.rol} actual="taller" />
+          <span style={{ opacity: 0.7, fontSize: 14 }}>{perfil.nombre}</span>
           <CerrarSesion />
         </nav>
       </header>

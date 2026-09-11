@@ -9,8 +9,10 @@
 import { redirect } from "next/navigation";
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
 import { SelectorPuertas } from "@/componentes/ui/selector-puertas";
-import { puedeEntrarA } from "@/lib/permisos";
+import { Marca } from "@/componentes/ui/marca";
+import { puede, puedeEntrarA } from "@/lib/permisos";
 import { obtenerPerfilActual } from "@/lib/perfil";
+import { obtenerConfiguracion } from "@/lib/configuracion";
 import { clienteServidor } from "@/lib/supabase/servidor";
 
 export default async function LayoutAdmin({ children }: { children: React.ReactNode }) {
@@ -27,6 +29,8 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
     );
   }
 
+  const config = await obtenerConfiguracion(supabase, perfil.empresaId);
+
   return (
     <div style={{ minHeight: "100vh" }}>
       <header
@@ -37,8 +41,8 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
           justifyContent: "space-between",
         }}
       >
-        <strong>Admin · {perfil.nombre}</strong>
-        <nav style={{ display: "flex", gap: 16, alignItems: "center" }}>
+        <Marca logoUrl={config.logoUrl} nombreEmpresa={perfil.empresaNombre} etiqueta="Admin" />
+        <nav style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
           <a href="/ordenes">Órdenes</a>
           <a href="/recepcion-mercancia">Recibir mercancía</a>
           <a href="/inventario">Inventario</a>
@@ -47,8 +51,10 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
           <a href="/compras">Compras</a>
           <a href="/usuarios">Usuarios</a>
           <a href="/metodos-pago">Métodos de pago</a>
+          {puede(perfil.rol, "personalizar_empresa") && <a href="/configuracion">Configuración</a>}
           <a href="/reportes">Reportes</a>
           <SelectorPuertas rol={perfil.rol} actual="admin" />
+          <span style={{ opacity: 0.7, fontSize: 14 }}>{perfil.nombre}</span>
           <CerrarSesion />
         </nav>
       </header>

@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { clienteServidor } from "@/lib/supabase/servidor";
+import { obtenerPerfilActual } from "@/lib/perfil";
+import { obtenerConfiguracion, CONFIG_POR_DEFECTO } from "@/lib/configuracion";
 
 export const metadata: Metadata = {
   title: "Taller SaaS",
@@ -20,13 +23,22 @@ export const viewport: Viewport = {
   themeColor: "#0b6c78",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // El layout raíz cubre /login y /seguimiento/[token] también -- ahí
+  // no hay perfil (nadie ha iniciado sesión, o es un cliente sin
+  // cuenta) y se queda en los valores por defecto. El color y el tema
+  // de una empresa solo importan una vez que se sabe de cuál empresa
+  // se trata.
+  const supabase = await clienteServidor();
+  const perfil = await obtenerPerfilActual(supabase);
+  const config = perfil ? await obtenerConfiguracion(supabase, perfil.empresaId) : CONFIG_POR_DEFECTO;
+
   return (
-    <html lang="es">
+    <html lang="es" data-tema={config.tema} style={{ "--accent": config.colorPrincipal } as React.CSSProperties}>
       <body>{children}</body>
     </html>
   );

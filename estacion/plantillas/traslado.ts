@@ -1,6 +1,7 @@
 import { alinear, componer, cortar, inicializar, negrita, salto, tamano, texto } from "../escpos";
+import { encabezadoEmpresa, type CargaMarcaEmpresa } from "../marca";
 
-export interface CargaComprobanteTraslado {
+export interface CargaComprobanteTraslado extends CargaMarcaEmpresa {
   numeroTraslado: number;
   sedeOrigenNombre: string;
   sedeDestinoNombre: string;
@@ -12,13 +13,12 @@ export interface CargaComprobanteTraslado {
 export function comprobanteTraslado(c: CargaComprobanteTraslado): Buffer {
   return componer(
     inicializar(),
-    alinear("centro"),
-    negrita(true),
-    tamano(true),
-    texto(`Traslado #${c.numeroTraslado}`),
+    ...encabezadoEmpresa(c),
     salto(),
-    tamano(false),
+    negrita(true),
+    texto(`Traslado #${c.numeroTraslado}`),
     negrita(false),
+    salto(),
     texto(c.fecha),
     salto(2),
     alinear("izquierda"),

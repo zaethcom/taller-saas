@@ -12,6 +12,7 @@ export interface PerfilActual {
   nombre: string;
   rol: Rol;
   empresaId: string;
+  empresaNombre: string;
   sedeId: string | null;
 }
 
@@ -28,17 +29,22 @@ export async function obtenerPerfilActual(supabase: SupabaseClient): Promise<Per
   // empresa fue suspendida deja de ser visible aquí, por RLS, sola.
   const { data, error } = await supabase
     .from("perfil")
-    .select("id, nombre, rol, empresa_id, sede_id, activo")
+    .select("id, nombre, rol, empresa_id, sede_id, activo, empresa:empresa_id ( nombre )")
     .eq("id", user.id)
     .maybeSingle();
 
   if (error || !data || !data.activo) return null;
+
+  // El join de Supabase infiere `empresa` como arreglo aunque la
+  // relación sea 1:1 -- mismo caso ya visto en otras rutas del proyecto.
+  const empresa = data.empresa as unknown as { nombre: string } | undefined;
 
   return {
     id: data.id,
     nombre: data.nombre,
     rol: data.rol as Rol,
     empresaId: data.empresa_id,
+    empresaNombre: empresa?.nombre ?? "",
     sedeId: data.sede_id,
   };
 }

@@ -19,7 +19,8 @@ export type Accion =
   | "gestionar_compras"
   | "gestionar_usuarios"
   | "gestionar_traslados" // Admin/Compras: enviar y recibir mercancía entre sedes
-  | "recibir_mercancia"; // Admin/Compras: dar entrada a un artículo nuevo e imprimir su etiqueta
+  | "recibir_mercancia" // Admin/Compras: dar entrada a un artículo nuevo e imprimir su etiqueta
+  | "personalizar_empresa"; // Admin: logo, color, tema y datos de recibo
 
 const PERMISOS: Record<Rol, Accion[]> = {
   admin: [
@@ -36,6 +37,7 @@ const PERMISOS: Record<Rol, Accion[]> = {
     "gestionar_usuarios",
     "gestionar_traslados",
     "recibir_mercancia",
+    "personalizar_empresa",
   ],
   recepcion: ["recibir_equipo", "cobrar_orden", "abrir_cajon_manual", "ver_ordenes", "gestionar_traslados"],
   tecnico: ["diagnosticar", "marcar_faltante"],

@@ -1,6 +1,7 @@
 import { alinear, componer, cortar, inicializar, negrita, salto, tamano, texto } from "../escpos";
+import { encabezadoEmpresa, type CargaMarcaEmpresa } from "../marca";
 
-export interface CargaCierreCaja {
+export interface CargaCierreCaja extends CargaMarcaEmpresa {
   aperturaEn: string;
   cierreEn: string;
   baseInicial: number;
@@ -17,13 +18,12 @@ export function cierreCaja(c: CargaCierreCaja): Buffer {
 
   return componer(
     inicializar(),
-    alinear("centro"),
-    negrita(true),
-    tamano(true),
-    texto("Cierre de caja"),
+    ...encabezadoEmpresa(c),
     salto(),
-    tamano(false),
+    negrita(true),
+    texto("Cierre de caja"),
     negrita(false),
+    salto(),
     texto(`${c.aperturaEn} — ${c.cierreEn}`),
     salto(2),
     alinear("izquierda"),

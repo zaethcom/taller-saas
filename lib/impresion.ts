@@ -26,7 +26,21 @@ interface CargaEtiquetaQr {
   contenidoQr: string;
 }
 
-interface CargaReciboVenta {
+/**
+ * Los cuatro campos que identifican a la empresa en el papel -- nunca
+ * los llena quien encola el trabajo (/api/ventas, /api/ordenes, etc.):
+ * encolarImpresion() los agrega solos, leyendo empresa + empresa_config,
+ * para los tipos que de verdad son un recibo y no una etiqueta pequeña
+ * sin espacio para esto.
+ */
+interface CargaMarcaEmpresa {
+  empresaNombre: string;
+  empresaDireccion: string | null;
+  empresaTelefono: string | null;
+  reciboPie: string;
+}
+
+interface CargaReciboVenta extends CargaMarcaEmpresa {
   numeroVenta: number;
   items: { descripcion: string; cantidad: number; precioUnit: number }[];
   total: number;
@@ -37,7 +51,7 @@ interface CargaReciboVenta {
   cambio?: number | null;
 }
 
-interface CargaComprobanteRecepcion {
+interface CargaComprobanteRecepcion extends CargaMarcaEmpresa {
   numeroOrden: number;
   clienteNombre: string;
   producto: string;
@@ -46,7 +60,7 @@ interface CargaComprobanteRecepcion {
   urlSeguimiento: string;
 }
 
-interface CargaCierreCaja {
+interface CargaCierreCaja extends CargaMarcaEmpresa {
   aperturaEn: string;
   cierreEn: string;
   baseInicial: number;
@@ -60,7 +74,7 @@ interface CargaAbrirCajon {
   motivo: string;
 }
 
-interface CargaComprobanteTraslado {
+interface CargaComprobanteTraslado extends CargaMarcaEmpresa {
   numeroTraslado: number;
   sedeOrigenNombre: string;
   sedeDestinoNombre: string;
@@ -86,13 +100,20 @@ type CargaPorTipo = {
   etiqueta_articulo: CargaEtiquetaArticulo;
 };
 
+const TIPOS_CON_MARCA = new Set<TipoTrabajo>([
+  "recibo_venta",
+  "comprobante_recepcion",
+  "cierre_caja",
+  "comprobante_traslado",
+]);
+
 export async function encolarImpresion<T extends TipoTrabajo>(
   supabase: SupabaseClient,
   params: {
     empresaId: string;
     sedeId: string;
     tipo: T;
-    carga: CargaPorTipo[T];
+    carga: Omit<CargaPorTipo[T], keyof CargaMarcaEmpresa>;
     creadoPor: string;
     /**
      * De qué orden es este trabajo -- por ahora solo importa para
@@ -103,13 +124,39 @@ export async function encolarImpresion<T extends TipoTrabajo>(
     ordenId?: string;
   },
 ): Promise<{ id: string }> {
+  let carga: object = params.carga;
+
+  // Las etiquetas (etiqueta_qr, etiqueta_articulo) y abrir_cajon no
+  // llevan esto -- son demasiado pequeñas o no imprimen texto de
+  // empresa en absoluto. Los cuatro tipos que sí son un recibo de
+  // verdad lo reciben aquí, una sola vez, en vez de que cada ruta que
+  // llama a encolarImpresion tenga que acordarse de pedirlo.
+  if (TIPOS_CON_MARCA.has(params.tipo)) {
+    const [{ data: empresa }, { data: config }] = await Promise.all([
+      supabase.from("empresa").select("nombre").eq("id", params.empresaId).single(),
+      supabase
+        .from("empresa_config")
+        .select("recibo_direccion, recibo_telefono, recibo_pie")
+        .eq("empresa_id", params.empresaId)
+        .maybeSingle(),
+    ]);
+
+    const marca: CargaMarcaEmpresa = {
+      empresaNombre: empresa?.nombre ?? "",
+      empresaDireccion: config?.recibo_direccion ?? null,
+      empresaTelefono: config?.recibo_telefono ?? null,
+      reciboPie: config?.recibo_pie ?? "Gracias por su preferencia",
+    };
+    carga = { ...params.carga, ...marca };
+  }
+
   const { data, error } = await supabase
     .from("trabajo_impresion")
     .insert({
       empresa_id: params.empresaId,
       sede_id: params.sedeId,
       tipo: params.tipo,
-      carga: params.carga,
+      carga,
       creado_por: params.creadoPor,
       orden_id: params.ordenId ?? null,
     })

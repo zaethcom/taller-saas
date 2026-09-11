@@ -1,3 +1,15 @@
+/**
+ * Tres temas por empresa (empresa_config.tema), aplicados con
+ * [data-tema] en <html> desde el layout raíz. --accent no vive aquí --
+ * lo pone el layout raíz inline, como color_principal de cada empresa,
+ * porque es un valor libre (cualquier color), no una de tres opciones.
+ *
+ * Esto cambia el fondo, texto y bordes por defecto de toda la
+ * aplicación -- no repinta cada color fijo que ya exista en el estilo
+ * en línea de una pantalla puntual (un rojo de error, por ejemplo).
+ * Repintar cada pantalla una por una es un rediseño completo, no una
+ * personalización -- queda fuera de este alcance a propósito.
+ */
 :root {
   --ink: #141d24;
   --ink-2: #42535e;
@@ -5,6 +17,22 @@
   --surface: #ffffff;
   --rule: #d8dee1;
   --accent: #0b6c78;
+}
+
+:root[data-tema="oscuro"] {
+  --ink: #eef2f4;
+  --ink-2: #b7c3ca;
+  --ground: #10171b;
+  --surface: #1a262c;
+  --rule: #2b3940;
+}
+
+:root[data-tema="alto_contraste"] {
+  --ink: #000000;
+  --ink-2: #000000;
+  --ground: #ffffff;
+  --surface: #ffffff;
+  --rule: #000000;
 }
 
 * {
