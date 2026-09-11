@@ -81,6 +81,39 @@ export default async function PaginaReportes() {
     porcentajeFaltantesA48h = Math.round((dentroDe48h / faltantesResueltos.length) * 100);
   }
 
+  // ── Productividad por técnico -- sección 5 del pedido de expansión:
+  // cuántos equipos recibió cada uno, cuántos terminó, y en cuánto
+  // tiempo. tecnico_id se autoasigna al mover una orden a
+  // en_diagnostico (POST /api/ordenes/[id]/transicion) -- antes de eso
+  // no había ningún código que lo asignara, así que esta tabla
+  // simplemente no tenía de dónde salir.
+  const { data: tecnicos } = await supabase.from("perfil").select("id, nombre, codigo").eq("rol", "tecnico");
+
+  const { data: ordenesAsignadas } = await supabase
+    .from("orden")
+    .select("tecnico_id, estado, abierta_en, cerrada_en")
+    .not("tecnico_id", "is", null);
+
+  const productividad = (tecnicos ?? []).map((t) => {
+    const propias = (ordenesAsignadas ?? []).filter((o) => o.tecnico_id === t.id);
+    const terminadas = propias.filter((o) => o.estado === "entregada" && o.cerrada_en);
+    const horasPromedio =
+      terminadas.length > 0
+        ? terminadas.reduce((s, o) => s + HORAS(new Date(o.cerrada_en!).getTime() - new Date(o.abierta_en).getTime()), 0) /
+          terminadas.length
+        : null;
+
+    return {
+      id: t.id,
+      nombre: t.nombre,
+      codigo: t.codigo,
+      asignados: propias.length,
+      terminados: terminadas.length,
+      enCurso: propias.length - terminadas.length,
+      horasPromedio,
+    };
+  });
+
   return (
     <div>
       <h1>Reportes</h1>
@@ -139,6 +172,34 @@ export default async function PaginaReportes() {
           </div>
         </div>
       </div>
+
+      <h2 style={{ fontSize: 18, marginTop: 32, marginBottom: 12 }}>Productividad por técnico</h2>
+      {productividad.length === 0 ? (
+        <p style={{ opacity: 0.6 }}>Todavía no hay técnicos registrados.</p>
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
+              <th>Técnico</th>
+              <th>Asignados</th>
+              <th>Terminados</th>
+              <th>En curso</th>
+              <th>Tiempo promedio</th>
+            </tr>
+          </thead>
+          <tbody>
+            {productividad.map((p) => (
+              <tr key={p.id} style={{ borderBottom: "1px solid #eee" }}>
+                <td>{p.codigo ? `${p.codigo} · ${p.nombre}` : p.nombre}</td>
+                <td>{p.asignados}</td>
+                <td>{p.terminados}</td>
+                <td>{p.enCurso}</td>
+                <td>{p.horasPromedio === null ? "—" : fmtHoras(p.horasPromedio)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

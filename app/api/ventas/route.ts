@@ -1,6 +1,7 @@
 /**
  * POST /api/ventas
- * Body: { items: {repuestoId?, articuloId?, descripcion, cantidad, precioUnit}[], medioPago, ordenId? }
+ * Body: { items: {repuestoId?, articuloId?, descripcion, cantidad, precioUnit}[],
+ *          metodoPagoId, montoRecibido?, ordenId? }
  *
  * Registra una venta de mostrador (o el cobro de una orden si se manda
  * ordenId). Cada item sale del inventario de una de dos maneras: un
@@ -9,6 +10,11 @@
  * artículo individualizado (patineta, teléfono) se valida ANTES de
  * crear nada, porque vender dos veces la misma unidad física es un
  * error real, no un descuadre de cantidades que se corrige después.
+ *
+ * El método de pago ya no es uno de tres valores fijos -- se resuelve
+ * contra el catálogo de la empresa (metodo_pago, 0019) y su nombre +
+ * es_efectivo quedan grabados en `pago` como snapshot: si el catálogo
+ * cambia después, un pago ya hecho no debe cambiar de categoría.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
@@ -25,12 +31,16 @@ interface ItemVenta {
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as {
     items: ItemVenta[];
-    medioPago: "efectivo" | "transferencia" | "tarjeta";
+    metodoPagoId: string;
+    montoRecibido?: number;
     ordenId?: string;
   };
 
   if (!body.items?.length) {
     return NextResponse.json({ error: "el carrito está vacío" }, { status: 400 });
+  }
+  if (!body.metodoPagoId) {
+    return NextResponse.json({ error: "falta el método de pago" }, { status: 400 });
   }
 
   const supabase = await clienteServidor();
@@ -43,12 +53,22 @@ export async function POST(req: NextRequest) {
 
   const { data: perfil } = await supabase
     .from("perfil")
-    .select("empresa_id, sede_id")
+    .select("empresa_id, sede_id, nombre, codigo")
     .eq("id", user.id)
     .single();
 
   if (!perfil?.sede_id) {
     return NextResponse.json({ error: "el usuario no tiene sede asignada" }, { status: 400 });
+  }
+
+  const { data: metodo } = await supabase
+    .from("metodo_pago")
+    .select("nombre, es_efectivo")
+    .eq("id", body.metodoPagoId)
+    .eq("activo", true)
+    .maybeSingle();
+  if (!metodo) {
+    return NextResponse.json({ error: "método de pago inválido" }, { status: 400 });
   }
 
   const { data: turno } = await supabase
@@ -86,6 +106,10 @@ export async function POST(req: NextRequest) {
 
   const total = body.items.reduce((s, i) => s + i.cantidad * i.precioUnit, 0);
 
+  if (metodo.es_efectivo && (body.montoRecibido ?? 0) < total) {
+    return NextResponse.json({ error: "el efectivo recibido no alcanza el total" }, { status: 400 });
+  }
+
   const { data: venta, error: errVenta } = await supabase
     .from("venta")
     .insert({
@@ -115,7 +139,13 @@ export async function POST(req: NextRequest) {
     })),
   );
 
-  await supabase.from("pago").insert({ venta_id: venta.id, medio: body.medioPago, monto: total });
+  await supabase.from("pago").insert({
+    venta_id: venta.id,
+    medio: metodo.nombre,
+    monto: total,
+    es_efectivo: metodo.es_efectivo,
+    metodo_pago_id: body.metodoPagoId,
+  });
 
   // Descontar inventario. Si un repuesto no tiene existencia registrada
   // en esta sede, consumir_repuesto lanza -- se deja que falle: es
@@ -154,8 +184,11 @@ export async function POST(req: NextRequest) {
         precioUnit: i.precioUnit,
       })),
       total,
-      medioPago: body.medioPago,
-      abreCajon: body.medioPago === "efectivo",
+      medioPago: metodo.nombre,
+      abreCajon: metodo.es_efectivo,
+      cajero: perfil.codigo ? `${perfil.codigo} · ${perfil.nombre}` : perfil.nombre,
+      montoRecibido: metodo.es_efectivo ? body.montoRecibido ?? null : null,
+      cambio: metodo.es_efectivo && body.montoRecibido ? body.montoRecibido - total : null,
     },
   });
 

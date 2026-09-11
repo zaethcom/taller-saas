@@ -42,9 +42,11 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
           <a href="/ordenes">Órdenes</a>
           <a href="/recepcion-mercancia">Recibir mercancía</a>
           <a href="/inventario">Inventario</a>
+          <a href="/categorias">Categorías</a>
           <a href="/traslados">Traslados</a>
           <a href="/compras">Compras</a>
           <a href="/usuarios">Usuarios</a>
+          <a href="/metodos-pago">Métodos de pago</a>
           <a href="/reportes">Reportes</a>
           <SelectorPuertas rol={perfil.rol} actual="admin" />
           <CerrarSesion />

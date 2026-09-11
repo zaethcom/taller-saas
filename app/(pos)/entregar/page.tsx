@@ -9,7 +9,7 @@
  * tiene_foto_salida reales -- esta pantalla no duplica esa lógica,
  * solo intenta la transición y muestra el error si algo falta.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FirmaCanvas, type FirmaCanvasHandle } from "@/componentes/evidencia/firma-canvas";
 import { subirEvidencia } from "@/lib/subir-evidencia";
@@ -22,6 +22,11 @@ interface OrdenEncontrada {
   producto: { marca: string | null; modelo: string | null; tipo: string; serial: string };
 }
 
+interface Metodo {
+  id: string;
+  nombre: string;
+}
+
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
 export default function PaginaEntregar() {
@@ -32,11 +37,21 @@ export default function PaginaEntregar() {
   const [numero, setNumero] = useState("");
   const [orden, setOrden] = useState<OrdenEncontrada | null>(null);
   const [foto, setFoto] = useState<File | null>(null);
-  const [medioPago, setMedioPago] = useState<"efectivo" | "transferencia" | "tarjeta">("efectivo");
+  const [metodos, setMetodos] = useState<Metodo[]>([]);
+  const [metodoPagoId, setMetodoPagoId] = useState("");
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
   const [perfil, setPerfil] = useState<{ empresaId: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/metodos-pago")
+      .then((r) => r.json())
+      .then((data: Metodo[]) => {
+        setMetodos(data);
+        if (data[0]) setMetodoPagoId(data[0].id);
+      });
+  }, []);
 
   async function buscar() {
     setError(null);
@@ -78,8 +93,8 @@ export default function PaginaEntregar() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             ordenId: orden.id,
-            medioPago,
-            items: [{ repuestoId: "", descripcion: `Saldo orden #${orden.numero}`, cantidad: 1, precioUnit: orden.saldoPendiente }],
+            metodoPagoId,
+            items: [{ descripcion: `Saldo orden #${orden.numero}`, cantidad: 1, precioUnit: orden.saldoPendiente }],
           }),
         });
         if (!resVenta.ok) throw new Error((await resVenta.json()).error);
@@ -159,9 +174,13 @@ export default function PaginaEntregar() {
             <section style={{ marginBottom: 20 }}>
               <p style={{ fontWeight: 700 }}>Saldo pendiente: {fmt(orden.saldoPendiente)}</p>
               <div style={{ display: "flex", gap: 8 }}>
-                {(["efectivo", "transferencia", "tarjeta"] as const).map((m) => (
-                  <button key={m} onClick={() => setMedioPago(m)} style={{ fontWeight: medioPago === m ? 700 : 400 }}>
-                    {m}
+                {metodos.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => setMetodoPagoId(m.id)}
+                    style={{ fontWeight: metodoPagoId === m.id ? 700 : 400 }}
+                  >
+                    {m.nombre}
                   </button>
                 ))}
               </div>
@@ -189,7 +208,11 @@ export default function PaginaEntregar() {
             </button>
           </section>
 
-          <button onClick={entregar} disabled={procesando} style={{ padding: "10px 20px" }}>
+          <button
+            onClick={entregar}
+            disabled={procesando || (orden.saldoPendiente > 0 && !metodoPagoId)}
+            style={{ padding: "10px 20px" }}
+          >
             {procesando ? "Procesando…" : orden.saldoPendiente > 0 ? `Cobrar y entregar ${fmt(orden.saldoPendiente)}` : "Entregar"}
           </button>
         </>

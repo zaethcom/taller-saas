@@ -47,7 +47,8 @@ dos cosas.
 app/
 ├─ (pos)/        # caja: vender, recibir, entregar, turno
 ├─ (taller)/     # la PWA del técnico: escanear, orden/[id]
-├─ (admin)/      # escritorio: ordenes, inventario, traslados, compras, usuarios, reportes
+├─ (admin)/      # escritorio: ordenes, inventario, categorias, traslados, compras,
+│                 #   usuarios, metodos-pago, reportes, recepcion-mercancia
 ├─ (publico)/    # seguimiento/[token] -- sin sesión
 └─ api/          # rutas de servidor que las páginas y la estación consumen
 
@@ -101,7 +102,7 @@ desde el panel de Supabase sin escribir la migración correspondiente.
 
 ```bash
 npm run dev      # http://localhost:3000
-npm test         # 44 pruebas: estados.ts, caja.ts, escpos.ts, etiqueta.ts
+npm test         # 50 pruebas: estados.ts, caja.ts, escpos.ts, etiqueta.ts
 npm run build    # build de producción -- correr esto antes de cada push
 ```
 
@@ -187,6 +188,20 @@ npm start
   Con esto, `articulo.estado` cuenta la historia completa de una unidad:
   `en_stock` (recepción) → `trasladado` (en tránsito, opcional) →
   `en_stock` en otra sede → `vendido`.
+- **Fase "POS y taller" de la expansión a SaaS multiempresa**
+  (`0019_codigo_categoria_metodo_pago.sql`): código corto por
+  cajero/técnico (`perfil.codigo`, para recibos y reportes -- nunca un
+  mecanismo de sesión aparte de Supabase Auth), categorías de producto
+  (`categoria`, con pestañas de filtro en `/vender`), y métodos de pago
+  configurables por empresa (`metodo_pago`, reemplaza el check
+  constraint fijo de tres valores) con calculadora de cambio por
+  denominación en `/vender` cuando el método es efectivo. De paso se
+  corrigió un bug real que este trabajo dejó al descubierto: nada en
+  todo el proyecto asignaba `orden.tecnico_id`, así que el requisito
+  `tiene_tecnico` de `en_diagnostico` nunca se podía cumplir -- ahora
+  quien mueve la orden a `en_diagnostico` se autoasigna como su
+  técnico, lo que además es de donde sale la nueva tabla de
+  productividad por técnico en `/reportes`.
 - **La facturación DIAN es un stub a propósito.** `lib/dian/proveedor.ts`
   lanza `DianNoConfiguradoError` hasta que se elija un integrador real.
   Nunca se implementa la DIAN a mano.

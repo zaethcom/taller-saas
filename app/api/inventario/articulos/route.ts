@@ -26,6 +26,7 @@ interface CuerpoArticulo {
   numeroSerie?: string;
   costo?: number;
   precioVenta?: number;
+  categoriaId?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
       numero_serie: body.numeroSerie?.trim() || null,
       costo: body.costo ?? 0,
       precio_venta: body.precioVenta ?? 0,
+      categoria_id: body.categoriaId || null,
       creado_por: user.id,
     })
     .select("id, numero, tipo, marca, modelo")
@@ -94,6 +96,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const buscar = req.nextUrl.searchParams.get("buscar")?.trim();
   const disponibles = req.nextUrl.searchParams.get("disponibles") === "1";
+  const categoriaId = req.nextUrl.searchParams.get("categoriaId");
 
   const supabase = await clienteServidor();
   const {
@@ -116,6 +119,10 @@ export async function GET(req: NextRequest) {
     consulta = consulta.eq("estado", "en_stock").eq("sede_id", perfil.sede_id);
   }
 
+  if (categoriaId) {
+    consulta = consulta.eq("categoria_id", categoriaId);
+  }
+
   if (buscar) {
     const numero = buscar.match(/(\d+)/)?.[1];
     consulta = numero
@@ -123,10 +130,10 @@ export async function GET(req: NextRequest) {
       : consulta.or(`tipo.ilike.%${buscar}%,marca.ilike.%${buscar}%,modelo.ilike.%${buscar}%,numero_serie.ilike.%${buscar}%`);
   }
 
-  // Sin buscar/disponibles es la tabla completa de /inventario -- no
-  // truncarla. Con cualquiera de los dos, es una búsqueda puntual desde
-  // /vender o /traslados, igual que /api/repuestos.
-  if (buscar || disponibles) {
+  // Sin ningún filtro es la tabla completa de /inventario -- no
+  // truncarla. Con cualquiera de los otros tres, es una búsqueda puntual
+  // desde /vender o /traslados, igual que /api/repuestos.
+  if (buscar || disponibles || categoriaId) {
     consulta = consulta.limit(15);
   }
 

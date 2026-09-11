@@ -7,7 +7,7 @@
  * y, al confirmar, queda 'vendido' para siempre (no una cantidad que
  * baja, una unidad concreta que sale del inventario).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface LineaRepuesto {
   kind: "repuesto";
@@ -44,11 +44,26 @@ interface Articulo {
   precio_venta: number;
 }
 
+interface Metodo {
+  id: string;
+  nombre: string;
+  es_efectivo: boolean;
+}
+
+interface Categoria {
+  id: string;
+  nombre: string;
+}
+
+const DENOMINACIONES = [2000, 5000, 10000, 20000, 50000, 100000];
+
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
 export default function PaginaVender() {
   const [carrito, setCarrito] = useState<Linea[]>([]);
-  const [medioPago, setMedioPago] = useState<"efectivo" | "transferencia" | "tarjeta">("efectivo");
+  const [metodos, setMetodos] = useState<Metodo[]>([]);
+  const [metodoPagoId, setMetodoPagoId] = useState("");
+  const [montoRecibido, setMontoRecibido] = useState(0);
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
 
@@ -56,16 +71,51 @@ export default function PaginaVender() {
   const [resultadosRepuesto, setResultadosRepuesto] = useState<Repuesto[]>([]);
   const [buscarArticulo, setBuscarArticulo] = useState("");
   const [resultadosArticulo, setResultadosArticulo] = useState<Articulo[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [categoriaId, setCategoriaId] = useState("");
 
   const total = carrito.reduce((s, l) => s + (l.kind === "repuesto" ? l.cantidad : 1) * l.precioUnit, 0);
+  const metodo = metodos.find((m) => m.id === metodoPagoId);
+  const cambio = montoRecibido - total;
+
+  useEffect(() => {
+    fetch("/api/metodos-pago")
+      .then((r) => r.json())
+      .then((data: Metodo[]) => {
+        setMetodos(data);
+        if (data[0]) setMetodoPagoId(data[0].id);
+      });
+  }, []);
+
+  useEffect(() => {
+    setMontoRecibido(0);
+  }, [metodoPagoId]);
+
+  useEffect(() => {
+    fetch("/api/categorias")
+      .then((r) => r.json())
+      .then(setCategorias);
+  }, []);
+
+  useEffect(() => {
+    buscarRepuestos();
+    buscarArticulos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoriaId]);
+
+  function conCategoria(url: string) {
+    return categoriaId ? `${url}&categoriaId=${categoriaId}` : url;
+  }
 
   async function buscarRepuestos() {
-    const res = await fetch(`/api/repuestos?buscar=${encodeURIComponent(buscarRepuesto)}`);
+    const res = await fetch(conCategoria(`/api/repuestos?buscar=${encodeURIComponent(buscarRepuesto)}`));
     setResultadosRepuesto(await res.json());
   }
 
   async function buscarArticulos() {
-    const res = await fetch(`/api/inventario/articulos?disponibles=1&buscar=${encodeURIComponent(buscarArticulo)}`);
+    const res = await fetch(
+      conCategoria(`/api/inventario/articulos?disponibles=1&buscar=${encodeURIComponent(buscarArticulo)}`),
+    );
     setResultadosArticulo(await res.json());
   }
 
@@ -104,11 +154,13 @@ export default function PaginaVender() {
               ? { repuestoId: l.repuestoId, descripcion: l.descripcion, cantidad: l.cantidad, precioUnit: l.precioUnit }
               : { articuloId: l.articuloId, descripcion: `${l.codigo} ${l.descripcion}`, cantidad: 1, precioUnit: l.precioUnit },
           ),
-          medioPago,
+          metodoPagoId,
+          montoRecibido: metodo?.es_efectivo ? montoRecibido : undefined,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       setCarrito([]);
+      setMontoRecibido(0);
       setMensaje("Venta registrada. Imprimiendo recibo…");
     } catch (e) {
       setMensaje(e instanceof Error ? e.message : "No se pudo registrar la venta");
@@ -120,6 +172,23 @@ export default function PaginaVender() {
   return (
     <div>
       <h1>Vender</h1>
+
+      {categorias.length > 0 && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+          <button onClick={() => setCategoriaId("")} style={{ fontWeight: categoriaId === "" ? 700 : 400 }}>
+            Todos
+          </button>
+          {categorias.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setCategoriaId(c.id)}
+              style={{ fontWeight: categoriaId === c.id ? 700 : 400 }}
+            >
+              {c.nombre}
+            </button>
+          ))}
+        </div>
+      )}
 
       <section style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
@@ -187,18 +256,39 @@ export default function PaginaVender() {
       <p style={{ fontSize: 22, fontWeight: 700 }}>Total: {fmt(total)}</p>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        {(["efectivo", "transferencia", "tarjeta"] as const).map((m) => (
+        {metodos.map((m) => (
           <button
-            key={m}
-            onClick={() => setMedioPago(m)}
-            style={{ fontWeight: medioPago === m ? 700 : 400 }}
+            key={m.id}
+            onClick={() => setMetodoPagoId(m.id)}
+            style={{ fontWeight: metodoPagoId === m.id ? 700 : 400 }}
           >
-            {m}
+            {m.nombre}
           </button>
         ))}
       </div>
 
-      <button disabled={carrito.length === 0 || enviando} onClick={confirmarVenta}>
+      {metodo?.es_efectivo && (
+        <div style={{ marginBottom: 12 }}>
+          <p style={{ fontSize: 14, opacity: 0.7 }}>Toca las denominaciones recibidas:</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+            {DENOMINACIONES.map((d) => (
+              <button key={d} onClick={() => setMontoRecibido((m) => m + d)}>
+                {fmt(d)}
+              </button>
+            ))}
+            <button onClick={() => setMontoRecibido(0)}>Reiniciar</button>
+          </div>
+          <p>Recibido: {fmt(montoRecibido)}</p>
+          <p style={{ fontWeight: 700, color: cambio < 0 ? "#c0392b" : "#2e7d32" }}>
+            {cambio < 0 ? `Falta ${fmt(-cambio)}` : `Cambio: ${fmt(cambio)}`}
+          </p>
+        </div>
+      )}
+
+      <button
+        disabled={carrito.length === 0 || enviando || !metodoPagoId || (metodo?.es_efectivo && cambio < 0)}
+        onClick={confirmarVenta}
+      >
         Cobrar {fmt(total)}
       </button>
       {mensaje && <p>{mensaje}</p>}

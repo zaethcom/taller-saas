@@ -13,13 +13,18 @@
  * quien recibe pueda contar contra la caja física y notar de inmediato
  * si algo quedó sin registrar.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface ArticuloRegistrado {
   codigo: string;
   tipo: string;
   marca: string;
   modelo: string;
+}
+
+interface Categoria {
+  id: string;
+  nombre: string;
 }
 
 export default function PaginaRecepcionMercancia() {
@@ -29,12 +34,20 @@ export default function PaginaRecepcionMercancia() {
   const [numeroSerie, setNumeroSerie] = useState("");
   const [costo, setCosto] = useState("");
   const [precioVenta, setPrecioVenta] = useState("");
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [categoriaId, setCategoriaId] = useState("");
 
   const [sesion, setSesion] = useState<ArticuloRegistrado[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const inputTipoRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetch("/api/categorias")
+      .then((r) => r.json())
+      .then(setCategorias);
+  }, []);
 
   async function registrar(e: React.FormEvent) {
     e.preventDefault();
@@ -53,6 +66,7 @@ export default function PaginaRecepcionMercancia() {
           numeroSerie: numeroSerie.trim() || undefined,
           costo: costo ? Number(costo) : undefined,
           precioVenta: precioVenta ? Number(precioVenta) : undefined,
+          categoriaId: categoriaId || undefined,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
@@ -103,6 +117,14 @@ export default function PaginaRecepcionMercancia() {
           onChange={(e) => setNumeroSerie(e.target.value)}
           style={{ padding: 8 }}
         />
+        <select value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} style={{ padding: 8 }}>
+          <option value="">Sin categoría</option>
+          {categorias.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.nombre}
+            </option>
+          ))}
+        </select>
         <div style={{ display: "flex", gap: 8 }}>
           <input
             type="number"

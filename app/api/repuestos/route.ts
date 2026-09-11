@@ -1,14 +1,16 @@
 /**
- * GET /api/repuestos?buscar=<texto>
+ * GET /api/repuestos?buscar=<texto>&categoriaId=<uuid>
  * Busca en el catálogo por código o descripción, con la existencia en
  * la sede del usuario -- lo que el técnico consulta antes de consumir
- * un repuesto o de decidir que hace falta marcarlo como faltante.
+ * un repuesto o de decidir que hace falta marcarlo como faltante. Con
+ * categoriaId, además filtra por categoría -- las pestañas de /vender.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 
 export async function GET(req: NextRequest) {
   const buscar = req.nextUrl.searchParams.get("buscar")?.trim() ?? "";
+  const categoriaId = req.nextUrl.searchParams.get("categoriaId");
 
   const supabase = await clienteServidor();
   const {
@@ -25,6 +27,9 @@ export async function GET(req: NextRequest) {
     .select("id, codigo, descripcion, precio_venta, existencia ( cantidad, sede_id )")
     .limit(15);
 
+  if (categoriaId) {
+    consulta = consulta.eq("categoria_id", categoriaId);
+  }
   if (buscar) {
     consulta = consulta.or(`codigo.ilike.%${buscar}%,descripcion.ilike.%${buscar}%`);
   }

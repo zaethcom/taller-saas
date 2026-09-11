@@ -16,6 +16,9 @@ export interface CargaReciboVenta {
   total: number;
   medioPago: string;
   abreCajon: boolean;
+  cajero?: string | null;
+  montoRecibido?: number | null;
+  cambio?: number | null;
 }
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
@@ -49,7 +52,21 @@ export function reciboVenta(c: CargaReciboVenta): Buffer {
     salto(),
     negrita(false),
     texto(`Pagado con ${c.medioPago}`),
-    salto(3),
+    salto(),
+  );
+
+  if (c.montoRecibido != null) {
+    partes.push(texto(`Recibido ${fmt(c.montoRecibido)}`), salto());
+  }
+  if (c.cambio != null && c.cambio > 0) {
+    partes.push(texto(`Cambio ${fmt(c.cambio)}`), salto());
+  }
+  if (c.cajero) {
+    partes.push(texto(`Atendió: ${c.cajero}`), salto());
+  }
+
+  partes.push(
+    salto(2),
     alinear("centro"),
     texto("Gracias por su compra"),
     salto(3),

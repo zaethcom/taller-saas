@@ -32,6 +32,9 @@ interface CargaReciboVenta {
   total: number;
   medioPago: string;
   abreCajon: boolean;
+  cajero?: string | null;
+  montoRecibido?: number | null;
+  cambio?: number | null;
 }
 
 interface CargaComprobanteRecepcion {

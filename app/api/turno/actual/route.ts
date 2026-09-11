@@ -42,12 +42,12 @@ export async function GET() {
 
   const { data: pagos } = await supabase
     .from("pago")
-    .select("monto, medio, venta:venta_id!inner ( turno_id, anulada )")
+    .select("monto, es_efectivo, venta:venta_id!inner ( turno_id, anulada )")
     .eq("venta.turno_id", turno.id)
     .eq("venta.anulada", false);
 
   const ventasEfectivo = (pagos ?? [])
-    .filter((p) => p.medio === "efectivo")
+    .filter((p) => p.es_efectivo)
     .reduce((s, p) => s + Number(p.monto), 0);
   const totalVentas = (pagos ?? []).reduce((s, p) => s + Number(p.monto), 0);
 

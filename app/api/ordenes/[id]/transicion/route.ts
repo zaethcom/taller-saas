@@ -77,7 +77,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if ((fotoSalida ?? 0) > 0) cumplidos.add("tiene_foto_salida");
   if ((firma ?? 0) > 0) cumplidos.add("tiene_firma");
   if ((etiqueta ?? 0) > 0) cumplidos.add("tiene_etiqueta");
-  if (orden.tecnico_id) cumplidos.add("tiene_tecnico");
+
+  // Nadie asignaba tecnico_id en ningún lugar del proyecto -- el
+  // requisito tiene_tecnico de en_diagnostico no se podía cumplir nunca.
+  // El punto natural para asignarlo es este: quien mueve la orden a
+  // en_diagnostico se convierte en su técnico, autoasignado por hacer el
+  // trabajo -- de ahí sale la productividad por técnico de la sección 5.
+  const tecnicoId = orden.tecnico_id ?? (body.aEstado === "en_diagnostico" ? user.id : null);
+  if (tecnicoId) cumplidos.add("tiene_tecnico");
 
   const { data: cotizacion } = await supabase
     .from("cotizacion")
@@ -113,6 +120,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .from("orden")
     .update({
       estado: body.aEstado,
+      tecnico_id: tecnicoId,
       cerrada_en: body.aEstado === "entregada" ? new Date().toISOString() : null,
     })
     .eq("id", id);
