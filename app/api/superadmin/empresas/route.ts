@@ -17,37 +17,50 @@ import { clienteAdmin, clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSuperadminActual } from "@/lib/superadmin";
 
 export async function GET() {
-  const supabase = await clienteServidor();
-  const superadmin = await obtenerSuperadminActual(supabase);
-  if (!superadmin) {
-    return NextResponse.json({ error: "no autorizado" }, { status: 403 });
+  // Un try/catch a todo lo ancho: si algo revienta aquí adentro (por
+  // ejemplo, clienteAdmin() sin SUPABASE_SERVICE_ROLE_KEY configurada
+  // en este entorno de Vercel), Next.js devuelve por su cuenta una
+  // página de error en HTML -- y el cliente, esperando JSON, truena
+  // al leerla. Envolver todo garantiza una respuesta JSON siempre,
+  // con el mensaje real, en vez de un 500 opaco.
+  try {
+    const supabase = await clienteServidor();
+    const superadmin = await obtenerSuperadminActual(supabase);
+    if (!superadmin) {
+      return NextResponse.json({ error: "no autorizado" }, { status: 403 });
+    }
+
+    const admin = clienteAdmin();
+    const { data: empresas, error } = await admin
+      .from("empresa")
+      .select("id, nombre, nit, activa, creada_en")
+      .order("creada_en", { ascending: false });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    const [{ data: perfiles }, { data: sedes }] = await Promise.all([
+      admin.from("perfil").select("empresa_id"),
+      admin.from("sede").select("empresa_id"),
+    ]);
+
+    const contar = (filas: { empresa_id: string }[] | null, id: string) =>
+      (filas ?? []).filter((f) => f.empresa_id === id).length;
+
+    const resultado = (empresas ?? []).map((e) => ({
+      ...e,
+      usuarios: contar(perfiles, e.id),
+      sedes: contar(sedes, e.id),
+    }));
+
+    return NextResponse.json(resultado);
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "error inesperado listando empresas" },
+      { status: 500 },
+    );
   }
-
-  const admin = clienteAdmin();
-  const { data: empresas, error } = await admin
-    .from("empresa")
-    .select("id, nombre, nit, activa, creada_en")
-    .order("creada_en", { ascending: false });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  const [{ data: perfiles }, { data: sedes }] = await Promise.all([
-    admin.from("perfil").select("empresa_id"),
-    admin.from("sede").select("empresa_id"),
-  ]);
-
-  const contar = (filas: { empresa_id: string }[] | null, id: string) =>
-    (filas ?? []).filter((f) => f.empresa_id === id).length;
-
-  const resultado = (empresas ?? []).map((e) => ({
-    ...e,
-    usuarios: contar(perfiles, e.id),
-    sedes: contar(sedes, e.id),
-  }));
-
-  return NextResponse.json(resultado);
 }
 
 interface CuerpoEmpresa {
@@ -61,74 +74,81 @@ interface CuerpoEmpresa {
 }
 
 export async function POST(req: Request) {
-  const body = (await req.json()) as CuerpoEmpresa;
+  try {
+    const body = (await req.json()) as CuerpoEmpresa;
 
-  const supabase = await clienteServidor();
-  const superadmin = await obtenerSuperadminActual(supabase);
-  if (!superadmin) {
-    return NextResponse.json({ error: "no autorizado" }, { status: 403 });
-  }
+    const supabase = await clienteServidor();
+    const superadmin = await obtenerSuperadminActual(supabase);
+    if (!superadmin) {
+      return NextResponse.json({ error: "no autorizado" }, { status: 403 });
+    }
 
-  if (!body.nombreEmpresa?.trim() || !body.nombreSede?.trim()) {
-    return NextResponse.json({ error: "falta el nombre de la empresa o de la sede" }, { status: 400 });
-  }
-  if (!body.adminNombre?.trim() || !body.adminCorreo?.trim() || !body.adminClave || body.adminClave.length < 8) {
+    if (!body.nombreEmpresa?.trim() || !body.nombreSede?.trim()) {
+      return NextResponse.json({ error: "falta el nombre de la empresa o de la sede" }, { status: 400 });
+    }
+    if (!body.adminNombre?.trim() || !body.adminCorreo?.trim() || !body.adminClave || body.adminClave.length < 8) {
+      return NextResponse.json(
+        { error: "falta el admin inicial, o la contraseña tiene menos de 8 caracteres" },
+        { status: 400 },
+      );
+    }
+
+    const admin = clienteAdmin();
+
+    const { data: empresa, error: errEmpresa } = await admin
+      .from("empresa")
+      .insert({ nombre: body.nombreEmpresa.trim(), nit: body.nit?.trim() || null })
+      .select("id, nombre")
+      .single();
+    if (errEmpresa || !empresa) {
+      return NextResponse.json({ error: errEmpresa?.message ?? "no se pudo crear la empresa" }, { status: 500 });
+    }
+
+    const { data: sede, error: errSede } = await admin
+      .from("sede")
+      .insert({ empresa_id: empresa.id, nombre: body.nombreSede.trim(), tipo: body.sedeTipo ?? "tienda" })
+      .select("id")
+      .single();
+    if (errSede || !sede) {
+      await admin.from("empresa").delete().eq("id", empresa.id);
+      return NextResponse.json({ error: errSede?.message ?? "no se pudo crear la sede" }, { status: 500 });
+    }
+
+    const { data: usuarioAuth, error: errAuth } = await admin.auth.admin.createUser({
+      email: body.adminCorreo.trim(),
+      password: body.adminClave,
+      email_confirm: true,
+    });
+    if (errAuth || !usuarioAuth.user) {
+      await admin.from("empresa").delete().eq("id", empresa.id); // el delete de sede es en cascada
+      return NextResponse.json(
+        { error: errAuth?.message ?? "no se pudo crear el usuario administrador" },
+        { status: 500 },
+      );
+    }
+
+    const { error: errPerfil } = await admin.from("perfil").insert({
+      id: usuarioAuth.user.id,
+      empresa_id: empresa.id,
+      sede_id: sede.id,
+      nombre: body.adminNombre.trim(),
+      rol: "admin",
+    });
+    if (errPerfil) {
+      await admin.auth.admin.deleteUser(usuarioAuth.user.id);
+      await admin.from("empresa").delete().eq("id", empresa.id);
+      return NextResponse.json({ error: errPerfil.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      empresa: { id: empresa.id, nombre: empresa.nombre },
+      admin: { correo: body.adminCorreo.trim() },
+    });
+  } catch (e) {
     return NextResponse.json(
-      { error: "falta el admin inicial, o la contraseña tiene menos de 8 caracteres" },
-      { status: 400 },
-    );
-  }
-
-  const admin = clienteAdmin();
-
-  const { data: empresa, error: errEmpresa } = await admin
-    .from("empresa")
-    .insert({ nombre: body.nombreEmpresa.trim(), nit: body.nit?.trim() || null })
-    .select("id, nombre")
-    .single();
-  if (errEmpresa || !empresa) {
-    return NextResponse.json({ error: errEmpresa?.message ?? "no se pudo crear la empresa" }, { status: 500 });
-  }
-
-  const { data: sede, error: errSede } = await admin
-    .from("sede")
-    .insert({ empresa_id: empresa.id, nombre: body.nombreSede.trim(), tipo: body.sedeTipo ?? "tienda" })
-    .select("id")
-    .single();
-  if (errSede || !sede) {
-    await admin.from("empresa").delete().eq("id", empresa.id);
-    return NextResponse.json({ error: errSede?.message ?? "no se pudo crear la sede" }, { status: 500 });
-  }
-
-  const { data: usuarioAuth, error: errAuth } = await admin.auth.admin.createUser({
-    email: body.adminCorreo.trim(),
-    password: body.adminClave,
-    email_confirm: true,
-  });
-  if (errAuth || !usuarioAuth.user) {
-    await admin.from("empresa").delete().eq("id", empresa.id); // el delete de sede es en cascada
-    return NextResponse.json(
-      { error: errAuth?.message ?? "no se pudo crear el usuario administrador" },
+      { error: e instanceof Error ? e.message : "error inesperado creando la empresa" },
       { status: 500 },
     );
   }
-
-  const { error: errPerfil } = await admin.from("perfil").insert({
-    id: usuarioAuth.user.id,
-    empresa_id: empresa.id,
-    sede_id: sede.id,
-    nombre: body.adminNombre.trim(),
-    rol: "admin",
-  });
-  if (errPerfil) {
-    await admin.auth.admin.deleteUser(usuarioAuth.user.id);
-    await admin.from("empresa").delete().eq("id", empresa.id);
-    return NextResponse.json({ error: errPerfil.message }, { status: 500 });
-  }
-
-  return NextResponse.json({
-    ok: true,
-    empresa: { id: empresa.id, nombre: empresa.nombre },
-    admin: { correo: body.adminCorreo.trim() },
-  });
 }

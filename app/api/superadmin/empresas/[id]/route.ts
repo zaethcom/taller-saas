@@ -11,22 +11,29 @@ import { clienteAdmin, clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSuperadminActual } from "@/lib/superadmin";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const body = (await req.json()) as { activa?: boolean };
+  try {
+    const { id } = await params;
+    const body = (await req.json()) as { activa?: boolean };
 
-  const supabase = await clienteServidor();
-  const superadmin = await obtenerSuperadminActual(supabase);
-  if (!superadmin) {
-    return NextResponse.json({ error: "no autorizado" }, { status: 403 });
-  }
-  if (typeof body.activa !== "boolean") {
-    return NextResponse.json({ error: "falta el estado activa" }, { status: 400 });
-  }
+    const supabase = await clienteServidor();
+    const superadmin = await obtenerSuperadminActual(supabase);
+    if (!superadmin) {
+      return NextResponse.json({ error: "no autorizado" }, { status: 403 });
+    }
+    if (typeof body.activa !== "boolean") {
+      return NextResponse.json({ error: "falta el estado activa" }, { status: 400 });
+    }
 
-  const { error } = await clienteAdmin().from("empresa").update({ activa: body.activa }).eq("id", id);
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+    const { error } = await clienteAdmin().from("empresa").update({ activa: body.activa }).eq("id", id);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
-  return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "error inesperado actualizando la empresa" },
+      { status: 500 },
+    );
+  }
 }
