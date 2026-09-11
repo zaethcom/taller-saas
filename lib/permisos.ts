@@ -17,7 +17,8 @@ export type Accion =
   | "ver_ordenes" // Admin: el tablero completo
   | "gestionar_inventario"
   | "gestionar_compras"
-  | "gestionar_usuarios";
+  | "gestionar_usuarios"
+  | "gestionar_traslados"; // Admin/Compras: enviar y recibir mercancía entre sedes
 
 const PERMISOS: Record<Rol, Accion[]> = {
   admin: [
@@ -32,10 +33,11 @@ const PERMISOS: Record<Rol, Accion[]> = {
     "gestionar_inventario",
     "gestionar_compras",
     "gestionar_usuarios",
+    "gestionar_traslados",
   ],
-  recepcion: ["recibir_equipo", "cobrar_orden", "abrir_cajon_manual", "ver_ordenes"],
+  recepcion: ["recibir_equipo", "cobrar_orden", "abrir_cajon_manual", "ver_ordenes", "gestionar_traslados"],
   tecnico: ["diagnosticar", "marcar_faltante"],
-  compras: ["gestionar_compras", "ver_ordenes"],
+  compras: ["gestionar_compras", "gestionar_traslados", "ver_ordenes"],
   cajero: ["vender", "cobrar_orden", "abrir_cajon_manual", "cerrar_turno"],
 };
 

@@ -41,6 +41,7 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
         <nav style={{ display: "flex", gap: 16, alignItems: "center" }}>
           <a href="/ordenes">Órdenes</a>
           <a href="/inventario">Inventario</a>
+          <a href="/traslados">Traslados</a>
           <a href="/compras">Compras</a>
           <a href="/usuarios">Usuarios</a>
           <a href="/reportes">Reportes</a>

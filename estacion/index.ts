@@ -19,6 +19,7 @@ import { etiquetaQrZpl, type DatosEtiquetaQr } from "./etiqueta";
 import { reciboVenta, type CargaReciboVenta } from "./plantillas/recibo";
 import { comprobanteRecepcion, type CargaComprobanteRecepcion } from "./plantillas/comprobante";
 import { cierreCaja, type CargaCierreCaja } from "./plantillas/cierre";
+import { comprobanteTraslado, type CargaComprobanteTraslado } from "./plantillas/traslado";
 
 interface Config {
   sedeId: string;
@@ -30,7 +31,13 @@ interface Config {
 
 interface TrabajoPendiente {
   id: string;
-  tipo: "etiqueta_qr" | "recibo_venta" | "comprobante_recepcion" | "cierre_caja" | "abrir_cajon";
+  tipo:
+    | "etiqueta_qr"
+    | "recibo_venta"
+    | "comprobante_recepcion"
+    | "cierre_caja"
+    | "abrir_cajon"
+    | "comprobante_traslado";
   carga: unknown;
 }
 
@@ -80,6 +87,12 @@ function resolverImpresion(
 
     case "cierre_caja":
       return { destino: "tickets", contenido: cierreCaja(trabajo.carga as CargaCierreCaja) };
+
+    case "comprobante_traslado":
+      return {
+        destino: "tickets",
+        contenido: comprobanteTraslado(trabajo.carga as CargaComprobanteTraslado),
+      };
 
     case "abrir_cajon":
       return { destino: "tickets", contenido: componer(inicializar(), abrirCajonBytes()) };

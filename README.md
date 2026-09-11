@@ -47,7 +47,7 @@ dos cosas.
 app/
 ├─ (pos)/        # caja: vender, recibir, entregar, turno
 ├─ (taller)/     # la PWA del técnico: escanear, orden/[id]
-├─ (admin)/      # escritorio: ordenes, inventario, compras, usuarios, reportes
+├─ (admin)/      # escritorio: ordenes, inventario, traslados, compras, usuarios, reportes
 ├─ (publico)/    # seguimiento/[token] -- sin sesión
 └─ api/          # rutas de servidor que las páginas y la estación consumen
 
@@ -63,7 +63,7 @@ lib/
 
 estacion/       # el servidor de impresión -- NO se despliega en Vercel
 supabase/
-├─ migrations/  # el esquema completo, 0001 a 0008
+├─ migrations/  # el esquema completo
 └─ seed.sql     # datos de prueba: dos empresas, para probar el aislamiento
 
 pruebas/        # estados.ts y caja.ts
@@ -144,6 +144,23 @@ npm start
 - **La máquina de estados vive en un solo archivo.** `lib/estados.ts`.
   Ninguna pantalla ni ninguna ruta debe escribir `estado = 'x'` por su
   cuenta — todo pasa por `transicionar()`.
+- **Caja e inventario ya son por sede desde el primer día**
+  (`turno_caja.sede_id`, `venta.sede_id`, `existencia.sede_id`, en
+  `0004_caja.sql`), no algo que haya que "agregar" para tener aperturas,
+  cierres y existencias independientes en la tienda y en el taller. Lo
+  que sí faltaba -- y ya existe -- es cómo la mercancía pasa de una sede
+  a la otra: **`traslado`/`traslado_item`** (`0014_traslados.sql`) es el
+  papel de esa cadena de custodia. Enviar descuenta el inventario de
+  origen de inmediato (`consumir_repuesto`, la misma función que usa una
+  venta de mostrador); recibir es un paso aparte y deliberado
+  (`sumar_existencia`) para que el destino nunca sume algo que todavía
+  no tiene en la mano. Página real: `app/(admin)/traslados`. Cada
+  traslado también imprime su propio comprobante
+  (`comprobante_traslado`) que viaja físicamente con la mercancía.
+  Con esto, el taller (sede tipo `'taller'`) puede vender productos de
+  mostrador de verdad y no solo cobrar servicios -- antes tenía POS
+  (`vender` ya no distingue por tipo de sede) pero cero existencia
+  propia si nadie le trasladaba nada desde el almacén.
 - **La facturación DIAN es un stub a propósito.** `lib/dian/proveedor.ts`
   lanza `DianNoConfiguradoError` hasta que se elija un integrador real.
   Nunca se implementa la DIAN a mano.
