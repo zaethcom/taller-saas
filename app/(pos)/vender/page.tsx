@@ -8,6 +8,7 @@
  * baja, una unidad concreta que sale del inventario).
  */
 import { useEffect, useState } from "react";
+import { FotoProducto } from "@/componentes/ui/foto-producto";
 
 interface LineaRepuesto {
   kind: "repuesto";
@@ -32,6 +33,7 @@ interface Repuesto {
   codigo: string;
   descripcion: string;
   precioVenta: number;
+  imagenUrl: string | null;
   existenciaAqui: number;
 }
 
@@ -42,6 +44,7 @@ interface Articulo {
   marca: string | null;
   modelo: string | null;
   precio_venta: number;
+  imagen_url: string | null;
 }
 
 interface Metodo {
@@ -205,16 +208,23 @@ export default function PaginaVender() {
           />
           <button onClick={buscarRepuestos}>Buscar</button>
         </div>
-        {resultadosRepuesto.map((r) => (
-          <div key={r.id} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
-            <div>
-              {r.descripcion} <span style={{ opacity: 0.6, fontSize: 12 }}>({r.existenciaAqui} en esta sede)</span>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
+          {resultadosRepuesto.map((r) => (
+            <div key={r.id} style={{ border: "1px solid #ddd", borderRadius: 10, padding: 8 }}>
+              <FotoProducto tipo="repuesto" id={r.id} imagenUrl={r.imagenUrl} alto={80} editable={false} />
+              <div style={{ fontSize: 12, fontWeight: 600, marginTop: 6 }}>{r.descripcion}</div>
+              <div style={{ fontSize: 11, opacity: 0.6 }}>{r.existenciaAqui} en esta sede</div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>{fmt(r.precioVenta)}</div>
+              <button
+                onClick={() => agregarRepuesto(r)}
+                disabled={r.existenciaAqui <= 0}
+                style={{ width: "100%", marginTop: 6 }}
+              >
+                Agregar
+              </button>
             </div>
-            <button onClick={() => agregarRepuesto(r)} disabled={r.existenciaAqui <= 0}>
-              Agregar
-            </button>
-          </div>
-        ))}
+          ))}
+        </div>
       </section>
 
       <section style={{ marginBottom: 16 }}>
@@ -227,15 +237,21 @@ export default function PaginaVender() {
           />
           <button onClick={buscarArticulos}>Buscar</button>
         </div>
-        {resultadosArticulo.map((a) => (
-          <div key={a.id} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
-            <div>
-              <span style={{ fontFamily: "monospace" }}>{a.codigo}</span>{" "}
-              {[a.marca, a.modelo].filter(Boolean).join(" ") || a.tipo} · {fmt(a.precio_venta)}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
+          {resultadosArticulo.map((a) => (
+            <div key={a.id} style={{ border: "1px solid #ddd", borderRadius: 10, padding: 8 }}>
+              <FotoProducto tipo="articulo" id={a.id} imagenUrl={a.imagen_url} alto={80} editable={false} />
+              <div style={{ fontSize: 12, fontWeight: 600, marginTop: 6 }}>
+                {[a.marca, a.modelo].filter(Boolean).join(" ") || a.tipo}
+              </div>
+              <div style={{ fontSize: 11, opacity: 0.6, fontFamily: "monospace" }}>{a.codigo}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>{fmt(a.precio_venta)}</div>
+              <button onClick={() => agregarArticulo(a)} style={{ width: "100%", marginTop: 6 }}>
+                Agregar
+              </button>
             </div>
-            <button onClick={() => agregarArticulo(a)}>Agregar</button>
-          </div>
-        ))}
+          ))}
+        </div>
       </section>
 
       {carrito.length === 0 ? (

@@ -268,6 +268,28 @@ npm start
   también quedaron fuera de este cambio: `repuesto`/`articulo` no
   tienen columna de imagen ni existe ninguna pantalla para subirlas --
   es una funcionalidad aparte, más grande, pendiente de decidir.
+- **Foto de producto para repuesto y artículo** (`0022_imagen_producto.sql`,
+  `componentes/ui/foto-producto.tsx`): la funcionalidad aparte que
+  quedó pendiente en el punto anterior. `/vender` e `/inventario`
+  muestran ahora una tarjeta con foto por cada repuesto y cada
+  artículo, en vez de una fila de texto -- sin foto, la tarjeta cae en
+  un ícono según el tipo, mismo patrón que el logo de empresa cayendo
+  en su inicial. La foto se sube a un bucket público `productos`
+  (mismo motivo que `logos`: se ve dentro de la sesión, no hay nada
+  sensible en ella) con la misma convención de aislamiento por carpeta
+  de empresa.
+
+  A propósito, esto **no** creó un formulario de alta/edición de
+  repuestos: seguía sin existir uno (el catálogo de `repuesto` sigue
+  siendo cosa de `seed.sql`, ver "Qué falta") y agregar solo la foto no
+  ameritaba construirlo -- `PATCH /api/repuestos/[id]` recibe
+  únicamente `imagenUrl`, nada más del repuesto es editable desde la
+  aplicación todavía. Para `articulo`, que sí nace desde la aplicación
+  (`/recepcion-mercancia`), la foto se agrega después y desde
+  `/inventario`, no durante la recepción -- ese formulario es
+  deliberadamente un bucle sin mouse (ver su comentario de cabecera) y
+  meterle un selector de archivo ahí lo habría hecho más lento sin que
+  nadie lo pidiera.
 - **Fase "POS y taller" de la expansión a SaaS multiempresa**
   (`0019_codigo_categoria_metodo_pago.sql`): código corto por
   cajero/técnico (`perfil.codigo`, para recibos y reportes -- nunca un

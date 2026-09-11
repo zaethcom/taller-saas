@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
   let consulta = supabase
     .from("repuesto")
-    .select("id, codigo, descripcion, precio_venta, existencia ( cantidad, sede_id )")
+    .select("id, codigo, descripcion, precio_venta, imagen_url, existencia ( cantidad, sede_id )")
     .limit(15);
 
   if (categoriaId) {
@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
     codigo: r.codigo,
     descripcion: r.descripcion,
     precioVenta: Number(r.precio_venta),
+    imagenUrl: r.imagen_url,
     existenciaAqui: r.existencia.find((e) => e.sede_id === perfil?.sede_id)?.cantidad ?? 0,
   }));
 

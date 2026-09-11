@@ -108,7 +108,9 @@ export async function GET(req: NextRequest) {
 
   let consulta = supabase
     .from("articulo")
-    .select("id, numero, tipo, marca, modelo, numero_serie, precio_venta, estado, sede_id, sede:sede_id ( nombre ), creado_en")
+    .select(
+      "id, numero, tipo, marca, modelo, numero_serie, precio_venta, imagen_url, estado, sede_id, sede:sede_id ( nombre ), creado_en",
+    )
     .order("creado_en", { ascending: false });
 
   if (disponibles) {
