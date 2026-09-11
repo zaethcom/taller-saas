@@ -5,9 +5,10 @@
  * Solo entran admin y técnico -- ver lib/permisos.ts, ROLES_POR_PUERTA.taller.
  */
 import { redirect } from "next/navigation";
+import { ScanLine } from "lucide-react";
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
 import { SelectorPuertas } from "@/componentes/ui/selector-puertas";
-import { Marca } from "@/componentes/ui/marca";
+import { BarraLateral, type ItemNavLateral } from "@/componentes/ui/barra-lateral";
 import { puedeEntrarA } from "@/lib/permisos";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { obtenerConfiguracion } from "@/lib/configuracion";
@@ -33,24 +34,34 @@ export default async function LayoutTaller({ children }: { children: React.React
   // resto de la aplicación. Lo que sí toma de la empresa es su marca.
   const config = await obtenerConfiguracion(supabase, perfil.empresaId);
 
+  const items: ItemNavLateral[] = [{ href: "/escanear", etiqueta: "Escanear", Icono: ScanLine }];
+
   return (
-    <div style={{ minHeight: "100vh", background: "#0b1418", color: "white" }}>
-      <header
-        style={{
-          padding: "14px 20px",
-          borderBottom: "1px solid #223038",
-          display: "flex",
-          justifyContent: "space-between",
-        }}
-      >
-        <Marca logoUrl={config.logoUrl} nombreEmpresa={perfil.empresaNombre} etiqueta="Taller" />
-        <nav style={{ display: "flex", gap: 16, alignItems: "center" }}>
+    <div style={{ minHeight: "100vh", background: "#0b1418", color: "white", display: "flex" }}>
+      <BarraLateral
+        items={items}
+        logoUrl={config.logoUrl}
+        nombreEmpresa={perfil.empresaNombre}
+        colorPrincipal={config.colorPrincipal}
+        etiquetaPuerta="Taller"
+      />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <header
+          style={{
+            padding: "14px 20px",
+            borderBottom: "1px solid #223038",
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            gap: 16,
+          }}
+        >
           <SelectorPuertas rol={perfil.rol} actual="taller" />
           <span style={{ opacity: 0.7, fontSize: 14 }}>{perfil.nombre}</span>
           <CerrarSesion />
-        </nav>
-      </header>
-      <div style={{ padding: 20, maxWidth: 480, margin: "0 auto" }}>{children}</div>
+        </header>
+        <div style={{ padding: 20, maxWidth: 480, margin: "0 auto" }}>{children}</div>
+      </div>
     </div>
   );
 }

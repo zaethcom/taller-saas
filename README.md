@@ -244,6 +244,30 @@ npm start
   esos cuatro tipos, sin que cada ruta que encola un trabajo tenga que
   pedirlos. Las etiquetas pequeñas (`etiqueta_qr`, `etiqueta_articulo`)
   no llevan esto -- no hay espacio.
+- **Menú lateral como estructura estándar de la plataforma**
+  (`componentes/ui/barra-lateral.tsx`): la barra superior con enlaces
+  en línea de `(pos)`, `(taller)` y `(admin)` se reemplazó por un menú
+  lateral fijo, igual para cualquier empresa -- lo que cambia por
+  empresa sigue siendo su logo y su color (`lib/configuracion.ts`), ya
+  no su estructura de navegación. Cada puerta arma su propia lista de
+  enlaces con ícono (`lucide-react`) según lo que ya podía hacer antes
+  -- no se agregó ninguna página nueva, solo se reorganizó dónde vive
+  la navegación. La cabecera de la barra (logo + nombre de empresa +
+  qué puerta es) reemplaza al componente `Marca`, que quedó sin uso y
+  se eliminó. Bajo ~640px de ancho la barra se reduce a un riel de solo
+  íconos (`title` como tooltip) en vez de ocultarse -- un menú fijo de
+  220px en un celular se comería más de la mitad de la pantalla, algo
+  especialmente grave en la puerta del taller, pensada para usarse con
+  una sola mano. La barra superior que queda en cada puerta se redujo a
+  lo que de verdad funciona: selector de puertas, nombre de quien tiene
+  la sesión, y cerrar sesión -- a propósito **no** se agregó una barra
+  de búsqueda ni una campana de notificaciones decorativas (como las de
+  la referencia visual de Polaco Scooter) porque ninguna de las dos
+  tiene una función real detrás todavía. Las imágenes de producto en
+  las tarjetas de `/vender` e `/inventario` de esa misma referencia
+  también quedaron fuera de este cambio: `repuesto`/`articulo` no
+  tienen columna de imagen ni existe ninguna pantalla para subirlas --
+  es una funcionalidad aparte, más grande, pendiente de decidir.
 - **Fase "POS y taller" de la expansión a SaaS multiempresa**
   (`0019_codigo_categoria_metodo_pago.sql`): código corto por
   cajero/técnico (`perfil.codigo`, para recibos y reportes -- nunca un
