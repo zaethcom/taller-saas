@@ -40,6 +40,14 @@ export default function PaginaLogin() {
 
     const res = await fetch("/api/perfil");
     if (!res.ok) {
+      // No tiene perfil en ninguna empresa -- puede ser, en cambio, un
+      // superadmin de la plataforma (esos no pertenecen a ninguna).
+      const resSuperadmin = await fetch("/api/superadmin/yo");
+      if (resSuperadmin.ok) {
+        router.push("/superadmin/empresas");
+        router.refresh();
+        return;
+      }
       setError("Tu usuario no está activo. Habla con un administrador.");
       await supabase.auth.signOut();
       setEnviando(false);

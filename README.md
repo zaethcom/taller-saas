@@ -50,6 +50,7 @@ app/
 ├─ (admin)/      # escritorio: ordenes, inventario, categorias, traslados, compras,
 │                 #   usuarios, metodos-pago, reportes, recepcion-mercancia
 ├─ (publico)/    # seguimiento/[token] -- sin sesión
+├─ superadmin/   # NO es grupo de rutas -- la plataforma, no una empresa más
 └─ api/          # rutas de servidor que las páginas y la estación consumen
 
 lib/
@@ -188,6 +189,31 @@ npm start
   Con esto, `articulo.estado` cuenta la historia completa de una unidad:
   `en_stock` (recepción) → `trasladado` (en tránsito, opcional) →
   `en_stock` en otra sede → `vendido`.
+- **Superadministrador de la plataforma** (`0020_superadmin.sql`,
+  `app/superadmin/`): quien crea y suspende empresas desde fuera del
+  aislamiento normal. Deliberadamente NO es una fila de `perfil` con un
+  rol nuevo -- `perfil` modela "empleado de una empresa" y su RLS exige
+  `empresa_actual()`; forzar ahí a alguien que no pertenece a ninguna
+  empresa habría significado mentir sobre a cuál pertenece, o aflojar
+  la tabla de la que depende el aislamiento de todo el negocio. Es una
+  tabla aparte (`superadmin`), con una sola política -- ver la propia
+  fila -- y ninguna de escritura: no existe un POST que cree un
+  superadmin nuevo, eso es SQL directo o `clienteAdmin()` desde fuera
+  de la aplicación, a propósito. `app/superadmin/` es una carpeta real,
+  no un grupo de rutas -- queda en `/superadmin`, no escondida como las
+  otras tres puertas, porque esto no es una empresa más.
+
+  Crear una empresa (`POST /api/superadmin/empresas`) arma en un solo
+  paso la empresa, su primera sede, y su primer usuario admin vía la
+  Auth Admin API -- si algo falla a medio camino, se revierte lo ya
+  insertado. Suspenderla (`PATCH .../[id]`) es lo más fuerte que tiene
+  este sistema: `empresa.activa` ahora es parte de `empresa_actual()`,
+  la función de la que depende CADA política RLS de CADA tabla del
+  negocio -- una empresa suspendida deja de ver absolutamente nada, en
+  toda la aplicación, sin que ninguna pantalla tenga que acordarse de
+  revisarlo. `lib/perfil.ts` ni siquiera necesitó un chequeo aparte
+  para esto: la fila de un usuario de una empresa suspendida deja de
+  ser visible por RLS, sola.
 - **Fase "POS y taller" de la expansión a SaaS multiempresa**
   (`0019_codigo_categoria_metodo_pago.sql`): código corto por
   cajero/técnico (`perfil.codigo`, para recibos y reportes -- nunca un
@@ -286,3 +312,19 @@ layout de `(pos)`, `(taller)`, `(admin)` verifica con
 -- hoy solo existen en `seed.sql` como filas de `perfil` sin una cuenta
 de Supabase Auth detrás; crearlos es responsabilidad del admin desde
 el panel de Supabase o con la Auth Admin API.
+
+### Crear el primer superadmin
+
+No hay -- a propósito -- ningún formulario ni endpoint que cree un
+superadmin: es la única cuenta con acceso a través de todas las
+empresas, así que nace fuera de la aplicación. Con un usuario ya creado
+en Supabase Auth (panel → Authentication, o `admin.auth.admin.createUser`),
+insertar su fila de `superadmin` por SQL:
+
+```sql
+insert into superadmin (id, nombre) values ('<uuid del usuario>', 'Nombre y apellido');
+```
+
+Desde ahí, ese correo entra por `/login` y cae en `/superadmin/empresas`
+-- no tiene fila en `perfil`, así que ninguna de las tres puertas de
+una empresa lo reconoce ni lo dejaría entrar por error.

@@ -21,6 +21,11 @@ export async function obtenerPerfilActual(supabase: SupabaseClient): Promise<Per
   } = await supabase.auth.getUser();
   if (!user) return null;
 
+  // Ni siquiera hace falta revisar aquí si la empresa está suspendida
+  // (superadmin, 0020_superadmin.sql): empresa_actual() ya exige
+  // empresa.activa, y la política RLS de esta misma tabla exige
+  // empresa_id = empresa_actual() -- así que la fila de un usuario cuya
+  // empresa fue suspendida deja de ser visible aquí, por RLS, sola.
   const { data, error } = await supabase
     .from("perfil")
     .select("id, nombre, rol, empresa_id, sede_id, activo")
