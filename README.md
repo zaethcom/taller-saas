@@ -173,13 +173,20 @@ npm start
   visible para poder contar contra la caja física. El QR de la
   etiqueta codifica el código del artículo (`ART-000123`), no una URL
   -- todavía no hay una pantalla pública de seguimiento para
-  inventario, a diferencia de la orden de reparación. Pendiente a
-  propósito: `traslado_item` y `venta_item` todavía solo referencian
-  `repuesto` (a granel) -- moverle o venderle a una unidad de `articulo`
-  su propio traslado o su propia venta, con ese artículo cambiando de
-  estado (`en_stock` → `trasladado`/`vendido`), es la siguiente pieza
-  de la trazabilidad completa "desde su ingreso hasta su salida o
-  venta", no construida todavía.
+  inventario, a diferencia de la orden de reparación.
+- **Un artículo individualizado se puede vender o trasladar como
+  unidad, no solo como cantidad.** `venta_item` y `traslado_item`
+  (`0018_articulos_en_venta_y_traslado.sql`) referencian `repuesto_id`
+  O `articulo_id`, nunca los dos (`check` que lo exige, no una
+  convención de la aplicación). Vender un artículo (`/vender`) lo pasa
+  de `en_stock` a `vendido` -- validado ANTES de crear la venta, porque
+  vender dos veces la misma unidad física es un error real, distinto a
+  un descuadre de cantidad que se corrige después. Trasladarlo
+  (`/traslados`) lo pasa a `trasladado` al enviar y de vuelta a
+  `en_stock` -- ya en la sede destino -- al confirmar la recepción.
+  Con esto, `articulo.estado` cuenta la historia completa de una unidad:
+  `en_stock` (recepción) → `trasladado` (en tránsito, opcional) →
+  `en_stock` en otra sede → `vendido`.
 - **La facturación DIAN es un stub a propósito.** `lib/dian/proveedor.ts`
   lanza `DianNoConfiguradoError` hasta que se elija un integrador real.
   Nunca se implementa la DIAN a mano.
@@ -233,6 +240,12 @@ Con esto, ninguna página del MVP queda como esqueleto. Ya son reales:
 El resto de `(pos)` ya es real, de principio a fin, sin datos de
 relleno:
 
+- **`vender`** busca repuestos a granel y artículos individualizados por
+  separado (dos catálogos distintos, ver más arriba) y arma un carrito
+  con ambos; al cobrar, cada línea sale del inventario a su manera
+  (`POST /api/ventas`) y encola el recibo. No siempre tuvo esto -- nació
+  como una pantalla con carrito pero sin ninguna forma real de
+  agregarle nada.
 - **`recibir`** busca cliente por documento y equipo por serial, crea
   la orden con `POST /api/ordenes`, e imprime comprobante + etiqueta.
 - **`turno`** abre con base inicial, muestra el resumen en vivo

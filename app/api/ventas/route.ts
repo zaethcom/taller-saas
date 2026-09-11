@@ -1,19 +1,22 @@
 /**
  * POST /api/ventas
- * Body: { items: {repuestoId, descripcion, cantidad, precioUnit}[], medioPago, ordenId? }
+ * Body: { items: {repuestoId?, articuloId?, descripcion, cantidad, precioUnit}[], medioPago, ordenId? }
  *
  * Registra una venta de mostrador (o el cobro de una orden si se manda
- * ordenId), descuenta el inventario de cada repuesto vía la función
- * consumir_repuesto de la base -- una transacción por repuesto, para
- * que la venta nunca quede registrada con el inventario sin descontar
- * -- y encola el recibo. El efectivo abre el cajón; los demás medios no.
+ * ordenId). Cada item sale del inventario de una de dos maneras: un
+ * repuesto descuenta cantidad (consumir_repuesto, a granel, se deja
+ * fallar después de crear la venta -- ver comentario más abajo); un
+ * artículo individualizado (patineta, teléfono) se valida ANTES de
+ * crear nada, porque vender dos veces la misma unidad física es un
+ * error real, no un descuadre de cantidades que se corrige después.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { encolarImpresion } from "@/lib/impresion";
 
 interface ItemVenta {
-  repuestoId: string;
+  repuestoId?: string;
+  articuloId?: string;
   descripcion: string;
   cantidad: number;
   precioUnit: number;
@@ -61,6 +64,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "no hay un turno de caja abierto en esta sede" }, { status: 409 });
   }
 
+  const itemsArticulo = body.items.filter((i) => i.articuloId);
+  if (itemsArticulo.some((i) => i.cantidad !== 1)) {
+    return NextResponse.json({ error: "un artículo individualizado se vende de a una unidad" }, { status: 400 });
+  }
+  for (const item of itemsArticulo) {
+    const { data: articulo } = await supabase
+      .from("articulo")
+      .select("id")
+      .eq("id", item.articuloId)
+      .eq("estado", "en_stock")
+      .eq("sede_id", perfil.sede_id)
+      .maybeSingle();
+    if (!articulo) {
+      return NextResponse.json(
+        { error: `"${item.descripcion}" ya no está disponible en esta sede` },
+        { status: 409 },
+      );
+    }
+  }
+
   const total = body.items.reduce((s, i) => s + i.cantidad * i.precioUnit, 0);
 
   const { data: venta, error: errVenta } = await supabase
@@ -84,7 +107,8 @@ export async function POST(req: NextRequest) {
   await supabase.from("venta_item").insert(
     body.items.map((i) => ({
       venta_id: venta.id,
-      repuesto_id: i.repuestoId,
+      repuesto_id: i.repuestoId ?? null,
+      articulo_id: i.articuloId ?? null,
       descripcion: i.descripcion,
       cantidad: i.cantidad,
       precio_unit: i.precioUnit,
@@ -98,12 +122,23 @@ export async function POST(req: NextRequest) {
   // preferible una venta con un item sin descontar visible en logs a
   // fingir que el inventario cuadra cuando no cuadra.
   for (const item of body.items) {
-    if (!item.repuestoId) continue; // ítems sueltos sin ficha de inventario
-    await supabase.rpc("consumir_repuesto", {
-      p_repuesto_id: item.repuestoId,
-      p_sede_id: perfil.sede_id,
-      p_cantidad: item.cantidad,
-    });
+    if (item.repuestoId) {
+      await supabase.rpc("consumir_repuesto", {
+        p_repuesto_id: item.repuestoId,
+        p_sede_id: perfil.sede_id,
+        p_cantidad: item.cantidad,
+      });
+    } else if (item.articuloId) {
+      // Ya se validó arriba que estaba en_stock en esta sede -- este
+      // guard repite la condición por si algo cambió entre medio.
+      await supabase
+        .from("articulo")
+        .update({ estado: "vendido" })
+        .eq("id", item.articuloId)
+        .eq("estado", "en_stock")
+        .eq("sede_id", perfil.sede_id);
+    }
+    // si no tiene ninguno de los dos, es un ítem suelto sin ficha de inventario
   }
 
   await encolarImpresion(supabase, {

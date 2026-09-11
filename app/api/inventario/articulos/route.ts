@@ -8,7 +8,12 @@
  * repite exactamente lo mismo (ver app/(admin)/recepcion-mercancia).
  *
  * GET /api/inventario/articulos -- lista los artículos de la empresa,
- * para la tabla de /inventario.
+ * para la tabla de /inventario. Con ?buscar=, filtra por código (el
+ * número dentro de "ART-000123") o por tipo/marca/modelo/serie -- lo
+ * que usan /vender y /traslados para encontrar una unidad puntual. Con
+ * ?disponibles=1, además exige estado 'en_stock' en la sede del que
+ * pregunta -- no tiene sentido ofrecer para vender o trasladar algo que
+ * ya salió o que está en otra sede.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
@@ -86,7 +91,10 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, articulo: { id: articulo.id, numero: articulo.numero, codigo } });
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const buscar = req.nextUrl.searchParams.get("buscar")?.trim();
+  const disponibles = req.nextUrl.searchParams.get("disponibles") === "1";
+
   const supabase = await clienteServidor();
   const {
     data: { user },
@@ -95,14 +103,42 @@ export async function GET() {
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
-  const { data, error } = await supabase
+  let consulta = supabase
     .from("articulo")
-    .select("id, numero, tipo, marca, modelo, numero_serie, precio_venta, estado, sede:sede_id ( nombre ), creado_en")
+    .select("id, numero, tipo, marca, modelo, numero_serie, precio_venta, estado, sede_id, sede:sede_id ( nombre ), creado_en")
     .order("creado_en", { ascending: false });
 
+  if (disponibles) {
+    const { data: perfil } = await supabase.from("perfil").select("sede_id").eq("id", user.id).single();
+    if (!perfil?.sede_id) {
+      return NextResponse.json({ error: "el usuario no tiene sede asignada" }, { status: 400 });
+    }
+    consulta = consulta.eq("estado", "en_stock").eq("sede_id", perfil.sede_id);
+  }
+
+  if (buscar) {
+    const numero = buscar.match(/(\d+)/)?.[1];
+    consulta = numero
+      ? consulta.eq("numero", Number(numero))
+      : consulta.or(`tipo.ilike.%${buscar}%,marca.ilike.%${buscar}%,modelo.ilike.%${buscar}%,numero_serie.ilike.%${buscar}%`);
+  }
+
+  // Sin buscar/disponibles es la tabla completa de /inventario -- no
+  // truncarla. Con cualquiera de los dos, es una búsqueda puntual desde
+  // /vender o /traslados, igual que /api/repuestos.
+  if (buscar || disponibles) {
+    consulta = consulta.limit(15);
+  }
+
+  const { data, error } = await consulta;
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data);
+  const resultado = (data ?? []).map((a) => ({
+    ...a,
+    codigo: `ART-${String(a.numero).padStart(6, "0")}`,
+  }));
+
+  return NextResponse.json(resultado);
 }

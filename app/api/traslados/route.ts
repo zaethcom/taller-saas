@@ -1,14 +1,18 @@
 /**
  * POST /api/traslados
- * Body: { sedeDestinoId: string, items: {repuestoId, descripcion, cantidad}[], nota?: string }
+ * Body: { sedeDestinoId: string, items: {repuestoId?, articuloId?, descripcion, cantidad}[], nota?: string }
  *
- * Un traslado sale de la sede del usuario hacia sedeDestinoId. Descuenta
- * el inventario de origen de inmediato -- vía consumir_repuesto, la
- * misma función que usa una venta de mostrador -- porque la mercancía
- * ya salió físicamente cuando se registra el envío; no queda "reservada"
- * a la espera de que alguien confirme. Lo que sí espera confirmación es
- * la suma en el destino (POST /api/traslados/[id]/recibir): nadie debe
- * poder sumar existencia de algo que todavía no tiene en la mano.
+ * Un traslado sale de la sede del usuario hacia sedeDestinoId. Un item
+ * de repuesto descuenta cantidad de inmediato (consumir_repuesto, igual
+ * que una venta de mostrador); un item de artículo individualizado
+ * pasa esa unidad a 'trasladado' -- en tránsito, ya no vendible ni
+ * volvible a trasladar hasta que alguien la reciba. Ninguno de los dos
+ * queda "reservado" a la espera de confirmación: la mercancía ya salió
+ * físicamente cuando se registra el envío.
+ *
+ * Lo que sí espera confirmación es lo que pasa en el destino (POST
+ * /api/traslados/[id]/recibir): nadie debe poder sumar existencia, ni
+ * dar por llegada una unidad, que todavía no tiene en la mano.
  *
  * GET /api/traslados?direccion=entrantes|salientes&estado=enviado
  * Lista los traslados de mi sede en una dirección, para la bandeja de
@@ -19,7 +23,8 @@ import { clienteServidor } from "@/lib/supabase/servidor";
 import { encolarImpresion } from "@/lib/impresion";
 
 interface ItemTraslado {
-  repuestoId: string;
+  repuestoId?: string;
+  articuloId?: string;
   descripcion: string;
   cantidad: number;
 }
@@ -59,19 +64,41 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "la sede destino no puede ser la misma sede" }, { status: 400 });
   }
 
+  if (body.items.some((i) => i.articuloId && i.cantidad !== 1)) {
+    return NextResponse.json({ error: "un artículo individualizado se traslada de a una unidad" }, { status: 400 });
+  }
+
   // Descontar en origen ANTES de crear la fila: si algún repuesto no
-  // alcanza, el traslado no debe quedar registrado a medias.
+  // alcanza, o algún artículo ya no está disponible, el traslado no
+  // debe quedar registrado a medias.
   for (const item of body.items) {
-    const { error: errConsumo } = await supabase.rpc("consumir_repuesto", {
-      p_repuesto_id: item.repuestoId,
-      p_sede_id: perfil.sede_id,
-      p_cantidad: item.cantidad,
-    });
-    if (errConsumo) {
-      return NextResponse.json(
-        { error: `no se pudo descontar "${item.descripcion}": ${errConsumo.message}` },
-        { status: 409 },
-      );
+    if (item.repuestoId) {
+      const { error: errConsumo } = await supabase.rpc("consumir_repuesto", {
+        p_repuesto_id: item.repuestoId,
+        p_sede_id: perfil.sede_id,
+        p_cantidad: item.cantidad,
+      });
+      if (errConsumo) {
+        return NextResponse.json(
+          { error: `no se pudo descontar "${item.descripcion}": ${errConsumo.message}` },
+          { status: 409 },
+        );
+      }
+    } else if (item.articuloId) {
+      const { data: articulo } = await supabase
+        .from("articulo")
+        .update({ estado: "trasladado" })
+        .eq("id", item.articuloId)
+        .eq("estado", "en_stock")
+        .eq("sede_id", perfil.sede_id)
+        .select("id")
+        .maybeSingle();
+      if (!articulo) {
+        return NextResponse.json(
+          { error: `"${item.descripcion}" ya no está disponible en esta sede` },
+          { status: 409 },
+        );
+      }
     }
   }
 
@@ -94,7 +121,8 @@ export async function POST(req: NextRequest) {
   await supabase.from("traslado_item").insert(
     body.items.map((i) => ({
       traslado_id: traslado.id,
-      repuesto_id: i.repuestoId,
+      repuesto_id: i.repuestoId ?? null,
+      articulo_id: i.articuloId ?? null,
       descripcion: i.descripcion,
       cantidad: i.cantidad,
     })),

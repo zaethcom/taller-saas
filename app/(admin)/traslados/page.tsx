@@ -22,11 +22,28 @@ interface Repuesto {
   existenciaAqui: number;
 }
 
-interface LineaTraslado {
+interface Articulo {
+  id: string;
+  codigo: string;
+  tipo: string;
+  marca: string | null;
+  modelo: string | null;
+}
+
+interface LineaRepuesto {
+  kind: "repuesto";
   repuestoId: string;
   descripcion: string;
   cantidad: number;
 }
+
+interface LineaArticulo {
+  kind: "articulo";
+  articuloId: string;
+  descripcion: string;
+}
+
+type LineaTraslado = LineaRepuesto | LineaArticulo;
 
 interface ItemTraslado {
   descripcion: string;
@@ -58,6 +75,8 @@ export default function PaginaTraslados() {
 
   const [buscar, setBuscar] = useState("");
   const [resultados, setResultados] = useState<Repuesto[]>([]);
+  const [buscarArt, setBuscarArt] = useState("");
+  const [resultadosArt, setResultadosArt] = useState<Articulo[]>([]);
   const [carrito, setCarrito] = useState<LineaTraslado[]>([]);
 
   const [entrantes, setEntrantes] = useState<Traslado[]>([]);
@@ -95,19 +114,32 @@ export default function PaginaTraslados() {
     setResultados(await res.json());
   }
 
+  async function buscarArticulos() {
+    const res = await fetch(`/api/inventario/articulos?disponibles=1&buscar=${encodeURIComponent(buscarArt)}`);
+    setResultadosArt(await res.json());
+  }
+
   function agregarAlCarrito(r: Repuesto) {
     setCarrito((c) => {
-      if (c.some((l) => l.repuestoId === r.id)) return c;
-      return [...c, { repuestoId: r.id, descripcion: r.descripcion, cantidad: 1 }];
+      if (c.some((l) => l.kind === "repuesto" && l.repuestoId === r.id)) return c;
+      return [...c, { kind: "repuesto", repuestoId: r.id, descripcion: r.descripcion, cantidad: 1 }];
+    });
+  }
+
+  function agregarArticuloAlCarrito(a: Articulo) {
+    setCarrito((c) => {
+      if (c.some((l) => l.kind === "articulo" && l.articuloId === a.id)) return c;
+      const descripcion = `${a.codigo} ${[a.marca, a.modelo].filter(Boolean).join(" ") || a.tipo}`;
+      return [...c, { kind: "articulo", articuloId: a.id, descripcion }];
     });
   }
 
   function cambiarCantidad(repuestoId: string, cantidad: number) {
-    setCarrito((c) => c.map((l) => (l.repuestoId === repuestoId ? { ...l, cantidad } : l)));
+    setCarrito((c) => c.map((l) => (l.kind === "repuesto" && l.repuestoId === repuestoId ? { ...l, cantidad } : l)));
   }
 
-  function quitarDelCarrito(repuestoId: string) {
-    setCarrito((c) => c.filter((l) => l.repuestoId !== repuestoId));
+  function quitarDelCarrito(i: number) {
+    setCarrito((c) => c.filter((_, idx) => idx !== i));
   }
 
   async function enviarTraslado() {
@@ -118,7 +150,15 @@ export default function PaginaTraslados() {
       const res = await fetch("/api/traslados", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sedeDestinoId, items: carrito, nota: nota.trim() || undefined }),
+        body: JSON.stringify({
+          sedeDestinoId,
+          items: carrito.map((l) =>
+            l.kind === "repuesto"
+              ? { repuestoId: l.repuestoId, descripcion: l.descripcion, cantidad: l.cantidad }
+              : { articuloId: l.articuloId, descripcion: l.descripcion, cantidad: 1 },
+          ),
+          nota: nota.trim() || undefined,
+        }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       const data = await res.json();
@@ -206,23 +246,47 @@ export default function PaginaTraslados() {
           </div>
         ))}
 
+        <div style={{ display: "flex", gap: 8, marginTop: 12, marginBottom: 8 }}>
+          <input
+            placeholder="Buscar artículo individual por código, marca o modelo"
+            value={buscarArt}
+            onChange={(e) => setBuscarArt(e.target.value)}
+            style={{ padding: 8, flex: 1 }}
+          />
+          <button onClick={buscarArticulos}>Buscar</button>
+        </div>
+
+        {resultadosArt.map((a) => (
+          <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0" }}>
+            <div>
+              <span style={{ fontFamily: "monospace" }}>{a.codigo}</span>{" "}
+              {[a.marca, a.modelo].filter(Boolean).join(" ") || a.tipo}
+            </div>
+            <button onClick={() => agregarArticuloAlCarrito(a)}>Agregar</button>
+          </div>
+        ))}
+
         {carrito.length > 0 && (
           <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 12 }}>
             <tbody>
-              {carrito.map((l) => (
-                <tr key={l.repuestoId}>
+              {carrito.map((l, i) => (
+                <tr key={i}>
                   <td>{l.descripcion}</td>
                   <td>
-                    <input
-                      type="number"
-                      min={1}
-                      value={l.cantidad}
-                      onChange={(e) => cambiarCantidad(l.repuestoId, Number(e.target.value) || 1)}
-                      style={{ width: 60, padding: 4 }}
-                    />
+                    {l.kind === "repuesto" ? (
+                      <input
+                        type="number"
+                        min={1}
+                        value={l.cantidad}
+                        onChange={(e) => cambiarCantidad(l.repuestoId, Number(e.target.value) || 1)}
+                        style={{ width: 60, padding: 4 }}
+                      />
+                    ) : (
+                      1
+                    )}
                   </td>
                   <td>
-                    <button onClick={() => quitarDelCarrito(l.repuestoId)}>Quitar</button>
+                    <button onClick={() => quitarDelCarrito(i)}>Quitar</button>
                   </td>
                 </tr>
               ))}
