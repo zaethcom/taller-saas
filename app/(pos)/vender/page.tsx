@@ -81,10 +81,12 @@ export default function PaginaVender() {
   useEffect(() => {
     fetch("/api/metodos-pago")
       .then((r) => r.json())
-      .then((data: Metodo[]) => {
+      .then((data) => {
+        if (!Array.isArray(data)) return;
         setMetodos(data);
         if (data[0]) setMetodoPagoId(data[0].id);
-      });
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -94,7 +96,8 @@ export default function PaginaVender() {
   useEffect(() => {
     fetch("/api/categorias")
       .then((r) => r.json())
-      .then(setCategorias);
+      .then((data) => setCategorias(Array.isArray(data) ? data : []))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -109,14 +112,16 @@ export default function PaginaVender() {
 
   async function buscarRepuestos() {
     const res = await fetch(conCategoria(`/api/repuestos?buscar=${encodeURIComponent(buscarRepuesto)}`));
-    setResultadosRepuesto(await res.json());
+    const data = await res.json();
+    setResultadosRepuesto(res.ok && Array.isArray(data) ? data : []);
   }
 
   async function buscarArticulos() {
     const res = await fetch(
       conCategoria(`/api/inventario/articulos?disponibles=1&buscar=${encodeURIComponent(buscarArticulo)}`),
     );
-    setResultadosArticulo(await res.json());
+    const data = await res.json();
+    setResultadosArticulo(res.ok && Array.isArray(data) ? data : []);
   }
 
   function agregarRepuesto(r: Repuesto) {

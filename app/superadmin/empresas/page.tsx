@@ -38,9 +38,17 @@ export default function PaginaSuperadminEmpresas() {
 
   async function cargar() {
     setCargando(true);
-    const res = await fetch("/api/superadmin/empresas");
-    setEmpresas(await res.json());
-    setCargando(false);
+    setError(null);
+    try {
+      const res = await fetch("/api/superadmin/empresas");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "No se pudieron cargar las empresas");
+      setEmpresas(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudieron cargar las empresas");
+    } finally {
+      setCargando(false);
+    }
   }
 
   useEffect(() => {

@@ -46,7 +46,8 @@ export default function PaginaRecepcionMercancia() {
   useEffect(() => {
     fetch("/api/categorias")
       .then((r) => r.json())
-      .then(setCategorias);
+      .then((data) => setCategorias(Array.isArray(data) ? data : []))
+      .catch(() => setCategorias([]));
   }, []);
 
   async function registrar(e: React.FormEvent) {

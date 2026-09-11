@@ -87,21 +87,35 @@ export default function PaginaTraslados() {
   const [error, setError] = useState<string | null>(null);
 
   async function cargarInicial() {
-    const [resPerfil, resSedes] = await Promise.all([fetch("/api/perfil"), fetch("/api/sedes")]);
-    const perfil = await resPerfil.json();
-    const listaSedes: Sede[] = await resSedes.json();
-    setMiSedeId(perfil.sedeId ?? null);
-    setSedes(listaSedes.filter((s) => s.id !== perfil.sedeId));
-    await cargarTraslados();
+    try {
+      const [resPerfil, resSedes] = await Promise.all([fetch("/api/perfil"), fetch("/api/sedes")]);
+      const perfil = await resPerfil.json();
+      const listaSedes = await resSedes.json();
+      if (!resPerfil.ok) throw new Error(perfil.error ?? "No se pudo cargar el perfil");
+      if (!resSedes.ok) throw new Error(listaSedes.error ?? "No se pudieron cargar las sedes");
+      setMiSedeId(perfil.sedeId ?? null);
+      setSedes(Array.isArray(listaSedes) ? listaSedes.filter((s: Sede) => s.id !== perfil.sedeId) : []);
+      await cargarTraslados();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo cargar la pantalla de traslados");
+    }
   }
 
   async function cargarTraslados() {
-    const [resEntrantes, resSalientes] = await Promise.all([
-      fetch("/api/traslados?direccion=entrantes&estado=enviado"),
-      fetch("/api/traslados?direccion=salientes"),
-    ]);
-    setEntrantes(await resEntrantes.json());
-    setSalientes(await resSalientes.json());
+    try {
+      const [resEntrantes, resSalientes] = await Promise.all([
+        fetch("/api/traslados?direccion=entrantes&estado=enviado"),
+        fetch("/api/traslados?direccion=salientes"),
+      ]);
+      const entrantes = await resEntrantes.json();
+      const salientes = await resSalientes.json();
+      if (!resEntrantes.ok) throw new Error(entrantes.error ?? "No se pudieron cargar los traslados entrantes");
+      if (!resSalientes.ok) throw new Error(salientes.error ?? "No se pudieron cargar los traslados salientes");
+      setEntrantes(Array.isArray(entrantes) ? entrantes : []);
+      setSalientes(Array.isArray(salientes) ? salientes : []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudieron cargar los traslados");
+    }
   }
 
   useEffect(() => {
@@ -111,12 +125,14 @@ export default function PaginaTraslados() {
 
   async function buscarRepuestos() {
     const res = await fetch(`/api/repuestos?buscar=${encodeURIComponent(buscar)}`);
-    setResultados(await res.json());
+    const data = await res.json();
+    setResultados(res.ok && Array.isArray(data) ? data : []);
   }
 
   async function buscarArticulos() {
     const res = await fetch(`/api/inventario/articulos?disponibles=1&buscar=${encodeURIComponent(buscarArt)}`);
-    setResultadosArt(await res.json());
+    const data = await res.json();
+    setResultadosArt(res.ok && Array.isArray(data) ? data : []);
   }
 
   function agregarAlCarrito(r: Repuesto) {

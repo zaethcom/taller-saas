@@ -24,9 +24,17 @@ export default function PaginaMetodosPago() {
 
   async function cargar() {
     setCargando(true);
-    const res = await fetch("/api/metodos-pago?todos=1");
-    setMetodos(await res.json());
-    setCargando(false);
+    setError(null);
+    try {
+      const res = await fetch("/api/metodos-pago?todos=1");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "No se pudieron cargar los métodos de pago");
+      setMetodos(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudieron cargar los métodos de pago");
+    } finally {
+      setCargando(false);
+    }
   }
 
   useEffect(() => {

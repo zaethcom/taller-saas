@@ -47,10 +47,12 @@ export default function PaginaEntregar() {
   useEffect(() => {
     fetch("/api/metodos-pago")
       .then((r) => r.json())
-      .then((data: Metodo[]) => {
+      .then((data) => {
+        if (!Array.isArray(data)) return;
         setMetodos(data);
         if (data[0]) setMetodoPagoId(data[0].id);
-      });
+      })
+      .catch(() => {});
   }, []);
 
   async function buscar() {
