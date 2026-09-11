@@ -5,6 +5,8 @@
 -- mismo descuido que 0010/0011 ya habían corregido para las funciones
 -- anteriores, repetido en una función nueva. Misma corrección: revocar
 -- de PUBLIC y otorgar, explícito, solo a authenticated.
+--
+-- (No alcanzó del todo -- ver 0017_endurecer_sumar_existencia_de_verdad.sql.)
 -- ============================================================================
 
 revoke execute on function sumar_existencia(uuid, uuid, int) from public;

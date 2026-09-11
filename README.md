@@ -161,6 +161,25 @@ npm start
   mostrador de verdad y no solo cobrar servicios -- antes tenía POS
   (`vender` ya no distingue por tipo de sede) pero cero existencia
   propia si nadie le trasladaba nada desde el almacén.
+- **Mercancía individualizada (patinetas, teléfonos) es una tabla
+  aparte de `repuesto`.** `repuesto`/`existencia` solo llevan cantidad
+  -- sirven para tornillos y pastillas de freno, no para algo que hay
+  que poder rastrear como unidad única. `articulo` (`0016_articulos_inventario.sql`)
+  es esa unidad: nace en `app/(admin)/recepcion-mercancia`, que
+  registra un artículo y encola su etiqueta **en el mismo paso** --
+  no hay un botón "imprimir" aparte que alguien pueda saltarse. El
+  formulario se limpia y el foco vuelve solo al primer campo para el
+  siguiente artículo de la caja, y una lista de "esta sesión" queda
+  visible para poder contar contra la caja física. El QR de la
+  etiqueta codifica el código del artículo (`ART-000123`), no una URL
+  -- todavía no hay una pantalla pública de seguimiento para
+  inventario, a diferencia de la orden de reparación. Pendiente a
+  propósito: `traslado_item` y `venta_item` todavía solo referencian
+  `repuesto` (a granel) -- moverle o venderle a una unidad de `articulo`
+  su propio traslado o su propia venta, con ese artículo cambiando de
+  estado (`en_stock` → `trasladado`/`vendido`), es la siguiente pieza
+  de la trazabilidad completa "desde su ingreso hasta su salida o
+  venta", no construida todavía.
 - **La facturación DIAN es un stub a propósito.** `lib/dian/proveedor.ts`
   lanza `DianNoConfiguradoError` hasta que se elija un integrador real.
   Nunca se implementa la DIAN a mano.

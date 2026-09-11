@@ -14,7 +14,8 @@ export type TipoTrabajo =
   | "comprobante_recepcion"
   | "cierre_caja"
   | "abrir_cajon"
-  | "comprobante_traslado";
+  | "comprobante_traslado"
+  | "etiqueta_articulo";
 
 interface CargaEtiquetaQr {
   serial: string;
@@ -65,6 +66,13 @@ interface CargaComprobanteTraslado {
   fecha: string;
 }
 
+interface CargaEtiquetaArticulo {
+  codigo: string;
+  tipo: string;
+  marca: string | null;
+  modelo: string | null;
+}
+
 type CargaPorTipo = {
   etiqueta_qr: CargaEtiquetaQr;
   recibo_venta: CargaReciboVenta;
@@ -72,6 +80,7 @@ type CargaPorTipo = {
   cierre_caja: CargaCierreCaja;
   abrir_cajon: CargaAbrirCajon;
   comprobante_traslado: CargaComprobanteTraslado;
+  etiqueta_articulo: CargaEtiquetaArticulo;
 };
 
 export async function encolarImpresion<T extends TipoTrabajo>(

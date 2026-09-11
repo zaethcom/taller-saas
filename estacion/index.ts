@@ -15,7 +15,7 @@
 import { readFileSync } from "node:fs";
 import { crearDestinos, type ConfigImpresoras } from "./destino";
 import { componer, inicializar, abrirCajon as abrirCajonBytes } from "./escpos";
-import { etiquetaQrZpl, type DatosEtiquetaQr } from "./etiqueta";
+import { etiquetaArticuloZpl, etiquetaQrZpl, type DatosEtiquetaArticulo, type DatosEtiquetaQr } from "./etiqueta";
 import { reciboVenta, type CargaReciboVenta } from "./plantillas/recibo";
 import { comprobanteRecepcion, type CargaComprobanteRecepcion } from "./plantillas/comprobante";
 import { cierreCaja, type CargaCierreCaja } from "./plantillas/cierre";
@@ -37,7 +37,8 @@ interface TrabajoPendiente {
     | "comprobante_recepcion"
     | "cierre_caja"
     | "abrir_cajon"
-    | "comprobante_traslado";
+    | "comprobante_traslado"
+    | "etiqueta_articulo";
   carga: unknown;
 }
 
@@ -99,6 +100,9 @@ function resolverImpresion(
 
     case "etiqueta_qr":
       return { destino: "etiquetas", contenido: etiquetaQrZpl(trabajo.carga as DatosEtiquetaQr) };
+
+    case "etiqueta_articulo":
+      return { destino: "etiquetas", contenido: etiquetaArticuloZpl(trabajo.carga as DatosEtiquetaArticulo) };
   }
 }
 

@@ -18,7 +18,8 @@ export type Accion =
   | "gestionar_inventario"
   | "gestionar_compras"
   | "gestionar_usuarios"
-  | "gestionar_traslados"; // Admin/Compras: enviar y recibir mercancía entre sedes
+  | "gestionar_traslados" // Admin/Compras: enviar y recibir mercancía entre sedes
+  | "recibir_mercancia"; // Admin/Compras: dar entrada a un artículo nuevo e imprimir su etiqueta
 
 const PERMISOS: Record<Rol, Accion[]> = {
   admin: [
@@ -34,10 +35,11 @@ const PERMISOS: Record<Rol, Accion[]> = {
     "gestionar_compras",
     "gestionar_usuarios",
     "gestionar_traslados",
+    "recibir_mercancia",
   ],
   recepcion: ["recibir_equipo", "cobrar_orden", "abrir_cajon_manual", "ver_ordenes", "gestionar_traslados"],
   tecnico: ["diagnosticar", "marcar_faltante"],
-  compras: ["gestionar_compras", "gestionar_traslados", "ver_ordenes"],
+  compras: ["gestionar_compras", "gestionar_traslados", "recibir_mercancia", "ver_ordenes"],
   cajero: ["vender", "cobrar_orden", "abrir_cajon_manual", "cerrar_turno"],
 };
 

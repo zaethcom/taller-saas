@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { etiquetaQrZpl } from "./etiqueta";
+import { etiquetaArticuloZpl, etiquetaQrZpl } from "./etiqueta";
 
 describe("etiquetaQrZpl", () => {
   const base = {
@@ -45,5 +45,45 @@ describe("etiquetaQrZpl", () => {
   it("incluye el número de orden para poder rastrear una etiqueta despegada", () => {
     const zpl = etiquetaQrZpl(base);
     expect(zpl).toContain("^FDOrden #45^FS");
+  });
+});
+
+describe("etiquetaArticuloZpl", () => {
+  const base = {
+    codigo: "ART-000123",
+    tipo: "patineta",
+    marca: "Xiaomi",
+    modelo: "Pro 2",
+  };
+
+  it("abre con ^XA y cierra con ^XZ", () => {
+    const zpl = etiquetaArticuloZpl(base);
+    expect(zpl.startsWith("^XA")).toBe(true);
+    expect(zpl.trimEnd().endsWith("^XZ")).toBe(true);
+  });
+
+  it("el QR codifica el código del artículo, no una URL", () => {
+    const zpl = etiquetaArticuloZpl(base);
+    expect(zpl).toContain(`^FDMM,A${base.codigo}^FS`);
+  });
+
+  it("muestra el código en su propio campo de texto grande", () => {
+    const zpl = etiquetaArticuloZpl(base);
+    expect(zpl).toContain(`^FD${base.codigo}^FS`);
+  });
+
+  it("junta marca y modelo cuando ambos existen", () => {
+    const zpl = etiquetaArticuloZpl(base);
+    expect(zpl).toContain("^FDXiaomi Pro 2^FS");
+  });
+
+  it("cae al tipo si no hay marca ni modelo", () => {
+    const zpl = etiquetaArticuloZpl({ ...base, marca: null, modelo: null });
+    expect(zpl).toContain("^FDpatineta^FS");
+  });
+
+  it("no imprime número de orden -- un artículo no nace de una orden", () => {
+    const zpl = etiquetaArticuloZpl(base);
+    expect(zpl).not.toContain("Orden #");
   });
 });

@@ -52,3 +52,36 @@ export function etiquetaQrZpl(d: DatosEtiquetaQr): string {
     "^XZ", // fin de la etiqueta, imprimir
   ].join("\n");
 }
+
+export interface DatosEtiquetaArticulo {
+  codigo: string;   // "ART-000123", el mismo que se ve en la pantalla de recepción
+  tipo: string;
+  marca: string | null;
+  modelo: string | null;
+}
+
+/**
+ * La etiqueta de una unidad de mercancía (patineta, celular, accesorio
+ * comprado para vender) -- a diferencia de etiquetaQrZpl, no nace de una
+ * orden de reparación: no hay numeroOrden que imprimir al pie, y el QR
+ * codifica el código del artículo en vez de una URL de seguimiento.
+ */
+export function etiquetaArticuloZpl(d: DatosEtiquetaArticulo): string {
+  const linea2 = [d.marca, d.modelo].filter(Boolean).join(" ") || d.tipo;
+
+  return [
+    "^XA",
+    `^PW${EL_ANCHO}`,
+    `^LL${EL_ALTO}`,
+    "^FO20,20",
+    "^BQN,2,5",
+    `^FDMM,A${d.codigo}^FS`,
+    "^FO190,30",
+    "^A0N,40,40",
+    `^FD${d.codigo}^FS`,
+    "^FO190,80",
+    "^A0N,26,26",
+    `^FD${linea2}^FS`,
+    "^XZ",
+  ].join("\n");
+}
