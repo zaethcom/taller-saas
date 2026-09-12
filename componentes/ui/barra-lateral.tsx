@@ -11,12 +11,19 @@
  */
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { LucideIcon } from "lucide-react";
 
 export interface ItemNavLateral {
   href: string;
   etiqueta: string;
-  Icono: LucideIcon;
+  // Un ícono YA RENDERIZADO (<ClipboardList size={18} .../>), no el
+  // componente en sí -- los layouts que arman esta lista corren en el
+  // servidor y este componente es de cliente; pasar el componente de
+  // lucide-react tal cual (una función) entre esos dos mundos revienta
+  // en producción con "Functions cannot be passed directly to Client
+  // Components" (no en local: solo se ve al servir una ruta dinámica
+  // de verdad, `next build` no llega a renderizarlas). Un elemento ya
+  // renderizado sí es serializable a través de esa frontera.
+  icono: React.ReactNode;
 }
 
 export function BarraLateral({
@@ -92,7 +99,7 @@ export function BarraLateral({
       </div>
 
       <nav style={{ display: "flex", flexDirection: "column", padding: 8, gap: 2, flex: 1, overflowY: "auto" }}>
-        {items.map(({ href, etiqueta, Icono }) => {
+        {items.map(({ href, etiqueta, icono }) => {
           const activo = pathname === href;
           return (
             <Link
@@ -113,7 +120,7 @@ export function BarraLateral({
                 fontWeight: activo ? 600 : 400,
               }}
             >
-              <Icono size={18} strokeWidth={2} style={{ flexShrink: 0 }} />
+              <span style={{ display: "flex", flexShrink: 0 }}>{icono}</span>
               <span className="bl-texto">{etiqueta}</span>
             </Link>
           );

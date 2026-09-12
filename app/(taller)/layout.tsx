@@ -34,7 +34,9 @@ export default async function LayoutTaller({ children }: { children: React.React
   // resto de la aplicación. Lo que sí toma de la empresa es su marca.
   const config = await obtenerConfiguracion(supabase, perfil.empresaId);
 
-  const items: ItemNavLateral[] = [{ href: "/escanear", etiqueta: "Escanear", Icono: ScanLine }];
+  const items: ItemNavLateral[] = [
+    { href: "/escanear", etiqueta: "Escanear", icono: <ScanLine size={18} strokeWidth={2} /> },
+  ];
 
   return (
     <div style={{ minHeight: "100vh", background: "#0b1418", color: "white", display: "flex" }}>

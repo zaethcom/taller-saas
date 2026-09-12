@@ -33,10 +33,10 @@ export default async function LayoutPos({ children }: { children: React.ReactNod
   const config = await obtenerConfiguracion(supabase, perfil.empresaId);
 
   const items: ItemNavLateral[] = [
-    { href: "/vender", etiqueta: "Vender", Icono: ShoppingCart },
-    { href: "/recibir", etiqueta: "Recibir equipo", Icono: Inbox },
-    { href: "/entregar", etiqueta: "Entregar", Icono: PackageCheck },
-    { href: "/turno", etiqueta: "Turno", Icono: Clock },
+    { href: "/vender", etiqueta: "Vender", icono: <ShoppingCart size={18} strokeWidth={2} /> },
+    { href: "/recibir", etiqueta: "Recibir equipo", icono: <Inbox size={18} strokeWidth={2} /> },
+    { href: "/entregar", etiqueta: "Entregar", icono: <PackageCheck size={18} strokeWidth={2} /> },
+    { href: "/turno", etiqueta: "Turno", icono: <Clock size={18} strokeWidth={2} /> },
   ];
 
   return (

@@ -268,6 +268,26 @@ npm start
   también quedaron fuera de este cambio: `repuesto`/`articulo` no
   tienen columna de imagen ni existe ninguna pantalla para subirlas --
   es una funcionalidad aparte, más grande, pendiente de decidir.
+- **Bug real: `/vender` e `/inventario` caían en producción (500) por
+  pasar los íconos de `lucide-react` como dato crudo.** Los layouts de
+  `(pos)`, `(admin)` y `(taller)` corren en el servidor; `BarraLateral`
+  es de cliente. La primera versión del menú lateral armaba
+  `{ Icono: ClipboardList }` -- el componente sin renderizar -- y lo
+  mandaba tal cual en el arreglo `items` hacia el cliente. React
+  Server Components no permite cruzar esa frontera con una función sin
+  envolverla: revienta con "Functions cannot be passed directly to
+  Client Components" en cuanto alguien pide la página de verdad. Nunca
+  se vio en local porque ninguna ruta de esta app se prerenderiza en
+  el build (todas dependen de `cookies()` vía Supabase, así que quedan
+  "ƒ Dynamic") -- `npm run build` nunca llega a ejecutar ese render, y
+  quien programó esto no volvió a abrir la página en el navegador
+  después del cambio. La arregla renderizar el ícono en el propio
+  layout del servidor (`<ClipboardList size={18} .../>`) y pasar ese
+  elemento ya resuelto, en vez del componente -- un elemento sí es
+  serializable a través de esa frontera, la función no. Lección para
+  el futuro: un cambio en un componente de cliente que recibe props
+  armadas en un layout de servidor necesita probarse cargando la
+  página real, no solo `npm run build`.
 - **Foto de producto para repuesto y artículo** (`0022_imagen_producto.sql`,
   `componentes/ui/foto-producto.tsx`): la funcionalidad aparte que
   quedó pendiente en el punto anterior. `/vender` e `/inventario`

@@ -44,18 +44,18 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
   const config = await obtenerConfiguracion(supabase, perfil.empresaId);
 
   const items: ItemNavLateral[] = [
-    { href: "/ordenes", etiqueta: "Órdenes", Icono: ClipboardList },
-    { href: "/recepcion-mercancia", etiqueta: "Recibir mercancía", Icono: PackagePlus },
-    { href: "/inventario", etiqueta: "Inventario", Icono: Package },
-    { href: "/categorias", etiqueta: "Categorías", Icono: Tags },
-    { href: "/traslados", etiqueta: "Traslados", Icono: ArrowLeftRight },
-    { href: "/compras", etiqueta: "Compras", Icono: ShoppingBag },
-    { href: "/usuarios", etiqueta: "Usuarios", Icono: Users },
-    { href: "/metodos-pago", etiqueta: "Métodos de pago", Icono: CreditCard },
+    { href: "/ordenes", etiqueta: "Órdenes", icono: <ClipboardList size={18} strokeWidth={2} /> },
+    { href: "/recepcion-mercancia", etiqueta: "Recibir mercancía", icono: <PackagePlus size={18} strokeWidth={2} /> },
+    { href: "/inventario", etiqueta: "Inventario", icono: <Package size={18} strokeWidth={2} /> },
+    { href: "/categorias", etiqueta: "Categorías", icono: <Tags size={18} strokeWidth={2} /> },
+    { href: "/traslados", etiqueta: "Traslados", icono: <ArrowLeftRight size={18} strokeWidth={2} /> },
+    { href: "/compras", etiqueta: "Compras", icono: <ShoppingBag size={18} strokeWidth={2} /> },
+    { href: "/usuarios", etiqueta: "Usuarios", icono: <Users size={18} strokeWidth={2} /> },
+    { href: "/metodos-pago", etiqueta: "Métodos de pago", icono: <CreditCard size={18} strokeWidth={2} /> },
     ...(puede(perfil.rol, "personalizar_empresa")
-      ? [{ href: "/configuracion", etiqueta: "Configuración", Icono: Settings }]
+      ? [{ href: "/configuracion", etiqueta: "Configuración", icono: <Settings size={18} strokeWidth={2} /> }]
       : []),
-    { href: "/reportes", etiqueta: "Reportes", Icono: BarChart3 },
+    { href: "/reportes", etiqueta: "Reportes", icono: <BarChart3 size={18} strokeWidth={2} /> },
   ];
 
   return (
