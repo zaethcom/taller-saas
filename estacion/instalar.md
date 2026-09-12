@@ -35,6 +35,33 @@ la máquina física de la sede.
    - **PC (systemd en Linux):** crear un servicio que ejecute
      `node --import tsx index.ts` con `Restart=always`.
 
+## Si la impresora solo tiene USB (sin Ethernet/WiFi)
+
+No hace falta escribir un cliente USB en Node. Ya existe una app
+Android para esto: [smart-food-label](https://github.com/zaethcom/smart-food-label),
+`PrintServer.kt` — corre en el dispositivo que tiene la impresora
+conectada por USB de verdad, escucha por red en el puerto 9100, y
+reenvía los bytes tal cual por USB (sin reinterpretar PPLB/ZPL/ESC-POS).
+
+Para usarla: instala esa app en el dispositivo con la impresora,
+ábrela para que el `PrintServer` arranque, y en `config.json` de esta
+estación pon `"protocolo": "puente_android"` en esa impresora:
+
+```json
+"tickets": { "host": "192.168.20.191", "puerto": 9100, "protocolo": "puente_android" }
+```
+
+Importante: ese protocolo **no es** el mismo que `"crudo"` (raw/JetDirect)
+aunque los dos usen por convención el puerto 9100 — el puente antepone
+4 bytes de longitud al payload y espera una confirmación `OK`/`ERR:...`.
+Ponerle `"crudo"` a una impresora que en realidad está detrás del
+puente (o viceversa) rompe la impresión de forma silenciosa. Un
+`PrintServer` solo reenvía a **una** impresora (la que esa app tenga
+marcada como predeterminada) — si tickets y etiquetas están las dos
+por USB en el mismo dispositivo, hoy hace falta una segunda instancia
+en otro puerto, o resolver la impresora predeterminada distinto según
+qué app la abra.
+
 ## Cómo saber si está viva
 
 `GET /api/impresion/pendientes?sede=<id>` con la clave de esa sede

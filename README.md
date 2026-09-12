@@ -310,6 +310,30 @@ npm start
   deliberadamente un bucle sin mouse (ver su comentario de cabecera) y
   meterle un selector de archivo ahí lo habría hecho más lento sin que
   nadie lo pidiera.
+- **`estacion/destino.ts`: puente Android para impresoras solo-USB**
+  (`DestinoPuenteAndroid`). Caso real: la Epson de Polaco Scooter no
+  tiene Ethernet/WiFi, está por USB en un equipo con BlissOS -- y en
+  vez de escribir un cliente USB en Node (nada trivial en Android sin
+  una app nativa con permisos de `UsbManager`), se reutiliza
+  [smart-food-label](https://github.com/zaethcom/smart-food-label),
+  un proyecto Android ya construido y probado con hardware real que
+  trae exactamente esta pieza (`PrintServer.kt`): corre en el
+  dispositivo con la impresora conectada por USB, escucha por red y
+  reenvía los bytes tal cual, sin reinterpretar el protocolo.
+
+  Ese servidor habla un protocolo propio, no el raw/JetDirect de
+  siempre -- 4 bytes de longitud (entero de 32 bits, big-endian) antes
+  del payload, y una línea de respuesta `OK`/`ERR:<mensaje>` -- aunque
+  las dos formas convivan por convención en el puerto 9100. Confundir
+  cuál impresora está detrás de cuál protocolo rompe la impresión en
+  silencio, así que `config.json` ahora lo hace explícito por
+  impresora: `"protocolo": "crudo"` (por defecto, impresora de red de
+  verdad) o `"protocolo": "puente_android"` (ver
+  `estacion/instalar.md`). `crearDestinos()` elige la clase correcta
+  según ese campo; ninguna plantilla ni el bucle de `estacion/index.ts`
+  necesita saber cuál se está usando -- misma idea que ya traía el
+  comentario original de `destino.ts` sobre un futuro `DestinoUsb`,
+  solo que la pieza que faltaba ya existía en otro proyecto.
 - **Fase "POS y taller" de la expansión a SaaS multiempresa**
   (`0019_codigo_categoria_metodo_pago.sql`): código corto por
   cajero/técnico (`perfil.codigo`, para recibos y reportes -- nunca un
