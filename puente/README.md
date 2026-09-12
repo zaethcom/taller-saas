@@ -87,6 +87,23 @@ Falla cerrado: sin secreto configurado no abre el puerto. Un servidor de impresi
 abierto en la red de un local es, en el mejor caso, papel que cualquiera gasta; en el
 peor, un cajón monedero que cualquiera abre.
 
+## Cómo se verifica sin impresoras
+
+El protocolo TCP tiene que seguir siendo byte a byte el que `estacion/destino.ts` ya
+manda, y esa es la parte que más caro sale romper. Por eso los servidores dependen de
+la interfaz [`Impresor`] y no de la implementación que toca el USB: con eso el
+protocolo se prueba en la JVM, con sockets reales, sin emulador ni hardware.
+
+`./gradlew testDebugUnitTest` cubre, entre otras cosas: que el payload llegue intacto
+byte a byte, que un payload de 300 KB no se corte, que una cabecera que declara 500 MB
+se rechace sin intentar reservarlos, que un `nc -z` no tumbe el servidor, que cada rol
+salga por su puerto, que un puerto ocupado se reporte al arrancar y no en silencio, y
+que el servidor HTTP no imprima nada sin el secreto correcto.
+
+Lo que esto **no** cubre: que el USB abra la impresora de verdad, que Android conceda
+el permiso, y que el servicio sobreviva la pantalla apagada. Eso solo lo dice el equipo
+de la sede con las impresoras conectadas.
+
 ## Qué NO hace
 
 - **No renderiza.** No sabe de plantillas, ni de anchos de etiqueta, ni de dpi. Eso

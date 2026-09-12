@@ -1,8 +1,6 @@
 package com.zaethcom.puente.net
 
-import android.util.Base64
-import android.util.Log
-import com.zaethcom.puente.core.Puente
+import com.zaethcom.puente.core.Impresor
 import com.zaethcom.puente.core.Resultado
 import com.zaethcom.puente.core.Rol
 import kotlinx.coroutines.CoroutineScope
@@ -16,8 +14,7 @@ import java.io.OutputStream
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
-
-private const val TAG = "PuenteHttp"
+import java.util.Base64
 
 /**
  * La misma función que [ServidorTcp] pero por HTTP, y aquí el rol SÍ viaja en el
@@ -35,7 +32,7 @@ private const val TAG = "PuenteHttp"
  * abierto en una red de local comercial es una impresora que cualquiera puede
  * gastar, y en el peor caso un cajón que cualquiera puede abrir.
  */
-class ServidorHttp(private val puente: Puente) {
+class ServidorHttp(private val impresor: Impresor) {
 
     private val scope = CoroutineScope(Dispatchers.IO)
     private var socketServidor: ServerSocket? = null
@@ -43,29 +40,42 @@ class ServidorHttp(private val puente: Puente) {
 
     val activo: Boolean get() = job?.isActive == true
 
-    fun arrancar(puerto: Int) {
-        if (activo) return
+    /** El puerto realmente enlazado, o -1. Ver [ServidorTcp.puertoActivo]. */
+    var puertoActivo: Int = -1
+        private set
+
+    fun arrancar(puerto: Int): Boolean {
+        if (activo) return true
+        val servidor = try {
+            ServerSocket(puerto)
+        } catch (e: Exception) {
+            impresor.anotar("HTTP: no se pudo abrir el puerto $puerto -- ${e.message}", esError = true)
+            return false
+        }
+        socketServidor = servidor
+        puertoActivo = servidor.localPort
+        impresor.anotar("HTTP: escuchando en el puerto ${servidor.localPort}")
+
         job = scope.launch {
             try {
-                val servidor = ServerSocket(puerto)
-                socketServidor = servidor
-                puente.anotar("HTTP: escuchando en el puerto $puerto")
                 while (true) {
                     val cliente = servidor.accept()
                     launch { atender(cliente) }
                 }
             } catch (e: SocketException) {
-                Log.i(TAG, "Servidor HTTP detenido: ${e.message}")
+                // Cierre normal desde detener().
             } catch (e: Exception) {
-                puente.anotar("HTTP: no se pudo abrir el puerto $puerto -- ${e.message}", esError = true)
+                impresor.anotar("HTTP: el bucle de aceptación murió -- ${e.message}", esError = true)
             }
         }
+        return true
     }
 
     fun detener() {
         job?.cancel()
         runCatching { socketServidor?.close() }
         socketServidor = null
+        puertoActivo = -1
     }
 
     private suspend fun atender(cliente: Socket) {
@@ -98,7 +108,7 @@ class ServidorHttp(private val puente: Puente) {
                     responder(salida, 404, "No encontrado"); return
                 }
 
-                val secretoConfigurado = puente.config.value.secretoHttp
+                val secretoConfigurado = impresor.secretoHttp()
                 if (secretoConfigurado.isBlank()) {
                     responder(salida, 503, "Este puente no tiene secreto configurado"); return
                 }
@@ -127,17 +137,17 @@ class ServidorHttp(private val puente: Puente) {
                     ?: run { responder(salida, 400, "Rol desconocido: ${cuerpo.optString("rol")}"); return }
 
                 val payload = try {
-                    Base64.decode(cuerpo.getString("payload_base64"), Base64.DEFAULT)
+                    Base64.getDecoder().decode(cuerpo.getString("payload_base64"))
                 } catch (e: Exception) {
                     responder(salida, 400, "payload_base64 inválido: ${e.message}"); return
                 }
 
-                when (val r = puente.imprimir(rol, payload)) {
+                when (val r = impresor.imprimir(rol, payload)) {
                     is Resultado.Ok -> responder(salida, 200, "OK")
                     is Resultado.Error -> responder(salida, 500, r.motivo)
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error atendiendo petición HTTP", e)
+                impresor.anotar("HTTP: error atendiendo una petición -- ${e.message}", esError = true)
                 runCatching { responder(salida, 500, e.message ?: "Error desconocido") }
             }
         }

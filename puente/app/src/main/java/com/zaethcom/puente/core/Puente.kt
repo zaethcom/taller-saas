@@ -10,13 +10,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Resultado de un trabajo. El mensaje viaja tal cual al cliente, así que se escribe
- *  pensando en quien lo va a leer en la consola de la estación, no en el log. */
-sealed interface Resultado {
-    data object Ok : Resultado
-    data class Error(val motivo: String) : Resultado
-}
-
 data class Linea(val cuando: String, val texto: String, val esError: Boolean)
 
 /**
@@ -32,7 +25,7 @@ data class Linea(val cuando: String, val texto: String, val esError: Boolean)
  * cliente en su propia corrutina, y dos escrituras cruzadas sobre el mismo endpoint
  * USB salen impresas entrelazadas.
  */
-class Puente(private val context: Context) {
+class Puente(private val context: Context) : Impresor {
 
     private val almacen = AlmacenConfig(context)
 
@@ -51,20 +44,22 @@ class Puente(private val context: Context) {
         almacen.guardar(nueva)
     }
 
+    override fun secretoHttp(): String = _config.value.secretoHttp
+
     fun actualizarHttp(secreto: String, puerto: Int) {
         val nueva = _config.value.copy(secretoHttp = secreto, puertoHttp = puerto)
         _config.value = nueva
         almacen.guardar(nueva)
     }
 
-    fun anotar(texto: String, esError: Boolean = false) {
+    override fun anotar(texto: String, esError: Boolean) {
         val linea = Linea(reloj.format(Date()), texto, esError)
         // Se queda con las últimas 200: es una pantalla de diagnóstico, no un archivo.
         _bitacora.value = (_bitacora.value + linea).takeLast(200)
     }
 
     /** Manda [datos] a la impresora del [rol]. Serializado por rol. */
-    suspend fun imprimir(rol: Rol, datos: ByteArray): Resultado {
+    override suspend fun imprimir(rol: Rol, datos: ByteArray): Resultado {
         val cfg = _config.value.de(rol)
         if (!cfg.asignada) {
             return fallo(rol, "No hay impresora asignada al rol ${rol.etiqueta} en este dispositivo")
