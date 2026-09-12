@@ -19,11 +19,36 @@ la máquina física de la sede.
 3. Copiar `config.ejemplo.json` a `config.json` y completar:
    - `sedeId`: el UUID de la sede en la tabla `sede` (Local 1 o Local 2).
    - `apiBase`: la URL de la aplicación desplegada en Vercel.
-   - `servicioClave`: la clave de servicio de esta estación (se genera
-     desde el panel de administración — ver sección "Rutas API" del
-     código, `app/api/impresion/`).
+   - `servicioClave`: la clave de servicio de esta estación. **No hay
+     panel ni endpoint que la genere** — `estacion_credencial`
+     (`supabase/migrations/0006_estaciones.sql`) no tiene ninguna
+     policy de escritura, a propósito: ningún usuario de la aplicación,
+     ni el admin de su propia empresa, puede leerla ni crearla. Se
+     inventa una clave larga al azar y se inserta su sha256 por SQL,
+     desde el editor de Supabase:
+
+     ```sql
+     insert into estacion_credencial (empresa_id, sede_id, clave_hash)
+     values (
+       (select empresa_id from sede where id = '<uuid de la sede>'),
+       '<uuid de la sede>',
+       encode(sha256('<la clave en claro>'::bytea), 'hex')
+     );
+     ```
+
+     La clave en claro no queda guardada en ninguna parte — se copia al
+     `config.json` de esa estación en ese mismo momento. Para rotarla,
+     un `update` del `clave_hash` de esa sede; para revocarla sin
+     reemplazo, poner `revocada_en = now()`.
    - `impresoras.tickets.host` / `impresoras.etiquetas.host`: las IPs
      fijas de cada impresora en la red del local.
+
+   `config.json` lleva esa clave en claro, así que está en
+   `.gitignore`. Si copiaste solo la carpeta `estacion/` a otro sitio
+   versionado, excluirlo también ahí — o dejar el archivo fuera del
+   repositorio y pasarle la ruta: `npm start -- /ruta/a/config.json`
+   (`index.ts` lee el primer argumento, y si no hay usa `./config.json`).
+
 4. Probar en primer plano: `npm start` — debe quedar imprimiendo sin
    errores en la consola. Encolar una etiqueta de prueba desde la app y
    confirmar que sale.
