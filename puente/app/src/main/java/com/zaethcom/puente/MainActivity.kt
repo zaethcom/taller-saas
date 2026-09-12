@@ -185,6 +185,10 @@ private fun TarjetaImpresora(
 ) {
     var textoPuerto by remember(cfg.puerto) { mutableStateOf(cfg.puerto.toString()) }
 
+    // Los puertos por debajo de 1024 son privilegiados y Android no deja enlazarlos.
+    val puertoValido = textoPuerto.toIntOrNull()?.takeIf { it in 1024..65535 }
+    val hayCambio = puertoValido != null && puertoValido != cfg.puerto
+
     Card {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -202,14 +206,25 @@ private fun TarjetaImpresora(
                 fontFamily = if (cfg.asignada) FontFamily.Monospace else FontFamily.Default
             )
 
+            // El puerto NO se aplica mientras se teclea. Al escribir "9101" el campo
+            // pasa por 9, 91 y 910: guardarlos y reiniciar los servidores en cada
+            // tecla dejaba el puente sin oyente (los tres primeros ni se pueden
+            // enlazar) mientras la cabecera seguía mostrando el puerto viejo. Se
+            // aplica con el botón, y solo si el valor es válido.
             OutlinedTextField(
                 value = textoPuerto,
-                onValueChange = { nuevo ->
-                    textoPuerto = nuevo.filter { it.isDigit() }.take(5)
-                    textoPuerto.toIntOrNull()?.let { if (it in 1..65535) alCambiarPuerto(it) }
-                },
+                onValueChange = { nuevo -> textoPuerto = nuevo.filter { it.isDigit() }.take(5) },
                 label = { Text("Puerto") },
                 singleLine = true,
+                isError = textoPuerto.isNotEmpty() && puertoValido == null,
+                supportingText = {
+                    when {
+                        textoPuerto.isNotEmpty() && puertoValido == null ->
+                            Text("Tiene que estar entre 1024 y 65535")
+                        hayCambio -> Text("Sin aplicar — pulsa Aplicar")
+                        else -> Text("Escuchando en ${cfg.puerto}")
+                    }
+                },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -219,6 +234,13 @@ private fun TarjetaImpresora(
                 if (alAbrirCajon != null) {
                     OutlinedButton(onClick = alAbrirCajon, enabled = cfg.asignada) { Text("Cajón") }
                 }
+            }
+
+            if (hayCambio) {
+                Button(
+                    onClick = { alCambiarPuerto(puertoValido!!) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Aplicar puerto $puertoValido y reiniciar") }
             }
         }
     }

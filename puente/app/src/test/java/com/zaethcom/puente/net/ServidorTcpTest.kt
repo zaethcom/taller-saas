@@ -31,7 +31,9 @@ class ServidorTcpTest {
             salida.writeInt(largoDeclarado ?: payload.size)
             salida.write(payload)
             salida.flush()
-            return BufferedReader(InputStreamReader(socket.getInputStream()))
+            // UTF-8 explícito, igual que hace destino.ts. Con el charset por defecto
+            // la prueba pasaría o fallaría según el locale del runner.
+            return BufferedReader(InputStreamReader(socket.getInputStream(), Charsets.UTF_8))
                 .readLine()
                 .orEmpty()
         }
@@ -154,6 +156,43 @@ class ServidorTcpTest {
         } finally {
             sTickets.detener()
             sEtiquetas.detener()
+        }
+    }
+
+    @Test
+    fun `una conexion ociosa se suelta en vez de quedarse con un hilo`() {
+        // Sin timeout, cada conexión colgada se lleva un hilo de Dispatchers.IO para
+        // siempre; unas sesenta y deja de imprimir todo sin un error en pantalla.
+        val impresor = ImpresorFalso()
+        val servidor = ServidorTcp(Rol.TICKETS, impresor, timeoutLecturaMs = 300)
+        assertTrue(servidor.arrancar(0))
+        try {
+            Socket("127.0.0.1", servidor.puertoActivo).use { socket ->
+                // Se conecta y no manda nada. El servidor debe cerrar por su cuenta.
+                socket.soTimeout = 5000
+                val leido = socket.getInputStream().read()
+                assertEquals("el servidor debía cerrar la conexión ociosa", -1, leido)
+            }
+            // Y sigue atendiendo a quien sí manda un trabajo.
+            assertEquals("OK", enviar(servidor.puertoActivo, byteArrayOf(4, 2)))
+        } finally {
+            servidor.detener()
+        }
+    }
+
+    @Test
+    fun `el motivo del error viaja en UTF-8 con tildes intactas`() {
+        // destino.ts hace chunk.toString("utf-8"); si el servidor escribiera con el
+        // charset por defecto de la JVM, el motivo llegaría corrupto justo cuando más
+        // falta hace leerlo.
+        val motivo = "La impresora de etiquetas no está conectada (ñ áéíóú)"
+        val impresor = ImpresorFalso(Resultado.Error(motivo))
+        val servidor = ServidorTcp(Rol.ETIQUETAS, impresor)
+        assertTrue(servidor.arrancar(0))
+        try {
+            assertEquals("ERR:$motivo", enviar(servidor.puertoActivo, byteArrayOf(1)))
+        } finally {
+            servidor.detener()
         }
     }
 

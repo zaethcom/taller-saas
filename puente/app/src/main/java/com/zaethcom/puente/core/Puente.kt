@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 data class Linea(val cuando: String, val texto: String, val esError: Boolean)
 
@@ -35,7 +36,19 @@ class Puente(private val context: Context) : Impresor {
     private val _bitacora = MutableStateFlow<List<Linea>>(emptyList())
     val bitacora: StateFlow<List<Linea>> = _bitacora
 
-    private val cerrojos: Map<Rol, Mutex> = Rol.entries.associateWith { Mutex() }
+    /**
+     * Un cerrojo por dispositivo USB, NO por rol.
+     *
+     * Los dos roles pueden estar asignados a la misma impresora física -- de hecho es
+     * la configuración de arranque mientras haya una sola conectada. Con un cerrojo
+     * por rol, un ticket y una etiqueta simultáneos se reclaman el mismo endpoint a la
+     * vez y salen entrelazados en el papel. La identidad que importa es la del
+     * aparato, así que la clave es su VID/PID.
+     */
+    private val cerrojos = ConcurrentHashMap<String, Mutex>()
+
+    private fun cerrojoDe(cfg: ImpresoraCfg): Mutex =
+        cerrojos.getOrPut("${cfg.vendorId}:${cfg.productId}") { Mutex() }
     private val reloj = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
     fun actualizar(cfg: ImpresoraCfg) {
@@ -65,7 +78,7 @@ class Puente(private val context: Context) : Impresor {
             return fallo(rol, "No hay impresora asignada al rol ${rol.etiqueta} en este dispositivo")
         }
 
-        return cerrojos.getValue(rol).withLock {
+        return cerrojoDe(cfg).withLock {
             val transporte = UsbRawTransport(context)
             val dispositivo = transporte.buscar(cfg.vendorId!!, cfg.productId!!)
                 ?: return@withLock fallo(

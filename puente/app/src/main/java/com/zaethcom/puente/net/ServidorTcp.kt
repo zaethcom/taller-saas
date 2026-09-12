@@ -3,6 +3,7 @@ package com.zaethcom.puente.net
 import com.zaethcom.puente.core.Impresor
 import com.zaethcom.puente.core.Resultado
 import com.zaethcom.puente.core.Rol
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -13,8 +14,17 @@ import java.io.OutputStreamWriter
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
+import java.net.SocketTimeoutException
 
 private const val MAX_PAYLOAD = 20_000_000
+
+/**
+ * Un cliente que abre la conexión y no manda nada tiene este tiempo antes de que se
+ * le corte. Sin esto, cada conexión colgada se queda con un hilo de Dispatchers.IO
+ * para siempre: unas sesenta y el pool se agota, y entonces deja de imprimir TODO
+ * sin un solo error en pantalla.
+ */
+private const val TIMEOUT_LECTURA_MS = 20_000
 
 /**
  * Un servidor por rol, cada uno en su propio puerto. El rol NO viaja en el protocolo:
@@ -29,7 +39,9 @@ private const val MAX_PAYLOAD = 20_000_000
  */
 class ServidorTcp(
     private val rol: Rol,
-    private val impresor: Impresor
+    private val impresor: Impresor,
+    /** Inyectable solo para que las pruebas no tengan que esperar 20 s de verdad. */
+    private val timeoutLecturaMs: Int = TIMEOUT_LECTURA_MS
 ) {
     private val scope = CoroutineScope(Dispatchers.IO)
     private var socketServidor: ServerSocket? = null
@@ -87,6 +99,7 @@ class ServidorTcp(
     private suspend fun atender(cliente: Socket) {
         cliente.use { socket ->
             try {
+                socket.soTimeout = timeoutLecturaMs
                 val entrada = DataInputStream(socket.getInputStream())
                 val largo = entrada.readInt()
                 if (largo <= 0 || largo > MAX_PAYLOAD) {
@@ -104,6 +117,12 @@ class ServidorTcp(
                 // Conexión abierta y cerrada sin mandar nada: un escáner de puertos o un
                 // chequeo de salud (`nc -z` hace exactamente esto). No es un fallo, y no
                 // se anota para no llenar la bitácora de ruido.
+            } catch (e: SocketTimeoutException) {
+                // Se conectó y no mandó el trabajo a tiempo. Se suelta el hilo y ya.
+            } catch (e: CancellationException) {
+                // Reinicio de servidores: no es un fallo de impresión y no debe anotarse
+                // como tal ni contestarle ERR a un socket que se está cerrando.
+                throw e
             } catch (e: Exception) {
                 impresor.anotar("${rol.etiqueta}: error atendiendo un trabajo -- ${e.message}", esError = true)
                 runCatching { responder(socket, "ERR:${e.message}") }
@@ -111,8 +130,11 @@ class ServidorTcp(
         }
     }
 
+    /** UTF-8 explícito: `destino.ts` decodifica la respuesta como UTF-8, y el juego
+     *  de caracteres por defecto de la JVM no tiene por qué serlo. Los motivos de
+     *  error llevan tildes. */
     private fun responder(socket: Socket, linea: String) {
-        OutputStreamWriter(socket.getOutputStream()).apply {
+        OutputStreamWriter(socket.getOutputStream(), Charsets.UTF_8).apply {
             write("$linea\n")
             flush()
         }

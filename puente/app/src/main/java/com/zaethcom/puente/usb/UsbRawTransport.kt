@@ -22,6 +22,10 @@ private const val ACCION_PERMISO_USB = "com.zaethcom.puente.USB_PERMISSION"
  *  con payloads grandes (una etiqueta con logo pasa de los 100 KB sin esfuerzo). */
 private const val TROZO = 16 * 1024
 
+/** Cuántas transferencias seguidas de cero bytes se toleran antes de darla por muerta.
+ *  Con el timeout de bulkTransfer en 8 s, tres vueltas son ~24 s de silencio real. */
+private const val MAX_VUELTAS_SIN_AVANCE = 3
+
 /**
  * Mueve bytes crudos a una impresora USB. No sabe nada de ESC/POS, ZPL ni PPLB: este
  * puente reenvía exactamente lo que le llega por la red, porque quien lo generó ya
@@ -67,6 +71,10 @@ class UsbRawTransport(private val context: Context) {
         ContextCompat.registerReceiver(
             context, receptor, IntentFilter(ACCION_PERMISO_USB), ContextCompat.RECEIVER_NOT_EXPORTED
         )
+        // Si la corrutina se cancela con el diálogo de permiso abierto -- girar la
+        // pantalla basta -- el receptor quedaría registrado para siempre y la
+        // asignación se perdería en silencio.
+        cont.invokeOnCancellation { runCatching { context.unregisterReceiver(receptor) } }
         usbManager.requestPermission(dispositivo, intento)
     }
 
@@ -123,17 +131,31 @@ class UsbRawTransport(private val context: Context) {
         val ep = salida ?: return "La conexión USB no tiene endpoint de salida"
 
         var enviados = 0
+        var sinAvance = 0
         while (enviados < datos.size) {
             val n = minOf(TROZO, datos.size - enviados)
             val trozo = datos.copyOfRange(enviados, enviados + n)
             val escritos = con.bulkTransfer(ep, trozo, trozo.size, timeoutMs)
+
             if (escritos < 0) {
                 return "bulkTransfer() falló tras $enviados de ${datos.size} bytes"
             }
-            enviados += escritos
-            if (escritos < n) {
-                return "La impresora aceptó $enviados de ${datos.size} bytes y dejó de recibir"
+
+            // Una transferencia parcial NO es un fallo: el bus puede aceptar menos de
+            // lo pedido y lo correcto es seguir mandando el resto. Tratarlo como fatal
+            // cortaba una etiqueta grande a la mitad. Lo que sí es un fallo es que deje
+            // de avanzar del todo, y eso se detecta contando vueltas sin progreso en
+            // vez de rindiéndose en la primera parcial.
+            if (escritos == 0) {
+                sinAvance++
+                if (sinAvance >= MAX_VUELTAS_SIN_AVANCE) {
+                    return "La impresora dejó de aceptar datos en el byte $enviados de ${datos.size}"
+                }
+            } else {
+                sinAvance = 0
             }
+
+            enviados += escritos
         }
         return null
     }

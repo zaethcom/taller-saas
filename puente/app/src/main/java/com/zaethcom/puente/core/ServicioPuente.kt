@@ -63,7 +63,7 @@ class ServicioPuente : Service() {
         val notificacion: Notification = NotificationCompat.Builder(this, CANAL)
             .setContentTitle("Puente de impresión activo")
             .setContentText(detalle)
-            .setSmallIcon(R.drawable.ic_puente)
+            .setSmallIcon(R.drawable.ic_notificacion)
             .setContentIntent(abrir)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

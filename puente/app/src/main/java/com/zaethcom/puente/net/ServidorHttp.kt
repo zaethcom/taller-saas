@@ -3,6 +3,7 @@ package com.zaethcom.puente.net
 import com.zaethcom.puente.core.Impresor
 import com.zaethcom.puente.core.Resultado
 import com.zaethcom.puente.core.Rol
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -14,6 +15,7 @@ import java.io.OutputStream
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
+import java.net.SocketTimeoutException
 import java.util.Base64
 
 /**
@@ -32,7 +34,15 @@ import java.util.Base64
  * abierto en una red de local comercial es una impresora que cualquiera puede
  * gastar, y en el peor caso un cajón que cualquiera puede abrir.
  */
-class ServidorHttp(private val impresor: Impresor) {
+/** Ver [com.zaethcom.puente.net.ServidorTcp]: mismo motivo, y aquí importa más porque
+ *  este puerto es el que puede quedar expuesto fuera de la red local. */
+private const val TIMEOUT_LECTURA_MS = 20_000
+
+class ServidorHttp(
+    private val impresor: Impresor,
+    /** Ver [ServidorTcp]. */
+    private val timeoutLecturaMs: Int = TIMEOUT_LECTURA_MS
+) {
 
     private val scope = CoroutineScope(Dispatchers.IO)
     private var socketServidor: ServerSocket? = null
@@ -82,6 +92,7 @@ class ServidorHttp(private val impresor: Impresor) {
         cliente.use { socket ->
             val salida = socket.getOutputStream()
             try {
+                socket.soTimeout = timeoutLecturaMs
                 val lector = BufferedReader(InputStreamReader(socket.getInputStream(), Charsets.ISO_8859_1))
                 val peticion = lector.readLine() ?: return
                 val partes = peticion.split(" ")
@@ -105,14 +116,17 @@ class ServidorHttp(private val impresor: Impresor) {
                 }
 
                 if (metodo != "POST" || ruta != "/imprimir") {
+                    descartarCuerpo(lector, largoCuerpo)
                     responder(salida, 404, "No encontrado"); return
                 }
 
                 val secretoConfigurado = impresor.secretoHttp()
                 if (secretoConfigurado.isBlank()) {
+                    descartarCuerpo(lector, largoCuerpo)
                     responder(salida, 503, "Este puente no tiene secreto configurado"); return
                 }
                 if (secretoRecibido != secretoConfigurado) {
+                    descartarCuerpo(lector, largoCuerpo)
                     responder(salida, 401, "Secreto inválido"); return
                 }
                 if (largoCuerpo <= 0 || largoCuerpo > 5_000_000) {
@@ -146,9 +160,32 @@ class ServidorHttp(private val impresor: Impresor) {
                     is Resultado.Ok -> responder(salida, 200, "OK")
                     is Resultado.Error -> responder(salida, 500, r.motivo)
                 }
+            } catch (e: SocketTimeoutException) {
+                // Conexión abierta sin completar la petición. Se suelta el hilo.
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 impresor.anotar("HTTP: error atendiendo una petición -- ${e.message}", esError = true)
                 runCatching { responder(salida, 500, e.message ?: "Error desconocido") }
+            }
+        }
+    }
+
+    /**
+     * Descarta el cuerpo pendiente antes de responder un error. Cerrar el socket con
+     * datos sin leer hace que el sistema mande RST, y entonces el cliente ve
+     * "connection reset" en vez de "Secreto inválido" -- que es la diferencia entre
+     * diagnosticarlo en un minuto o en una tarde.
+     */
+    private fun descartarCuerpo(lector: BufferedReader, largo: Int) {
+        if (largo <= 0 || largo > 5_000_000) return
+        runCatching {
+            val basura = CharArray(8 * 1024)
+            var restantes = largo
+            while (restantes > 0) {
+                val n = lector.read(basura, 0, minOf(basura.size, restantes))
+                if (n < 0) break
+                restantes -= n
             }
         }
     }
