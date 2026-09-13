@@ -72,5 +72,22 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: errUpdate.message }, { status: 500 });
   }
 
+  // Si este traslado venía de una solicitud del taller, ya llegó: se cierra
+  // sola. Obligar a marcarla a mano dejaría la bandeja llena de cosas que
+  // están en el estante desde hace días. El filtro por estado la deja
+  // idempotente: recibir dos veces no revive nada.
+  const { error: errSolicitudes } = await supabase
+    .from("repuesto_solicitud")
+    .update({ estado: "recibido", recibido_en: new Date().toISOString() })
+    .eq("traslado_id", id)
+    .eq("estado", "en_traslado");
+
+  if (errSolicitudes) {
+    // El traslado SÍ se recibió y la existencia ya subió. Que no se haya
+    // podido cerrar la solicitud es un detalle de bandeja, no un motivo
+    // para decirle a quien recibió que falló.
+    console.error("[traslados] no se pudo cerrar la solicitud del traslado", id, errSolicitudes.message);
+  }
+
   return NextResponse.json({ ok: true });
 }

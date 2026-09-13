@@ -1,18 +1,28 @@
 "use client";
 
 /**
- * Consumir un repuesto contra el inventario de la sede, o marcarlo
- * como faltante si no hay -- lo que crea la fila en repuesto_solicitud
- * que aparece en /compras. Fase 6 del plano de construcción.
+ * Consumir un repuesto contra el inventario de la sede, pedírselo a la
+ * sede que sí lo tiene, o marcarlo como faltante -- lo que crea la fila
+ * en repuesto_solicitud que aparece en /compras. Fase 6 del plano.
+ *
+ * El botón del medio es el que faltaba: sin él, no tener existencia
+ * propia obligaba a mandar a comprar algo que está en el otro local.
  */
 import { useState } from "react";
 import { useParams } from "next/navigation";
+
+interface EnSede {
+  sedeId: string;
+  nombre: string;
+  cantidad: number;
+}
 
 interface Repuesto {
   id: string;
   codigo: string;
   descripcion: string;
   existenciaAqui: number;
+  enOtrasSedes: EnSede[];
 }
 
 export default function PaginaRepuestos() {
@@ -52,6 +62,31 @@ export default function PaginaRepuestos() {
       buscarRepuestos();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo consumir el repuesto");
+    } finally {
+      setProcesando(false);
+    }
+  }
+
+  async function pedirASede(r: Repuesto, destino: EnSede) {
+    setProcesando(true);
+    setError(null);
+    setMensaje(null);
+    try {
+      const res = await fetch("/api/repuesto-solicitud", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          repuestoId: r.id,
+          descripcion: r.descripcion,
+          cantidad: 1,
+          sedeProveedoraId: destino.sedeId,
+          ordenId: id,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setMensaje(`Pedido a ${destino.nombre}. Te llegará como traslado por recibir.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo pedir el repuesto");
     } finally {
       setProcesando(false);
     }
@@ -116,11 +151,24 @@ export default function PaginaRepuestos() {
               <strong>{r.descripcion}</strong>
               <div style={{ fontSize: 12, opacity: 0.6 }}>
                 {r.codigo} · {r.existenciaAqui} en esta sede
+                {r.enOtrasSedes.map((s) => (
+                  <span key={s.sedeId}> · {s.cantidad} en {s.nombre}</span>
+                ))}
               </div>
             </div>
-            <button onClick={() => consumir(r.id)} disabled={procesando || r.existenciaAqui <= 0}>
-              Consumir 1
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              {/* Pedir solo aparece cuando aquí no hay y allá sí: ofrecerlo
+                  siempre invitaría a mover mercancía sin necesidad. */}
+              {r.existenciaAqui <= 0 &&
+                r.enOtrasSedes.map((s) => (
+                  <button key={s.sedeId} onClick={() => pedirASede(r, s)} disabled={procesando}>
+                    Pedir a {s.nombre}
+                  </button>
+                ))}
+              <button onClick={() => consumir(r.id)} disabled={procesando || r.existenciaAqui <= 0}>
+                Consumir 1
+              </button>
+            </div>
           </div>
         ))}
         {resultados.length === 0 && buscar && !buscando && (
