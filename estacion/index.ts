@@ -1,8 +1,9 @@
 /**
  * El programa que corre en el Android (o PC) de cada sede. Consulta la
- * cola de trabajos pendientes cada dos segundos, los traduce a bytes o
- * ZPL según el tipo, los manda a la impresora correspondiente por red,
- * y reporta el resultado.
+ * cola de trabajos pendientes cada dos segundos, los traduce a bytes
+ * ESC/POS -- o a ZPL, si la sede tiene una etiquetadora aparte, ver
+ * ruteo.ts --, los manda a la impresora que corresponda por red y
+ * reporta el resultado.
  *
  * No consulta la base de datos directamente ni calcula nada de negocio:
  * solo habla con las dos rutas de la API descritas en el plano de
@@ -14,12 +15,7 @@
  */
 import { readFileSync } from "node:fs";
 import { crearDestinos, type ConfigImpresoras } from "./destino";
-import { componer, inicializar, abrirCajon as abrirCajonBytes } from "./escpos";
-import { etiquetaArticuloZpl, etiquetaQrZpl, type DatosEtiquetaArticulo, type DatosEtiquetaQr } from "./etiqueta";
-import { reciboVenta, type CargaReciboVenta } from "./plantillas/recibo";
-import { comprobanteRecepcion, type CargaComprobanteRecepcion } from "./plantillas/comprobante";
-import { cierreCaja, type CargaCierreCaja } from "./plantillas/cierre";
-import { comprobanteTraslado, type CargaComprobanteTraslado } from "./plantillas/traslado";
+import { resolverImpresion, type TrabajoPendiente } from "./ruteo";
 
 interface Config {
   sedeId: string;
@@ -27,19 +23,6 @@ interface Config {
   servicioClave: string;
   intervaloMs: number;
   impresoras: ConfigImpresoras;
-}
-
-interface TrabajoPendiente {
-  id: string;
-  tipo:
-    | "etiqueta_qr"
-    | "recibo_venta"
-    | "comprobante_recepcion"
-    | "cierre_caja"
-    | "abrir_cajon"
-    | "comprobante_traslado"
-    | "etiqueta_articulo";
-  carga: unknown;
 }
 
 function cargarConfig(ruta: string): Config {
@@ -72,47 +55,16 @@ async function reportarResultado(
   });
 }
 
-/** Traduce un trabajo pendiente a lo que hay que enviarle a cuál impresora. */
-function resolverImpresion(
-  trabajo: TrabajoPendiente,
-): { destino: "tickets" | "etiquetas"; contenido: Buffer | string } {
-  switch (trabajo.tipo) {
-    case "recibo_venta":
-      return { destino: "tickets", contenido: reciboVenta(trabajo.carga as CargaReciboVenta) };
-
-    case "comprobante_recepcion":
-      return {
-        destino: "tickets",
-        contenido: comprobanteRecepcion(trabajo.carga as CargaComprobanteRecepcion),
-      };
-
-    case "cierre_caja":
-      return { destino: "tickets", contenido: cierreCaja(trabajo.carga as CargaCierreCaja) };
-
-    case "comprobante_traslado":
-      return {
-        destino: "tickets",
-        contenido: comprobanteTraslado(trabajo.carga as CargaComprobanteTraslado),
-      };
-
-    case "abrir_cajon":
-      return { destino: "tickets", contenido: componer(inicializar(), abrirCajonBytes()) };
-
-    case "etiqueta_qr":
-      return { destino: "etiquetas", contenido: etiquetaQrZpl(trabajo.carga as DatosEtiquetaQr) };
-
-    case "etiqueta_articulo":
-      return { destino: "etiquetas", contenido: etiquetaArticuloZpl(trabajo.carga as DatosEtiquetaArticulo) };
-  }
-}
-
 async function procesarUnTrabajo(
   config: Config,
   destinos: ReturnType<typeof crearDestinos>,
   trabajo: TrabajoPendiente,
 ): Promise<void> {
   try {
-    const { destino, contenido } = resolverImpresion(trabajo);
+    const { destino, contenido } = resolverImpresion(
+      trabajo,
+      Boolean(config.impresoras.etiquetas),
+    );
     await destinos[destino].enviar(contenido);
     await reportarResultado(config, trabajo.id, { ok: true });
     console.log(`[estacion] impreso ${trabajo.tipo} (${trabajo.id})`);
