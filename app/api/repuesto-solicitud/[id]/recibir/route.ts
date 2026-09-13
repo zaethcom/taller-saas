@@ -8,6 +8,7 @@
  */
 import { NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { puedeTransicionarSolicitud, type EstadoSolicitud } from "@/lib/solicitudes";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,11 +21,18 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
+  // Los estados desde los que compras puede dar algo por recibido salen de
+  // lib/solicitudes.ts, no de una cadena suelta aquí: antes solo contemplaba
+  // 'faltante' y hoy también existe 'solicitado' (pedido al proveedor).
+  const desdeAqui = (["faltante", "solicitado"] as EstadoSolicitud[]).filter((e) =>
+    puedeTransicionarSolicitud(e, "recibido"),
+  );
+
   const { data, error } = await supabase
     .from("repuesto_solicitud")
     .update({ estado: "recibido", recibido_en: new Date().toISOString() })
     .eq("id", id)
-    .eq("estado", "faltante")
+    .in("estado", desdeAqui)
     .select("id, orden_id")
     .maybeSingle();
 

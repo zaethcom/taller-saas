@@ -14,7 +14,16 @@ import { clienteServidor } from "@/lib/supabase/servidor";
 
 type Cuerpo =
   | { accion: "consumir"; repuestoId: string; cantidad: number }
-  | { accion: "faltante"; descripcion: string; cantidad: number; prioridad?: string };
+  // repuestoId es opcional en un faltante: puede ser algo que todavía no
+  // está en el catálogo, y entonces solo hay descripción. Cuando sí está,
+  // guardarlo permite después pedírselo a la otra sede.
+  | {
+      accion: "faltante";
+      descripcion: string;
+      cantidad: number;
+      prioridad?: string;
+      repuestoId?: string;
+    };
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -71,12 +80,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "faltan datos del faltante" }, { status: 400 });
     }
 
+    // sede_solicitante_id: sin esto, /compras no puede decir para qué sede
+    // es el faltante -- y con dos sedes eso deja de ser un detalle.
     const { error } = await supabase.from("repuesto_solicitud").insert({
       empresa_id: orden.empresa_id,
       orden_id: id,
+      repuesto_id: body.repuestoId ?? null,
       descripcion: body.descripcion.trim(),
       cantidad: body.cantidad,
       prioridad: body.prioridad ?? "normal",
+      estado: "faltante",
+      sede_solicitante_id: orden.sede_id,
       solicitado_por: user.id,
     });
     if (error) {
