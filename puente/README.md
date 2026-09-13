@@ -68,6 +68,55 @@ Si la estación corre en el mismo equipo que las impresoras, `127.0.0.1` en vez 
 IP: se ahorra la vuelta por la red y deja de depender de que el equipo conserve su
 dirección.
 
+## Conectarse por ADB al equipo
+
+Para instalar sin tocar el aparato, o para leer los logs en vivo, hace falta ADB.
+Hay dos formas, y la primera es mejor para un equipo fijo.
+
+### ADB en puerto fijo (recomendado)
+
+La depuración inalámbrica de Android 11+ cambia el puerto de conexión en cada
+reinicio, y obliga a emparejar con un código. Para un equipo de mostrador que no
+se mueve, eso es fricción sin beneficio: el ADB clásico usa siempre el 5555 y no
+pide emparejamiento.
+
+En el equipo, con permisos de superusuario:
+
+```sh
+setprop service.adb.tcp.port 5555
+stop adbd
+start adbd
+```
+
+Desde entonces, y desde cualquier máquina de la red:
+
+```sh
+adb connect 192.168.20.89:5555
+```
+
+Eso no sobrevive a un reinicio salvo que el build honre `persist.service.adb.tcp.port`
+-- se prueba poniendo ese en vez del otro. Si no lo honra, queda repetir las tres
+líneas tras cada arranque, o dejarlas en el script de inicio del equipo.
+
+**Esto abre el ADB a toda la red local sin autenticación.** En la red de un local
+cerrado es aceptable; en una red compartida con clientes, no.
+
+### Depuración inalámbrica, descubriendo el puerto solo
+
+Si se prefiere no tocar propiedades del sistema, `herramientas/conectar-sion.sh`
+(o `.ps1` en Windows) descubre el puerto por mDNS en vez de obligar a leerlo en
+la pantalla:
+
+```sh
+./herramientas/conectar-sion.sh                      # descubre y conecta
+./herramientas/conectar-sion.sh --instalar app.apk   # además instala y abre
+```
+
+La primera vez sigue haciendo falta emparejar a mano, una sola vez por
+computador: `adb pair <ip>:<puerto de emparejamiento>` con el código de seis
+dígitos. Ese puerto **no** es el de conexión -- son dos números distintos en dos
+pantallas distintas, y es donde se atasca todo el mundo.
+
 ## Los dos protocolos
 
 **TCP (por rol, un puerto cada uno).** Cuatro bytes de longitud big-endian, luego el
