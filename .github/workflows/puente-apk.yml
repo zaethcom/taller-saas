@@ -16,6 +16,10 @@ on:
       - '.github/workflows/puente-apk.yml'
   workflow_dispatch:
 
+# El paso de publicación necesita escribir en Releases.
+permissions:
+  contents: write
+
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -49,9 +53,41 @@ jobs:
 
       # El APK queda descargable desde la pestaña de Actions: es la forma de
       # instalarlo en el equipo de la sede sin montar Android Studio ahí.
-      - name: Publicar el APK
+      - name: Publicar el APK como artefacto
         uses: actions/upload-artifact@v4
         with:
           name: puente-debug-apk
           path: puente/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+      # Un artefacto de Actions es un ZIP que exige iniciar sesión en GitHub. Para
+      # instalarlo en el equipo de una sede eso estorba: hay que bajarlo en otra
+      # máquina, descomprimirlo y pasarlo. Una publicación da un enlace directo al
+      # .apk que se abre en el navegador del propio equipo, sin sesión y sin ZIP.
+      #
+      # Solo a mano (workflow_dispatch): no tiene sentido republicar en cada commit.
+      - name: Renombrar el APK con el commit
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          mkdir -p publicar
+          cp app/build/outputs/apk/debug/*.apk "publicar/puente-${GITHUB_SHA::7}.apk"
+          ls -l publicar/
+
+      - name: Publicar como release
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: puente-dev
+          name: Puente de impresión (última compilación)
+          body: |
+            APK de depuración del puente de impresión, compilado desde
+            `${{ github.ref_name }}` en el commit `${{ github.sha }}`.
+
+            Se instala en el equipo que tiene las impresoras conectadas por USB.
+            Descargar el `.apk` de aquí abajo directamente desde el navegador de ese
+            equipo — no hace falta Android Studio ni pasar por otra máquina.
+
+            Esta publicación se sobrescribe en cada compilación manual: es siempre la
+            última, no un histórico de versiones.
+          prerelease: true
+          files: puente/publicar/*.apk
