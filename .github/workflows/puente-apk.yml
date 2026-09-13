@@ -46,6 +46,13 @@ jobs:
           restore-keys: gradle-${{ runner.os }}-
 
       - name: Compilar APK de depuración
+        env:
+          # Quedan dentro del APK: la versión se ve en la cabecera de la app,
+          # que es como se comprueba que la instalación de verdad reemplazó a
+          # la anterior. El versionCode sube en cada ejecución para que Android
+          # trate el APK nuevo como una actualización y no como "ya existe".
+          PUENTE_REVISION: ${{ github.sha }}
+          PUENTE_VERSION_CODE: ${{ github.run_number }}
         run: ./gradlew --no-daemon assembleDebug
 
       - name: Pruebas unitarias
@@ -66,11 +73,15 @@ jobs:
       # .apk que se abre en el navegador del propio equipo, sin sesión y sin ZIP.
       #
       # Solo a mano (workflow_dispatch): no tiene sentido republicar en cada commit.
-      - name: Renombrar el APK con el commit
+      # Nombre FIJO a propósito. Antes llevaba el commit, y cada compilación
+      # subía un archivo distinto en vez de reemplazar al anterior: la
+      # publicación acabó con tres APK y en la sede se instaló el más viejo.
+      # Con un solo nombre no hay dónde equivocarse.
+      - name: Preparar el APK para publicar
         if: github.event_name == 'workflow_dispatch'
         run: |
           mkdir -p publicar
-          cp app/build/outputs/apk/debug/*.apk "publicar/puente-${GITHUB_SHA::7}.apk"
+          cp app/build/outputs/apk/debug/*.apk publicar/puente.apk
           ls -l publicar/
 
       - name: Publicar como release
@@ -84,8 +95,13 @@ jobs:
             `${{ github.ref_name }}` en el commit `${{ github.sha }}`.
 
             Se instala en el equipo que tiene las impresoras conectadas por USB.
-            Descargar el `.apk` de aquí abajo directamente desde el navegador de ese
-            equipo — no hace falta Android Studio ni pasar por otra máquina.
+            Descargar **`puente.apk`** de aquí abajo directamente desde el navegador de
+            ese equipo — no hace falta Android Studio ni pasar por otra máquina.
+
+            La app muestra en su cabecera la compilación instalada, con los primeros
+            siete caracteres del commit de arriba. Si después de instalar sigue
+            diciendo otra, la instalación no reemplazó a la anterior:
+            `adb install -r puente.apk`.
 
             Esta publicación se sobrescribe en cada compilación manual: es siempre la
             última, no un histórico de versiones.

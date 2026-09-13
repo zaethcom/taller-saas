@@ -24,14 +24,19 @@ interface CargaEtiquetaQr {
   modelo: string | null;
   numeroOrden: number;
   contenidoQr: string;
+  /** Lo agrega encolarImpresion(), igual que en los recibos. */
+  empresaNombre: string;
 }
 
 /**
  * Los cuatro campos que identifican a la empresa en el papel -- nunca
  * los llena quien encola el trabajo (/api/ventas, /api/ordenes, etc.):
- * encolarImpresion() los agrega solos, leyendo empresa + empresa_config,
- * para los tipos que de verdad son un recibo y no una etiqueta pequeña
- * sin espacio para esto.
+ * encolarImpresion() los agrega solos, leyendo empresa + empresa_config.
+ *
+ * Las etiquetas reciben solo el nombre: desde que se imprimen en la
+ * misma impresora de tickets tienen sitio para un recuadro de marca,
+ * pero repetir dirección, teléfono y pie en algo que se pega a un
+ * equipo es gastar papel.
  */
 interface CargaMarcaEmpresa {
   empresaNombre: string;
@@ -88,6 +93,7 @@ interface CargaEtiquetaArticulo {
   tipo: string;
   marca: string | null;
   modelo: string | null;
+  empresaNombre: string;
 }
 
 type CargaPorTipo = {
@@ -105,6 +111,12 @@ const TIPOS_CON_MARCA = new Set<TipoTrabajo>([
   "comprobante_recepcion",
   "cierre_caja",
   "comprobante_traslado",
+]);
+
+/** Las etiquetas: solo el nombre, para el recuadro de arriba. */
+const TIPOS_CON_NOMBRE_EMPRESA = new Set<TipoTrabajo>([
+  "etiqueta_qr",
+  "etiqueta_articulo",
 ]);
 
 export async function encolarImpresion<T extends TipoTrabajo>(
@@ -126,11 +138,10 @@ export async function encolarImpresion<T extends TipoTrabajo>(
 ): Promise<{ id: string }> {
   let carga: object = params.carga;
 
-  // Las etiquetas (etiqueta_qr, etiqueta_articulo) y abrir_cajon no
-  // llevan esto -- son demasiado pequeñas o no imprimen texto de
-  // empresa en absoluto. Los cuatro tipos que sí son un recibo de
-  // verdad lo reciben aquí, una sola vez, en vez de que cada ruta que
-  // llama a encolarImpresion tenga que acordarse de pedirlo.
+  // abrir_cajon no lleva nada de esto: no imprime papel. Los cuatro
+  // tipos que son un recibo de verdad reciben la marca completa aquí,
+  // una sola vez, en vez de que cada ruta que llama a encolarImpresion
+  // tenga que acordarse de pedirla; las etiquetas, solo el nombre.
   if (TIPOS_CON_MARCA.has(params.tipo)) {
     const [{ data: empresa }, { data: config }] = await Promise.all([
       supabase.from("empresa").select("nombre").eq("id", params.empresaId).single(),
@@ -148,6 +159,14 @@ export async function encolarImpresion<T extends TipoTrabajo>(
       reciboPie: config?.recibo_pie ?? "Gracias por su preferencia",
     };
     carga = { ...params.carga, ...marca };
+  } else if (TIPOS_CON_NOMBRE_EMPRESA.has(params.tipo)) {
+    const { data: empresa } = await supabase
+      .from("empresa")
+      .select("nombre")
+      .eq("id", params.empresaId)
+      .single();
+
+    carga = { ...params.carga, empresaNombre: empresa?.nombre ?? "" };
   }
 
   const { data, error } = await supabase

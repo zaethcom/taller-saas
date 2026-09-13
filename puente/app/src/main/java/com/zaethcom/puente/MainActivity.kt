@@ -1,6 +1,7 @@
 package com.zaethcom.puente
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.usb.UsbDevice
 import android.os.Build
@@ -72,6 +73,7 @@ private fun Pantalla(app: PuenteApp) {
 
     var eligiendoPara by remember { mutableStateOf<Rol?>(null) }
     val ip = remember { ipLocal() }
+    val version = remember { versionInstalada(contexto) }
 
     Column(
         modifier = Modifier
@@ -80,7 +82,7 @@ private fun Pantalla(app: PuenteApp) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Cabecera(ip, config)
+        Cabecera(ip, config, version)
 
         Rol.entries.forEach { rol ->
             TarjetaImpresora(
@@ -156,7 +158,7 @@ private fun descripcion(d: UsbDevice): String {
 }
 
 @Composable
-private fun Cabecera(ip: String?, config: ConfigPuente) {
+private fun Cabecera(ip: String?, config: ConfigPuente, version: String) {
     Card {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Puente de impresión", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -177,9 +179,23 @@ private fun Cabecera(ip: String?, config: ConfigPuente) {
                 fontFamily = FontFamily.Monospace,
                 style = MaterialTheme.typography.bodySmall
             )
+            // Para poder responder "¿quedó instalada la nueva?" mirando la
+            // pantalla, en vez de adivinando.
+            Text(
+                "compilación $version",
+                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
+
+/** El versionName del APK instalado -- "0.1.0-157f600". */
+private fun versionInstalada(contexto: Context): String =
+    runCatching {
+        contexto.packageManager.getPackageInfo(contexto.packageName, 0).versionName ?: "desconocida"
+    }.getOrDefault("desconocida")
 
 @Composable
 private fun TarjetaImpresora(

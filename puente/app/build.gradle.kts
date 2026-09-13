@@ -3,6 +3,23 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+/**
+ * De qué commit salió este APK. La compilación de CI lo pasa por
+ * entorno; en local queda "local".
+ *
+ * Existe por un problema real de campo: se instaló un APK nuevo en el
+ * equipo de la sede, el viejo siguió puesto, y desde la pantalla no
+ * había forma de notarlo -- se perdió media hora buscando en el sitio
+ * equivocado. Ahora la versión se ve en la cabecera de la app.
+ */
+val revisionPuente = (System.getenv("PUENTE_REVISION") ?: "local").take(7)
+
+/**
+ * Android solo trata un APK como actualización si el versionCode sube.
+ * En CI es el número de ejecución del workflow, que siempre crece.
+ */
+val codigoVersionPuente = (System.getenv("PUENTE_VERSION_CODE") ?: "1").toInt()
+
 android {
     namespace = "com.zaethcom.puente"
     compileSdk = 34
@@ -12,8 +29,8 @@ android {
         // 26 es el mismo piso que smart-food-label. BlissOS reporta bastante más.
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = codigoVersionPuente
+        versionName = "0.1.0-$revisionPuente"
     }
 
     buildTypes {
