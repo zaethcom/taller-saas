@@ -20,7 +20,7 @@ export type Accion =
   | "gestionar_usuarios"
   | "gestionar_traslados" // Admin/Compras: enviar y recibir mercancía entre sedes
   | "recibir_mercancia" // Admin/Compras: dar entrada a un artículo nuevo e imprimir su etiqueta
-  | "personalizar_empresa"; // Admin: logo, color, tema y datos de recibo
+  | "personalizar_empresa"; // Admin: logo, color, tema, bloque de marca y datos de recibo
 
 const PERMISOS: Record<Rol, Accion[]> = {
   admin: [

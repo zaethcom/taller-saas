@@ -33,6 +33,8 @@ interface CuerpoConfig {
   reciboDireccion?: string | null;
   reciboTelefono?: string | null;
   reciboPie?: string;
+  imagenMarcaUrl?: string | null;
+  eslogan?: string | null;
 }
 
 export async function PATCH(req: Request) {
@@ -59,6 +61,8 @@ export async function PATCH(req: Request) {
       ...(body.reciboDireccion !== undefined && { recibo_direccion: body.reciboDireccion }),
       ...(body.reciboTelefono !== undefined && { recibo_telefono: body.reciboTelefono }),
       ...(body.reciboPie !== undefined && { recibo_pie: body.reciboPie }),
+      ...(body.imagenMarcaUrl !== undefined && { imagen_marca_url: body.imagenMarcaUrl }),
+      ...(body.eslogan !== undefined && { eslogan: body.eslogan }),
       actualizado_en: new Date().toISOString(),
     },
     { onConflict: "empresa_id" },

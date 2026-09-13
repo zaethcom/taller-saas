@@ -22,6 +22,7 @@ import {
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
 import { BarraSuperior } from "@/componentes/ui/barra-superior";
 import { BarraLateral, type ItemNavLateral } from "@/componentes/ui/barra-lateral";
+import { BloqueMarca } from "@/componentes/ui/bloque-marca";
 import { puede, puedeEntrarA } from "@/lib/permisos";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { obtenerConfiguracion } from "@/lib/configuracion";
@@ -65,6 +66,7 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
         logoUrl={config.logoUrl}
         nombreEmpresa={perfil.empresaNombre}
         etiquetaPuerta="Admin"
+        pie={<BloqueMarca imagenUrl={config.imagenMarcaUrl} eslogan={config.eslogan} />}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
         <BarraSuperior nombre={perfil.nombre} rol={perfil.rol} puerta="admin" />

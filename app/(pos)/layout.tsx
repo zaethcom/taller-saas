@@ -11,6 +11,7 @@ import { ShoppingCart, Inbox, PackageCheck, Clock } from "lucide-react";
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
 import { BarraSuperior } from "@/componentes/ui/barra-superior";
 import { BarraLateral, type ItemNavLateral } from "@/componentes/ui/barra-lateral";
+import { BloqueMarca } from "@/componentes/ui/bloque-marca";
 import { puedeEntrarA } from "@/lib/permisos";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { obtenerConfiguracion } from "@/lib/configuracion";
@@ -46,6 +47,7 @@ export default async function LayoutPos({ children }: { children: React.ReactNod
         logoUrl={config.logoUrl}
         nombreEmpresa={perfil.empresaNombre}
         etiquetaPuerta="POS"
+        pie={<BloqueMarca imagenUrl={config.imagenMarcaUrl} eslogan={config.eslogan} />}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
         <BarraSuperior nombre={perfil.nombre} rol={perfil.rol} puerta="pos" />
