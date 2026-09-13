@@ -93,6 +93,12 @@ private fun Pantalla(app: PuenteApp) {
                 alProbar = {
                     alcance.launch { puente.imprimir(rol, Pruebas.para(rol)) }
                 },
+                // Solo etiquetas: si la impresora no reacciona, puede ser que
+                // hable otro idioma. Un botón por dialecto lo resuelve sin
+                // tener que averiguar el modelo.
+                alProbarDialecto = if (rol == Rol.ETIQUETAS) {
+                    { d: Dialecto -> alcance.launch { puente.imprimir(rol, PruebasEtiqueta.de(d)) } }
+                } else null,
                 alAbrirCajon = if (rol == Rol.TICKETS) {
                     { alcance.launch { puente.imprimir(rol, Pruebas.abrirCajon()) } }
                 } else null
@@ -181,7 +187,8 @@ private fun TarjetaImpresora(
     alAsignar: () -> Unit,
     alCambiarPuerto: (Int) -> Unit,
     alProbar: () -> Unit,
-    alAbrirCajon: (() -> Unit)?
+    alAbrirCajon: (() -> Unit)?,
+    alProbarDialecto: ((Dialecto) -> Unit)? = null,
 ) {
     var textoPuerto by remember(cfg.puerto) { mutableStateOf(cfg.puerto.toString()) }
 
@@ -230,9 +237,26 @@ private fun TarjetaImpresora(
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = alAsignar) { Text("Elegir impresora") }
-                OutlinedButton(onClick = alProbar, enabled = cfg.asignada) { Text("Probar") }
+                if (alProbarDialecto == null) {
+                    OutlinedButton(onClick = alProbar, enabled = cfg.asignada) { Text("Probar") }
+                }
                 if (alAbrirCajon != null) {
                     OutlinedButton(onClick = alAbrirCajon, enabled = cfg.asignada) { Text("Cajón") }
+                }
+            }
+
+            if (alProbarDialecto != null) {
+                Text(
+                    "Probar en cada idioma. El que imprima es el que habla tu etiquetadora.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                FlowRowSimple {
+                    Dialecto.entries.forEach { d ->
+                        OutlinedButton(
+                            onClick = { alProbarDialecto(d) },
+                            enabled = cfg.asignada,
+                        ) { Text(d.etiqueta) }
+                    }
                 }
             }
 
@@ -243,6 +267,15 @@ private fun TarjetaImpresora(
                 ) { Text("Aplicar puerto $puertoValido y reiniciar") }
             }
         }
+    }
+}
+
+/** Fila que envuelve. Se escribe a mano en vez de usar FlowRow de Compose
+ *  porque esa API sigue siendo experimental y esto son cuatro botones. */
+@Composable
+private fun FlowRowSimple(contenido: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { contenido() }
     }
 }
 
