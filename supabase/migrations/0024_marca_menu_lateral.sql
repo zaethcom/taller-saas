@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0023_marca_menu_lateral.sql
+-- 0024_marca_menu_lateral.sql
 -- El bloque de marca al pie del menú lateral (foto + eslogan) es parte de
 -- la personalización por empresa, igual que el logo -- no un diseño fijo
 -- de una sola empresa. Sin esto, cualquier "look" de referencia (ej.

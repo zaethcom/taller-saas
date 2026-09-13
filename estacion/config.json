@@ -1,0 +1,10 @@
+{
+  "sedeId": "a1111111-0000-0000-0000-000000000001",
+  "apiBase": "https://taller-saas.example.com",
+  "servicioClave": "REEMPLAZAR_CON_LA_CLAVE_DE_ESTA_ESTACION",
+  "intervaloMs": 2000,
+  "impresoras": {
+    "tickets": { "host": "192.168.1.50", "puerto": 9100, "protocolo": "crudo" },
+    "etiquetas": { "host": "192.168.1.51", "puerto": 9100, "protocolo": "crudo" }
+  }
+}
