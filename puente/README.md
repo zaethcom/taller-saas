@@ -94,7 +94,7 @@ Desde entonces, y desde cualquier máquina de la red:
 adb connect 192.168.20.89:5555
 ```
 
-Eso no sobrevive a un reinicio salvo que el build honre `persist.service.adb.tcp.port`
+Eso no sobrevive a un reinicio salvo que el build honre `persist.adb.tcp.port`
 -- se prueba poniendo ese en vez del otro. Si no lo honra, queda repetir las tres
 líneas tras cada arranque, o dejarlas en el script de inicio del equipo.
 

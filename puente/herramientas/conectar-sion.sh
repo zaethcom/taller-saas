@@ -14,12 +14,21 @@
 # equipo fijo conviene más dejar el 5555 abierto de una vez y olvidarse del mDNS.
 set -euo pipefail
 
-IP="${1:-192.168.20.89}"
-[[ "$IP" == --* ]] && IP="192.168.20.89"
-
+IP="192.168.20.89"
 APK=""
-if [[ "${1:-}" == "--instalar" ]]; then APK="${2:-}"; fi
-if [[ "${2:-}" == "--instalar" ]]; then APK="${3:-}"; fi
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --instalar)
+      APK="${2:-}"
+      [[ -n "$APK" ]] || { echo "--instalar necesita la ruta del APK" >&2; exit 1; }
+      shift 2
+      ;;
+    *)
+      IP="$1"
+      shift
+      ;;
+  esac
+done
 
 command -v adb >/dev/null || { echo "No hay adb en el PATH. Instala Android SDK Platform Tools." >&2; exit 1; }
 
@@ -33,7 +42,7 @@ else
   # 2) mDNS: adb anuncia el puerto real de la depuración inalámbrica.
   DESTINO="$(adb mdns services 2>/dev/null \
     | grep "_adb-tls-connect._tcp" \
-    | grep "$IP" \
+    | grep -F "$IP" \
     | awk '{print $NF}' \
     | head -1 || true)"
 
