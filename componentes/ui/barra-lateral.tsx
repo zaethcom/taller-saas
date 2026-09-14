@@ -3,7 +3,8 @@
 /**
  * El menú lateral de las tres puertas -- la estructura estándar de la
  * plataforma, igual para cualquier empresa; lo que cambia por empresa
- * es su logo y su color (lib/configuracion.ts).
+ * es su logo, su color y el bloque de marca del pie
+ * (lib/configuracion.ts, componentes/ui/bloque-marca.tsx).
  *
  * Ese color ya no llega por prop: el layout raíz lo pone como --accent
  * en <html> y aquí se lee de la variable, igual que en el resto del
@@ -127,10 +128,13 @@ export function BarraLateral({
         })}
       </nav>
 
-      {/* El nombre de la empresa como rótulo, en la voz de marca. Es lo
-          que en la referencia visual ocupaba el lema del taller: aquí
-          no puede ser un lema fijo porque cada empresa es otra. */}
-      <div className="bl-pie" style={{ padding: "16px 16px 18px", borderTop: "1px solid var(--chrome-linea)" }}>
+      {/* Sin foto de marca configurada, el nombre de la empresa hace de
+          rótulo en la voz de marca -- con foto (BloqueMarca), esta va a
+          sangre, sin el padding que sí necesita el rótulo de texto. */}
+      <div
+        className="bl-pie"
+        style={pie ? { borderTop: "1px solid var(--chrome-linea)" } : { padding: "16px 16px 18px", borderTop: "1px solid var(--chrome-linea)" }}
+      >
         {pie ?? (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ width: 30, height: 3, borderRadius: 2, background: "var(--accent)" }} />

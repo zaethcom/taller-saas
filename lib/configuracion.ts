@@ -15,6 +15,8 @@ export interface ConfiguracionEmpresa {
   reciboDireccion: string | null;
   reciboTelefono: string | null;
   reciboPie: string;
+  imagenMarcaUrl: string | null;
+  eslogan: string | null;
 }
 
 export const CONFIG_POR_DEFECTO: ConfiguracionEmpresa = {
@@ -24,6 +26,8 @@ export const CONFIG_POR_DEFECTO: ConfiguracionEmpresa = {
   reciboDireccion: null,
   reciboTelefono: null,
   reciboPie: "Gracias por su preferencia",
+  imagenMarcaUrl: null,
+  eslogan: null,
 };
 
 export async function obtenerConfiguracion(
@@ -32,7 +36,9 @@ export async function obtenerConfiguracion(
 ): Promise<ConfiguracionEmpresa> {
   const { data } = await supabase
     .from("empresa_config")
-    .select("logo_url, color_principal, tema, recibo_direccion, recibo_telefono, recibo_pie")
+    .select(
+      "logo_url, color_principal, tema, recibo_direccion, recibo_telefono, recibo_pie, imagen_marca_url, eslogan",
+    )
     .eq("empresa_id", empresaId)
     .maybeSingle();
 
@@ -45,5 +51,7 @@ export async function obtenerConfiguracion(
     reciboDireccion: data.recibo_direccion,
     reciboTelefono: data.recibo_telefono,
     reciboPie: data.recibo_pie,
+    imagenMarcaUrl: data.imagen_marca_url,
+    eslogan: data.eslogan,
   };
 }

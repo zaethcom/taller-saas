@@ -13,7 +13,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { Settings, Check, ImagePlus } from "lucide-react";
-import { subirLogo } from "@/lib/subir-logo";
+import { subirLogo, subirImagenMarca } from "@/lib/subir-logo";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
@@ -26,6 +26,8 @@ interface Config {
   reciboDireccion: string | null;
   reciboTelefono: string | null;
   reciboPie: string;
+  imagenMarcaUrl: string | null;
+  eslogan: string | null;
 }
 
 const TEMAS: { valor: Config["tema"]; etiqueta: string }[] = [
@@ -38,6 +40,7 @@ export default function PaginaConfiguracion() {
   const [config, setConfig] = useState<Config | null>(null);
   const [empresaId, setEmpresaId] = useState<string | null>(null);
   const [subiendoLogo, setSubiendoLogo] = useState(false);
+  const [subiendoMarca, setSubiendoMarca] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +95,20 @@ export default function PaginaConfiguracion() {
       setError(e instanceof Error ? e.message : "No se pudo subir el logo");
     } finally {
       setSubiendoLogo(false);
+    }
+  }
+
+  async function cambiarImagenMarca(archivo: File) {
+    if (!empresaId) return;
+    setSubiendoMarca(true);
+    setError(null);
+    try {
+      const url = await subirImagenMarca(empresaId, archivo);
+      await guardar({ imagenMarcaUrl: url });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo subir la imagen");
+    } finally {
+      setSubiendoMarca(false);
     }
   }
 
@@ -195,6 +212,61 @@ export default function PaginaConfiguracion() {
             ))}
           </div>
           <p className="campo-ayuda">La puerta del taller es siempre oscura, sin importar lo que se elija aquí.</p>
+        </Tarjeta>
+
+        <Tarjeta>
+          <h2 style={{ marginBottom: 12 }}>Bloque de marca (pie del menú lateral)</h2>
+          <div className="fila" style={{ gap: 14, flexWrap: "nowrap" }}>
+            {config.imagenMarcaUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={config.imagenMarcaUrl}
+                alt="Imagen de marca actual"
+                style={{ height: 56, width: 96, objectFit: "cover", borderRadius: "var(--r-md)", flexShrink: 0 }}
+              />
+            ) : (
+              <div
+                style={{
+                  height: 56,
+                  width: 96,
+                  borderRadius: "var(--r-md)",
+                  background: "var(--surface-2)",
+                  color: "var(--ink-3)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <ImagePlus size={24} strokeWidth={1.8} aria-hidden />
+              </div>
+            )}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => {
+                const archivo = e.target.files?.[0];
+                if (archivo) cambiarImagenMarca(archivo);
+              }}
+              disabled={subiendoMarca}
+              aria-label="Imagen de marca"
+              style={{ height: "auto", padding: 10 }}
+            />
+          </div>
+          <p className="campo-ayuda">
+            {subiendoMarca
+              ? "Subiendo…"
+              : "Una foto y un eslogan cortos, debajo del menú en las tres puertas. Sin foto no se muestra nada."}
+          </p>
+          <div style={{ marginTop: 12 }}>
+            <Campo etiqueta="Eslogan">
+              <input
+                placeholder="Ej. Movilidad sin límites"
+                defaultValue={config.eslogan ?? ""}
+                onBlur={(e) => guardar({ eslogan: e.target.value || null })}
+              />
+            </Campo>
+          </div>
         </Tarjeta>
 
         <Tarjeta>
