@@ -3,8 +3,12 @@
  * el requisito de la sección 7 del documento original: al retirar a un
  * trabajador, su usuario debe poder deshabilitarse de inmediato.
  */
+import { Users } from "lucide-react";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { EditarCodigo } from "@/componentes/ui/editar-codigo";
+import { TarjetaTabla } from "@/componentes/ui/tarjeta";
+import { Etiqueta } from "@/componentes/ui/etiqueta";
+import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
 export default async function PaginaUsuarios() {
   const supabase = await clienteServidor();
@@ -16,36 +20,43 @@ export default async function PaginaUsuarios() {
 
   return (
     <div>
-      <h1>Usuarios</h1>
-      <p style={{ opacity: 0.6, fontSize: 14 }}>
-        El código es un identificador corto para recibos y reportes -- no reemplaza el usuario y
-        contraseña de Supabase, que sigue siendo la única forma de iniciar sesión.
-      </p>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
-            <th>Nombre</th>
-            <th>Rol</th>
-            <th>Sede</th>
-            <th>Estado</th>
-            <th>Código</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(perfiles ?? []).map((p) => (
-            <tr key={p.id} style={{ borderBottom: "1px solid #eee" }}>
-              <td>{p.nombre}</td>
-              <td>{p.rol}</td>
-              {/* @ts-expect-error -- join inferido como array */}
-              <td>{p.sede?.nombre ?? "—"}</td>
-              <td>{p.activo ? "Activo" : "Deshabilitado"}</td>
-              <td>
-                <EditarCodigo perfilId={p.id} codigoInicial={p.codigo} />
-              </td>
+      <TituloPantalla
+        icono={<Users size={24} strokeWidth={2} />}
+        titulo="Usuarios"
+        descripcion="El código es un identificador corto para recibos y reportes -- no reemplaza el usuario y contraseña de Supabase, que sigue siendo la única forma de iniciar sesión."
+      />
+
+      <TarjetaTabla>
+        <table>
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Rol</th>
+              <th>Sede</th>
+              <th>Estado</th>
+              <th>Código</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {(perfiles ?? []).map((p) => (
+              <tr key={p.id}>
+                <td style={{ fontWeight: 600 }}>{p.nombre}</td>
+                <td style={{ textTransform: "capitalize", color: "var(--ink-2)" }}>{p.rol}</td>
+                {/* @ts-expect-error -- join inferido como array */}
+                <td style={{ color: "var(--ink-2)" }}>{p.sede?.nombre ?? "—"}</td>
+                <td>
+                  <Etiqueta tono={p.activo ? "ok" : "neutro"} punto>
+                    {p.activo ? "Activo" : "Deshabilitado"}
+                  </Etiqueta>
+                </td>
+                <td>
+                  <EditarCodigo perfilId={p.id} codigoInicial={p.codigo} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TarjetaTabla>
     </div>
   );
 }

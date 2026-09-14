@@ -20,7 +20,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
-import { SelectorPuertas } from "@/componentes/ui/selector-puertas";
+import { BarraSuperior } from "@/componentes/ui/barra-superior";
 import { BarraLateral, type ItemNavLateral } from "@/componentes/ui/barra-lateral";
 import { puede, puedeEntrarA } from "@/lib/permisos";
 import { obtenerPerfilActual } from "@/lib/perfil";
@@ -36,7 +36,7 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
     return (
       <main style={{ padding: 40 }}>
         <p>Tu rol ({perfil.rol}) no tiene acceso a esta sección.</p>
-        <CerrarSesion />
+        <CerrarSesion oscuro={false} />
       </main>
     );
   }
@@ -64,25 +64,11 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
         items={items}
         logoUrl={config.logoUrl}
         nombreEmpresa={perfil.empresaNombre}
-        colorPrincipal={config.colorPrincipal}
         etiquetaPuerta="Admin"
       />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <header
-          style={{
-            padding: "14px 20px",
-            borderBottom: "1px solid #ddd",
-            display: "flex",
-            justifyContent: "flex-end",
-            alignItems: "center",
-            gap: 16,
-          }}
-        >
-          <SelectorPuertas rol={perfil.rol} actual="admin" />
-          <span style={{ opacity: 0.7, fontSize: 14 }}>{perfil.nombre}</span>
-          <CerrarSesion />
-        </header>
-        <div style={{ padding: 20, maxWidth: 960, margin: "0 auto" }}>{children}</div>
+        <BarraSuperior nombre={perfil.nombre} rol={perfil.rol} puerta="admin" />
+        <main style={{ padding: 20, maxWidth: 1180, margin: "0 auto" }}>{children}</main>
       </div>
     </div>
   );

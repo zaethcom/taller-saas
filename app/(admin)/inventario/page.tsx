@@ -1,10 +1,35 @@
 import { redirect } from "next/navigation";
+import { Package, Boxes } from "lucide-react";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
 import { FotoProducto } from "@/componentes/ui/foto-producto";
+import { Tarjeta } from "@/componentes/ui/tarjeta";
+import { Etiqueta } from "@/componentes/ui/etiqueta";
+import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
+
+/** El encabezado de cada uno de los dos catálogos de esta pantalla. */
+function Seccion({ icono, titulo, aclaracion }: { icono: React.ReactNode; titulo: string; aclaracion?: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+      <h2 style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        {icono}
+        {titulo}
+      </h2>
+      {aclaracion && <span style={{ fontSize: 13, color: "var(--ink-3)" }}>{aclaracion}</span>}
+    </div>
+  );
+}
+
+function Vacio({ children }: { children: React.ReactNode }) {
+  return (
+    <Tarjeta style={{ borderStyle: "dashed", textAlign: "center", color: "var(--ink-3)", fontSize: 13 }}>
+      {children}
+    </Tarjeta>
+  );
+}
 
 export default async function PaginaInventario() {
   const supabase = await clienteServidor();
@@ -29,94 +54,93 @@ export default async function PaginaInventario() {
 
   return (
     <div>
-      <h1>Inventario</h1>
+      <TituloPantalla
+        icono={<Package size={24} strokeWidth={2} />}
+        titulo="Inventario"
+        descripcion="Lo que hay en cada sede, a granel y por unidad."
+      />
 
-      <h2 style={{ fontSize: 16 }}>Repuestos y accesorios a granel</h2>
-      {(existencias ?? []).length === 0 ? (
-        <p style={{ opacity: 0.6 }}>No hay repuestos en el catálogo.</p>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-            gap: 12,
-            marginBottom: 32,
-          }}
-        >
-          {(existencias ?? []).map((e, i) => {
-            // @ts-expect-error -- join inferido como array
-            const repuesto = e.repuesto as { id: string; codigo: string; descripcion: string; precio_venta: number; imagen_url: string | null };
-            if (!repuesto) return null;
-            return (
-              <div key={i} style={{ border: "1px solid #ddd", borderRadius: 10, padding: 10 }}>
+      <section style={{ marginBottom: 32 }}>
+        <Seccion icono={<Boxes size={19} strokeWidth={2} color="var(--ink-2)" />} titulo="Repuestos y accesorios a granel" />
+        {(existencias ?? []).length === 0 ? (
+          <Vacio>No hay repuestos en el catálogo.</Vacio>
+        ) : (
+          <div className="rejilla-catalogo">
+            {(existencias ?? []).map((e, i) => {
+              // @ts-expect-error -- join inferido como array
+              const repuesto = e.repuesto as { id: string; codigo: string; descripcion: string; precio_venta: number; imagen_url: string | null };
+              if (!repuesto) return null;
+              const bajo = e.cantidad <= 2;
+              return (
+                <Tarjeta key={i} relleno={false} style={{ padding: 11, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <FotoProducto
+                    tipo="repuesto"
+                    id={repuesto.id}
+                    empresaId={perfil.empresaId}
+                    imagenUrl={repuesto.imagen_url}
+                    editable={editable}
+                  />
+                  <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.25 }}>{repuesto.descripcion}</div>
+                  <div className="cifra" style={{ fontSize: 11, color: "var(--ink-3)", marginTop: -4 }}>
+                    {repuesto.codigo}
+                    {/* @ts-expect-error -- join inferido como array */}
+                    {e.sede?.nombre ? ` · ${e.sede.nombre}` : ""}
+                  </div>
+                  <div className="fila" style={{ justifyContent: "space-between", gap: 6 }}>
+                    <span className="cifra" style={{ fontSize: 15, fontWeight: 800 }}>
+                      {fmt(repuesto.precio_venta)}
+                    </span>
+                    <Etiqueta tono={e.cantidad <= 0 ? "neutro" : bajo ? "aviso" : "ok"}>
+                      <span className="cifra">{e.cantidad <= 0 ? "Agotado" : e.cantidad}</span>
+                    </Etiqueta>
+                  </div>
+                </Tarjeta>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <Seccion
+          icono={<Package size={19} strokeWidth={2} color="var(--ink-2)" />}
+          titulo="Artículos individualizados"
+          aclaracion="patinetas, teléfonos… cada unidad con su etiqueta"
+        />
+        {(articulos ?? []).length === 0 ? (
+          <Vacio>Todavía no se ha recibido ningún artículo individualizado.</Vacio>
+        ) : (
+          <div className="rejilla-catalogo">
+            {(articulos ?? []).map((a) => (
+              <Tarjeta key={a.id} relleno={false} style={{ padding: 11, display: "flex", flexDirection: "column", gap: 8 }}>
                 <FotoProducto
-                  tipo="repuesto"
-                  id={repuesto.id}
+                  tipo="articulo"
+                  id={a.id}
                   empresaId={perfil.empresaId}
-                  imagenUrl={repuesto.imagen_url}
+                  imagenUrl={a.imagen_url}
                   editable={editable}
                 />
-                <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600 }}>{repuesto.descripcion}</div>
-                <div style={{ fontSize: 11, opacity: 0.6 }}>
-                  {repuesto.codigo} ·{" "}
+                <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.25 }}>
+                  {[a.marca, a.modelo].filter(Boolean).join(" ") || a.tipo}
+                </div>
+                <div className="cifra" style={{ fontSize: 11, color: "var(--ink-3)", marginTop: -4 }}>
+                  ART-{String(a.numero).padStart(6, "0")}
                   {/* @ts-expect-error -- join inferido como array */}
-                  {e.sede?.nombre}
+                  {a.sede?.nombre ? ` · ${a.sede.nombre}` : ""}
                 </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    marginTop: 4,
-                    color: e.cantidad <= 2 ? "#c0392b" : undefined,
-                    fontWeight: e.cantidad <= 2 ? 700 : 400,
-                  }}
-                >
-                  {e.cantidad} en existencia
+                <div className="fila" style={{ justifyContent: "space-between", gap: 6 }}>
+                  <span className="cifra" style={{ fontSize: 15, fontWeight: 800 }}>
+                    {fmt(a.precio_venta ?? 0)}
+                  </span>
+                  <Etiqueta tono={a.estado === "disponible" ? "ok" : "neutro"}>
+                    <span style={{ textTransform: "capitalize" }}>{a.estado}</span>
+                  </Etiqueta>
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>{fmt(repuesto.precio_venta)}</div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <h2 style={{ fontSize: 16 }}>
-        Artículos individualizados{" "}
-        <span style={{ fontWeight: 400, opacity: 0.6 }}>(patinetas, teléfonos… cada unidad con su etiqueta)</span>
-      </h2>
-      {(articulos ?? []).length === 0 ? (
-        <p style={{ opacity: 0.6 }}>Todavía no se ha recibido ningún artículo individualizado.</p>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-            gap: 12,
-          }}
-        >
-          {(articulos ?? []).map((a) => (
-            <div key={a.id} style={{ border: "1px solid #ddd", borderRadius: 10, padding: 10 }}>
-              <FotoProducto
-                tipo="articulo"
-                id={a.id}
-                empresaId={perfil.empresaId}
-                imagenUrl={a.imagen_url}
-                editable={editable}
-              />
-              <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600 }}>
-                {[a.marca, a.modelo].filter(Boolean).join(" ") || a.tipo}
-              </div>
-              <div style={{ fontSize: 11, opacity: 0.6, fontFamily: "monospace" }}>
-                ART-{String(a.numero).padStart(6, "0")}
-              </div>
-              <div style={{ fontSize: 11, opacity: 0.6 }}>
-                {/* @ts-expect-error -- join inferido como array */}
-                {a.sede?.nombre} · {a.estado}
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>{fmt(a.precio_venta ?? 0)}</div>
-            </div>
-          ))}
-        </div>
-      )}
+              </Tarjeta>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
