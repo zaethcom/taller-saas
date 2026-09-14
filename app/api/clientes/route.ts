@@ -2,15 +2,15 @@
  * GET /api/clientes?documento=<doc>
  * Busca un cliente existente por documento, para no duplicar registros
  * cada vez que alguien vuelve al taller. RLS filtra por empresa sola.
- *
- * GET /api/clientes (sin documento)
- * Lista todos los clientes de la empresa, para /clientes.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 
 export async function GET(req: NextRequest) {
   const documento = req.nextUrl.searchParams.get("documento")?.trim();
+  if (!documento) {
+    return NextResponse.json({ error: "falta el documento" }, { status: 400 });
+  }
 
   const supabase = await clienteServidor();
   const {
@@ -18,17 +18,6 @@ export async function GET(req: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
-  }
-
-  if (!documento) {
-    const { data, error } = await supabase
-      .from("cliente")
-      .select("id, nombre, documento, telefono, correo")
-      .order("nombre");
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    return NextResponse.json(data);
   }
 
   const { data } = await supabase

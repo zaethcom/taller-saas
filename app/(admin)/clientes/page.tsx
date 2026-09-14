@@ -1,61 +1,59 @@
-"use client";
-
 /**
- * Listado de clientes de la empresa. Un cliente puede tener varios
- * equipos (tabla `producto`) y varias órdenes a lo largo del tiempo --
- * esta pantalla es solo el directorio; el historial vive en cada orden.
+ * Directorio de clientes de la empresa. Un cliente puede tener varios
+ * equipos (tabla `producto`, ver /equipos) y varias órdenes a lo largo
+ * del tiempo -- esta pantalla es solo el directorio; el historial vive
+ * en cada orden.
  */
-import { useEffect, useState } from "react";
+import { Contact } from "lucide-react";
+import { clienteServidor } from "@/lib/supabase/servidor";
+import { TarjetaTabla } from "@/componentes/ui/tarjeta";
+import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
-interface Cliente {
-  id: string;
-  nombre: string;
-  documento: string | null;
-  telefono: string | null;
-  correo: string | null;
-}
+export default async function PaginaClientes() {
+  const supabase = await clienteServidor();
 
-export default function PaginaClientes() {
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/clientes")
-      .then((r) => r.json())
-      .then((data) => {
-        if (!Array.isArray(data)) throw new Error(data.error ?? "No se pudieron cargar los clientes");
-        setClientes(data);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "No se pudieron cargar los clientes"));
-  }, []);
+  const { data: clientes } = await supabase
+    .from("cliente")
+    .select("id, nombre, documento, telefono, correo")
+    .order("nombre");
 
   return (
     <div>
-      <h1>Clientes</h1>
-      {error && <p style={{ color: "#ff8080" }}>{error}</p>}
-      {clientes.length === 0 && !error && <p style={{ opacity: 0.6 }}>Todavía no hay clientes.</p>}
+      <TituloPantalla
+        icono={<Contact size={24} strokeWidth={2} />}
+        titulo="Clientes"
+        descripcion="El historial de equipos y órdenes de cada cliente vive en cada orden, no aquí."
+      />
 
-      {clientes.length > 0 && (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid var(--rule)" }}>
-              <th style={{ padding: 8 }}>Nombre</th>
-              <th style={{ padding: 8 }}>Documento</th>
-              <th style={{ padding: 8 }}>Teléfono</th>
-              <th style={{ padding: 8 }}>Correo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {clientes.map((c) => (
-              <tr key={c.id} style={{ borderBottom: "1px solid var(--rule)" }}>
-                <td style={{ padding: 8 }}>{c.nombre}</td>
-                <td style={{ padding: 8 }}>{c.documento ?? "—"}</td>
-                <td style={{ padding: 8 }}>{c.telefono ?? "—"}</td>
-                <td style={{ padding: 8 }}>{c.correo ?? "—"}</td>
+      {(clientes ?? []).length === 0 ? (
+        <p style={{ color: "var(--ink-3)" }}>Todavía no hay clientes.</p>
+      ) : (
+        <TarjetaTabla>
+          <table>
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Documento</th>
+                <th>Teléfono</th>
+                <th>Correo</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {(clientes ?? []).map((c) => (
+                <tr key={c.id}>
+                  <td style={{ fontWeight: 600 }}>{c.nombre}</td>
+                  <td style={{ color: "var(--ink-2)" }} className="cifra">
+                    {c.documento ?? "—"}
+                  </td>
+                  <td style={{ color: "var(--ink-2)" }} className="cifra">
+                    {c.telefono ?? "—"}
+                  </td>
+                  <td style={{ color: "var(--ink-2)" }}>{c.correo ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TarjetaTabla>
       )}
     </div>
   );
