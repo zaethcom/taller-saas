@@ -17,6 +17,7 @@ import { useParams } from "next/navigation";
 import { Camera, Video, PenLine, Check, Eye } from "lucide-react";
 import { clienteNavegador } from "@/lib/supabase/cliente";
 import { subirEvidencia } from "@/lib/subir-evidencia";
+import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
@@ -43,7 +44,8 @@ function IconoTipo({ tipo }: { tipo: Evidencia["tipo"] }) {
 
 export default function PaginaEvidencia() {
   const { id } = useParams<{ id: string }>();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputFotoRef = useRef<HTMLInputElement>(null);
+  const inputVideoRef = useRef<HTMLInputElement>(null);
 
   const [empresaId, setEmpresaId] = useState<string | null>(null);
   const [evidencias, setEvidencias] = useState<Evidencia[]>([]);
@@ -83,7 +85,7 @@ export default function PaginaEvidencia() {
         `El archivo pesa ${(archivo.size / 1024 / 1024).toFixed(1)}MB. El límite es 50MB -- ` +
           `graba un video más corto o toma la foto de nuevo.`,
       );
-      if (inputRef.current) inputRef.current.value = "";
+      e.target.value = "";
       return;
     }
 
@@ -107,7 +109,7 @@ export default function PaginaEvidencia() {
       setError(err instanceof Error ? err.message : "No se pudo subir el archivo");
     } finally {
       setSubiendo(false);
-      if (inputRef.current) inputRef.current.value = "";
+      e.target.value = "";
     }
   }
 
@@ -148,15 +150,47 @@ export default function PaginaEvidencia() {
             prefiere clips cortos (10-15 segundos alcanzan para mostrar el problema).
           </p>
 
+          {/* Dos botones en vez de un solo selector de archivo genérico:
+              con accept="image/*" o accept="video/*" por separado, el
+              celular abre la cámara directo en el modo correcto (foto o
+              video) en vez de una lista donde "grabar video" no siempre
+              es obvio -- Android, sobre todo, la esconde distinto según
+              el fabricante cuando el accept mezcla ambos tipos. */}
+          <div className="fila" style={{ gap: 10 }}>
+            <Boton
+              variante="primario"
+              icono={<Camera size={17} strokeWidth={2.2} />}
+              disabled={subiendo || !empresaId}
+              onClick={() => inputFotoRef.current?.click()}
+            >
+              Tomar foto
+            </Boton>
+            <Boton
+              variante="contorno"
+              icono={<Video size={17} strokeWidth={2.2} />}
+              disabled={subiendo || !empresaId}
+              onClick={() => inputVideoRef.current?.click()}
+            >
+              Grabar video
+            </Boton>
+          </div>
           <input
-            ref={inputRef}
+            ref={inputFotoRef}
             type="file"
-            accept="image/*,video/*"
+            accept="image/*"
             capture="environment"
             onChange={subirArchivo}
-            disabled={subiendo || !empresaId}
-            aria-label="Archivo de evidencia"
-            style={{ height: "auto", padding: 10 }}
+            hidden
+            aria-label="Tomar foto de evidencia"
+          />
+          <input
+            ref={inputVideoRef}
+            type="file"
+            accept="video/*"
+            capture="environment"
+            onChange={subirArchivo}
+            hidden
+            aria-label="Grabar video de evidencia"
           />
           {subiendo && <p style={{ marginTop: 10, fontSize: 13, color: "var(--ink-2)" }}>Subiendo…</p>}
         </Tarjeta>
