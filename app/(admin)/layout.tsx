@@ -13,6 +13,7 @@ import {
   Package,
   Tag,
   Tags,
+  Building2,
   ArrowLeftRight,
   ShoppingBag,
   Users,
@@ -52,6 +53,9 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
     { href: "/inventario", etiqueta: "Inventario", icono: <Package size={18} strokeWidth={2} /> },
     { href: "/equipos", etiqueta: "Equipos", icono: <Tag size={18} strokeWidth={2} /> },
     { href: "/categorias", etiqueta: "Categorías", icono: <Tags size={18} strokeWidth={2} /> },
+    ...(puede(perfil.rol, "gestionar_sedes")
+      ? [{ href: "/sedes", etiqueta: "Sedes", icono: <Building2 size={18} strokeWidth={2} /> }]
+      : []),
     { href: "/traslados", etiqueta: "Traslados", icono: <ArrowLeftRight size={18} strokeWidth={2} /> },
     { href: "/compras", etiqueta: "Compras", icono: <ShoppingBag size={18} strokeWidth={2} /> },
     { href: "/usuarios", etiqueta: "Usuarios", icono: <Users size={18} strokeWidth={2} /> },
