@@ -218,19 +218,28 @@ export default function PaginaSeguimiento() {
 
         {datos.evidencias.length > 0 && (
           <section>
-            <h2 style={{ marginBottom: 12 }}>Fotos</h2>
+            <h2 style={{ marginBottom: 12 }}>Fotos y videos</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              {datos.evidencias.map((ev, i) =>
-                ev.url ? (
+              {datos.evidencias.map((ev, i) => {
+                if (!ev.url) return null;
+                const estilo: React.CSSProperties = {
+                  width: "100%",
+                  borderRadius: "var(--r-md)",
+                  border: "1px solid var(--rule)",
+                  display: "block",
+                  // Un video pesa mucho más que una foto: sin esto el navegador
+                  // precarga los datos de cada clip apenas entra a la pantalla,
+                  // aunque el cliente nunca llegue a reproducirlo.
+                  aspectRatio: "1",
+                  objectFit: "cover",
+                };
+                return ev.tipo === "video" ? (
+                  <video key={i} src={ev.url} controls preload="none" style={estilo} />
+                ) : (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={i}
-                    src={ev.url}
-                    alt="Evidencia del equipo"
-                    style={{ width: "100%", borderRadius: "var(--r-md)", border: "1px solid var(--rule)", display: "block" }}
-                  />
-                ) : null,
-              )}
+                  <img key={i} src={ev.url} alt="Evidencia del equipo" style={estilo} />
+                );
+              })}
             </div>
           </section>
         )}

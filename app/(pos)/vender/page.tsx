@@ -17,7 +17,7 @@
  * rejilla obligaría a explicar esa diferencia en cada tarjeta.
  */
 import { useEffect, useState } from "react";
-import { Trash2, Plus, Minus, Search, ShoppingCart, Lock, Check, Banknote, RotateCcw } from "lucide-react";
+import { Trash2, Plus, Minus, Search, ShoppingCart, Lock, Check, Banknote, RotateCcw, ChevronDown, Tags } from "lucide-react";
 import { FotoProducto } from "@/componentes/ui/foto-producto";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
@@ -92,6 +92,7 @@ export default function PaginaVender() {
   const [resultadosArticulo, setResultadosArticulo] = useState<Articulo[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [categoriaId, setCategoriaId] = useState("");
+  const [categoriasAbiertas, setCategoriasAbiertas] = useState(false);
 
   const total = carrito.reduce((s, l) => s + (l.kind === "repuesto" ? l.cantidad : 1) * l.precioUnit, 0);
   const unidades = carrito.reduce((s, l) => s + (l.kind === "repuesto" ? l.cantidad : 1), 0);
@@ -225,10 +226,20 @@ export default function PaginaVender() {
       <style>{`
         .pos{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:18px;align-items:start;}
         .pos-carrito{position:sticky;top:20px;}
+        .categorias-movil{display:none;}
         @media (max-width:1000px){
           .pos{grid-template-columns:minmax(0,1fr);}
           .pos-catalogo{order:2;}
           .pos-carrito{order:1;position:static;}
+        }
+        /* Con 30+ categorías reales, la fila de pastillas envueltas se
+           come media pantalla del celular antes de llegar al catálogo --
+           por debajo de 640px se cambia por un desplegable con scroll
+           propio, del mismo modo que el menú lateral deja de ser un
+           riel fijo ahí. */
+        @media (max-width:640px){
+          .categorias-escritorio{display:none;}
+          .categorias-movil{display:block;}
         }
       `}</style>
 
@@ -241,25 +252,83 @@ export default function PaginaVender() {
       <div className="pos">
         <div className="pos-catalogo pila">
           {categorias.length > 0 && (
-            <div className="fila" style={{ gap: 7 }}>
-              <button
-                type="button"
-                onClick={() => setCategoriaId("")}
-                className={`pastilla${categoriaId === "" ? " pastilla-activa" : ""}`}
-              >
-                Todos
-              </button>
-              {categorias.map((c) => (
+            <>
+              {/* Escritorio/tablet: la fila envuelta de siempre -- hay
+                  espacio de sobra para verlas todas de un vistazo. */}
+              <div className="categorias-escritorio fila" style={{ gap: 7 }}>
                 <button
-                  key={c.id}
                   type="button"
-                  onClick={() => setCategoriaId(c.id)}
-                  className={`pastilla${categoriaId === c.id ? " pastilla-activa" : ""}`}
+                  onClick={() => setCategoriaId("")}
+                  className={`pastilla${categoriaId === "" ? " pastilla-activa" : ""}`}
                 >
-                  {c.nombre}
+                  Todos
                 </button>
-              ))}
-            </div>
+                {categorias.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCategoriaId(c.id)}
+                    className={`pastilla${categoriaId === c.id ? " pastilla-activa" : ""}`}
+                  >
+                    {c.nombre}
+                  </button>
+                ))}
+              </div>
+
+              {/* Móvil: un desplegable -- la lista completa empuja el
+                  catálogo fuera de la pantalla si se muestra siempre. */}
+              <div className="categorias-movil">
+                <button
+                  type="button"
+                  onClick={() => setCategoriasAbiertas((a) => !a)}
+                  aria-expanded={categoriasAbiertas}
+                  className="pastilla"
+                  style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", justifyContent: "space-between" }}
+                >
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Tags size={15} strokeWidth={2} />
+                    {categoriaId ? categorias.find((c) => c.id === categoriaId)?.nombre : "Categorías: Todos"}
+                  </span>
+                  <ChevronDown
+                    size={16}
+                    strokeWidth={2}
+                    style={{ transform: categoriasAbiertas ? "rotate(180deg)" : undefined, transition: "transform .15s ease" }}
+                  />
+                </button>
+                {categoriasAbiertas && (
+                  <div
+                    className="pila"
+                    style={{ gap: 4, marginTop: 8, maxHeight: 260, overflowY: "auto", padding: 4 }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCategoriaId("");
+                        setCategoriasAbiertas(false);
+                      }}
+                      className={`pastilla${categoriaId === "" ? " pastilla-activa" : ""}`}
+                      style={{ textAlign: "left" }}
+                    >
+                      Todos
+                    </button>
+                    {categorias.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setCategoriaId(c.id);
+                          setCategoriasAbiertas(false);
+                        }}
+                        className={`pastilla${categoriaId === c.id ? " pastilla-activa" : ""}`}
+                        style={{ textAlign: "left" }}
+                      >
+                        {c.nombre}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
           )}
 
           <section>
