@@ -20,7 +20,8 @@ export type Accion =
   | "gestionar_usuarios"
   | "gestionar_traslados" // Admin/Compras: enviar y recibir mercancía entre sedes
   | "recibir_mercancia" // Admin/Compras: dar entrada a un artículo nuevo e imprimir su etiqueta
-  | "personalizar_empresa"; // Admin: logo, color, tema, bloque de marca y datos de recibo
+  | "personalizar_empresa" // Admin: logo, color, tema, bloque de marca y datos de recibo
+  | "gestionar_sedes"; // Admin: alta de sedes -- sin esto no hay a dónde trasladar
 
 const PERMISOS: Record<Rol, Accion[]> = {
   admin: [
@@ -38,6 +39,7 @@ const PERMISOS: Record<Rol, Accion[]> = {
     "gestionar_traslados",
     "recibir_mercancia",
     "personalizar_empresa",
+    "gestionar_sedes",
   ],
   recepcion: ["recibir_equipo", "cobrar_orden", "abrir_cajon_manual", "ver_ordenes", "gestionar_traslados"],
   tecnico: ["diagnosticar", "marcar_faltante"],
