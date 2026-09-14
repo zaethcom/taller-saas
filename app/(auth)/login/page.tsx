@@ -8,11 +8,20 @@
  *
  * No hay registro propio: los usuarios los crea un admin desde
  * /usuarios (Supabase Auth admin API), porque en este negocio nadie
- * se auto-registra -- el taller da de alta a su gente.
+ * se auto-registra -- el taller da de alta a su gente. Por eso la
+ * pantalla no ofrece "crear cuenta" ni "recuperar contraseña": las dos
+ * llevarían a un callejón sin salida.
+ *
+ * Es la única pantalla con sesión cerrada, así que no puede saber de
+ * qué empresa se trata: va sobre el negro de la plataforma, sin color
+ * de marca.
  */
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { LogIn } from "lucide-react";
 import { clienteNavegador } from "@/lib/supabase/cliente";
+import { Boton } from "@/componentes/ui/boton";
+import { Campo, Aviso } from "@/componentes/ui/campo";
 
 export default function PaginaLogin() {
   const router = useRouter();
@@ -67,30 +76,74 @@ export default function PaginaLogin() {
   }
 
   return (
-    <main style={{ maxWidth: 360, margin: "80px auto", padding: 20 }}>
-      <h1>Taller SaaS</h1>
-      <form onSubmit={iniciarSesion} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <input
-          type="email"
-          placeholder="Correo"
-          value={correo}
-          onChange={(e) => setCorreo(e.target.value)}
-          required
-          style={{ padding: 10 }}
-        />
-        <input
-          type="password"
-          placeholder="Contraseña"
-          value={clave}
-          onChange={(e) => setClave(e.target.value)}
-          required
-          style={{ padding: 10 }}
-        />
-        <button type="submit" disabled={enviando} style={{ padding: 10 }}>
-          {enviando ? "Entrando…" : "Entrar"}
-        </button>
-        {error && <p style={{ color: "#c0392b" }}>{error}</p>}
-      </form>
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+        background: "var(--chrome)",
+        backgroundImage: "linear-gradient(160deg, var(--chrome-2) 0%, var(--chrome) 48%, #000 100%)",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 380,
+          padding: 28,
+          borderRadius: "var(--r-lg)",
+          background: "#fff",
+          boxShadow: "0 30px 60px -30px rgba(0,0,0,0.9)",
+        }}
+      >
+        <div style={{ marginBottom: 22 }}>
+          <div className="marca" style={{ fontSize: 26, color: "#131417", lineHeight: 1 }}>
+            Taller SaaS
+          </div>
+          <p style={{ margin: "6px 0 0", fontSize: 13, color: "#6b7078" }}>
+            POS y servicio técnico trazable por QR.
+          </p>
+        </div>
+
+        <form onSubmit={iniciarSesion} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Campo etiqueta="Correo">
+            <input
+              type="email"
+              placeholder="tu@taller.com"
+              value={correo}
+              onChange={(e) => setCorreo(e.target.value)}
+              required
+              autoComplete="username"
+            />
+          </Campo>
+          <Campo etiqueta="Contraseña">
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={clave}
+              onChange={(e) => setClave(e.target.value)}
+              required
+              autoComplete="current-password"
+            />
+          </Campo>
+          <Boton
+            type="submit"
+            variante="primario"
+            tamano="lg"
+            ancho
+            icono={<LogIn size={19} strokeWidth={2} />}
+            disabled={enviando}
+          >
+            {enviando ? "Entrando…" : "Entrar"}
+          </Boton>
+          {error && <Aviso tono="peligro">{error}</Aviso>}
+        </form>
+
+        <p style={{ margin: "18px 0 0", fontSize: 12, color: "#9297a0", textAlign: "center" }}>
+          Las cuentas las crea un administrador del taller.
+        </p>
+      </div>
     </main>
   );
 }

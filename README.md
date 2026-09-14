@@ -227,14 +227,11 @@ npm start
   exista sesión, así que no puede depender de RLS para leerse. El
   color se aplica como variable CSS (`--accent`) puesta inline en
   `<html>` desde el layout raíz (que ahora es async: consulta perfil +
-  configuración en cada request); el tema alterna un pequeño grupo de
+  configuración en cada request); el tema alterna un grupo de
   variables (`--ink`, `--ground`, `--surface`, `--rule`) vía
-  `[data-tema]` en `globals.css`. Esto cambia el fondo/texto/bordes
-  por defecto de toda la aplicación, pero **no** repinta cada color
-  fijo que ya existía en el estilo en línea de una pantalla puntual
-  (un rojo de error, por ejemplo) -- eso es un rediseño pantalla por
-  pantalla, no una personalización, y queda fuera de este alcance a
-  propósito. La puerta del taller sigue siempre oscura sin importar el
+  `[data-tema]` en `globals.css`. El rediseño pantalla por pantalla
+  que esto dejaba fuera de alcance ya está hecho -- ver el punto
+  siguiente. La puerta del taller sigue siempre oscura sin importar el
   tema elegido (visibilidad y batería en un celular usado con una
   mano, sí toma la marca de la empresa).
 
@@ -260,14 +257,13 @@ npm start
   especialmente grave en la puerta del taller, pensada para usarse con
   una sola mano. La barra superior que queda en cada puerta se redujo a
   lo que de verdad funciona: selector de puertas, nombre de quien tiene
-  la sesión, y cerrar sesión -- a propósito **no** se agregó una barra
-  de búsqueda ni una campana de notificaciones decorativas (como las de
-  la referencia visual de Polaco Scooter) porque ninguna de las dos
-  tiene una función real detrás todavía. Las imágenes de producto en
-  las tarjetas de `/vender` e `/inventario` de esa misma referencia
-  también quedaron fuera de este cambio: `repuesto`/`articulo` no
-  tienen columna de imagen ni existe ninguna pantalla para subirlas --
-  es una funcionalidad aparte, más grande, pendiente de decidir.
+  la sesión, y cerrar sesión. La barra de búsqueda llegó después, ya
+  conectada a rutas reales (ver el punto del sistema de diseño); la
+  campana de notificaciones sigue **sin** agregarse, porque no hay nada
+  que notificar todavía y un adorno que no hace nada enseña a ignorar
+  la barra. Las imágenes de producto en las tarjetas de `/vender` e
+  `/inventario` quedaron fuera de este cambio y llegaron en el punto
+  siguiente.
 - **Bug real: `/vender` e `/inventario` caían en producción (500) por
   pasar los íconos de `lucide-react` como dato crudo.** Los layouts de
   `(pos)`, `(admin)` y `(taller)` corren en el servidor; `BarraLateral`
@@ -310,6 +306,49 @@ npm start
   deliberadamente un bucle sin mouse (ver su comentario de cabecera) y
   meterle un selector de archivo ahí lo habría hecho más lento sin que
   nadie lo pidiera.
+- **El sistema de diseño vive en `globals.css` y `componentes/ui/`**
+  (`boton.tsx`, `etiqueta.tsx`, `tarjeta.tsx`, `campo.tsx`,
+  `titulo-pantalla.tsx`, `estado-orden.tsx`). Antes cada pantalla
+  inventaba sus propios tamaños, radios y colores en el estilo en
+  línea; ahora los toma de variables y de esos seis componentes. Las
+  veinte pantallas están migradas -- ese era el "rediseño pantalla por
+  pantalla" que la personalización por empresa declaraba fuera de
+  alcance.
+
+  Tres reglas sostienen el resto: el color de la empresa (`--accent`)
+  significa **acción** y nada más -- una sola por pantalla, la que
+  cobra, guarda o confirma; los **estados** (verde, azul, ámbar,
+  morado, rojo) nunca usan ese color, porque un estado no es una
+  acción y un verde tiene que seguir siendo verde aunque la empresa
+  sea verde; y el **marco** de la aplicación (menú lateral, barra
+  superior, login) es siempre el mismo negro neutro, para que ese
+  color de empresa no compita con nada. Los tonos derivados del color
+  de empresa -- hover, presionado, fondo suave, aro de foco -- se
+  calculan con `color-mix` en vez de fijarse a mano: el color es libre,
+  así que la única forma de tener sus variantes es derivarlas.
+
+  Los estados de `:hover`, `:active`, `:focus-visible` y `:disabled` no
+  existen en un atributo `style`, así que las piezas (`.btn`, `.etq`,
+  `.pastilla`, `.tarjeta`, `.aviso`) son clases de `globals.css` y los
+  componentes solo las ponen. La puerta del taller obtuvo su propio
+  ámbito de tokens, `.puerta-oscura`: antes su fondo oscuro era un
+  color fijo en su layout, y una tarjeta blanca del sistema habría
+  quedado fuera de lugar ahí.
+
+  Dos familias, autoalojadas con `next/font` (no hay petición a Google
+  desde el navegador de nadie): **Archivo** para toda la interfaz y
+  **Saira Condensed** para la voz de marca -- la clase `.marca`, solo
+  rótulos y lemas. La clase `.cifra` pone cifras tabulares en todo lo
+  que sea dinero, cantidad, fecha o código: sin ella los totales de una
+  tabla bailan de fila en fila.
+
+  La barra de búsqueda que se había descartado por decorativa existe
+  ahora porque tiene dos rutas reales detrás
+  (`componentes/ui/buscador.tsx`): decide entre
+  `/api/ordenes/buscar` y `/api/ordenes/por-serial` según lo que se
+  escriba -- solo dígitos es un número de orden, cualquier otra cosa es
+  un serial, que es justo lo que entrega una pistola lectora.
+
 - **`estacion/destino.ts`: puente Android para impresoras solo-USB**
   (`DestinoPuenteAndroid`). Caso real: la Epson de Polaco Scooter no
   tiene Ethernet/WiFi, está por USB en un equipo con BlissOS -- y en

@@ -9,7 +9,7 @@
 import { redirect } from "next/navigation";
 import { ShoppingCart, Inbox, PackageCheck, Clock } from "lucide-react";
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
-import { SelectorPuertas } from "@/componentes/ui/selector-puertas";
+import { BarraSuperior } from "@/componentes/ui/barra-superior";
 import { BarraLateral, type ItemNavLateral } from "@/componentes/ui/barra-lateral";
 import { puedeEntrarA } from "@/lib/permisos";
 import { obtenerPerfilActual } from "@/lib/perfil";
@@ -25,7 +25,7 @@ export default async function LayoutPos({ children }: { children: React.ReactNod
     return (
       <main style={{ padding: 40 }}>
         <p>Tu rol ({perfil.rol}) no tiene acceso al POS.</p>
-        <CerrarSesion />
+        <CerrarSesion oscuro={false} />
       </main>
     );
   }
@@ -45,25 +45,11 @@ export default async function LayoutPos({ children }: { children: React.ReactNod
         items={items}
         logoUrl={config.logoUrl}
         nombreEmpresa={perfil.empresaNombre}
-        colorPrincipal={config.colorPrincipal}
         etiquetaPuerta="POS"
       />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <header
-          style={{
-            padding: "14px 20px",
-            borderBottom: "1px solid #ddd",
-            display: "flex",
-            justifyContent: "flex-end",
-            alignItems: "center",
-            gap: 16,
-          }}
-        >
-          <SelectorPuertas rol={perfil.rol} actual="pos" />
-          <span style={{ opacity: 0.7, fontSize: 14 }}>{perfil.nombre}</span>
-          <CerrarSesion />
-        </header>
-        <div style={{ padding: 20, maxWidth: 720, margin: "0 auto" }}>{children}</div>
+        <BarraSuperior nombre={perfil.nombre} rol={perfil.rol} puerta="pos" />
+        <main style={{ padding: 20, maxWidth: 1280, margin: "0 auto" }}>{children}</main>
       </div>
     </div>
   );

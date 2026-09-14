@@ -7,6 +7,12 @@
  * activar/desactivar los que ya no use, sin tocar código.
  */
 import { useEffect, useState } from "react";
+import { CreditCard, Plus, Banknote } from "lucide-react";
+import { Boton } from "@/componentes/ui/boton";
+import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
+import { Etiqueta } from "@/componentes/ui/etiqueta";
+import { Campo, Aviso } from "@/componentes/ui/campo";
+import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
 interface Metodo {
   id: string;
@@ -68,55 +74,92 @@ export default function PaginaMetodosPago() {
     await cargar();
   }
 
-  if (cargando) return <p>Cargando…</p>;
+  if (cargando) {
+    return <Tarjeta style={{ textAlign: "center", color: "var(--ink-3)" }}>Cargando…</Tarjeta>;
+  }
 
   return (
     <div>
-      <h1>Métodos de pago</h1>
-      <p style={{ opacity: 0.6, fontSize: 14 }}>
-        Solo el marcado como efectivo abre el cajón y cuenta en el cierre de caja.
-      </p>
+      <TituloPantalla
+        icono={<CreditCard size={24} strokeWidth={2} />}
+        titulo="Métodos de pago"
+        descripcion="Solo el marcado como efectivo abre el cajón y cuenta en el cierre de caja."
+      />
 
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 24 }}>
-        <thead>
-          <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
-            <th>Nombre</th>
-            <th>Es efectivo</th>
-            <th>Estado</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {metodos.map((m) => (
-            <tr key={m.id} style={{ borderBottom: "1px solid #eee" }}>
-              <td>{m.nombre}</td>
-              <td>{m.es_efectivo ? "Sí" : "No"}</td>
-              <td>{m.activo ? "Activo" : "Inactivo"}</td>
-              <td>
-                <button onClick={() => alternarActivo(m)}>{m.activo ? "Desactivar" : "Activar"}</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="pila">
+        <TarjetaTabla>
+          <table>
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Es efectivo</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {metodos.map((m) => (
+                <tr key={m.id}>
+                  <td style={{ fontWeight: 600 }}>{m.nombre}</td>
+                  <td>
+                    {m.es_efectivo ? (
+                      <Etiqueta tono="marca" icono={<Banknote size={14} strokeWidth={2} />}>
+                        Efectivo
+                      </Etiqueta>
+                    ) : (
+                      <span style={{ color: "var(--ink-3)" }}>No</span>
+                    )}
+                  </td>
+                  <td>
+                    <Etiqueta tono={m.activo ? "ok" : "neutro"} punto>
+                      {m.activo ? "Activo" : "Inactivo"}
+                    </Etiqueta>
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    <Boton variante={m.activo ? "contorno" : "primario"} tamano="sm" onClick={() => alternarActivo(m)}>
+                      {m.activo ? "Desactivar" : "Activar"}
+                    </Boton>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TarjetaTabla>
 
-      <h2 style={{ fontSize: 16 }}>Agregar método</h2>
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <input
-          placeholder="Ej. Nequi, DaviPlata, Bre-B…"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          style={{ padding: 8 }}
-        />
-        <label style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 14 }}>
-          <input type="checkbox" checked={esEfectivo} onChange={(e) => setEsEfectivo(e.target.checked)} />
-          Es efectivo
-        </label>
-        <button onClick={crear} disabled={!nombre.trim()}>
-          Agregar
-        </button>
+        <Tarjeta>
+          <h2 style={{ marginBottom: 12 }}>Agregar método</h2>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              crear();
+            }}
+          >
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto auto", gap: 12, alignItems: "end" }}>
+              <Campo etiqueta="Nombre">
+                <input
+                  placeholder="Ej. Nequi, DaviPlata, Bre-B…"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                />
+              </Campo>
+              <label style={{ display: "flex", alignItems: "center", gap: 9, height: 44, fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+                <input
+                  type="checkbox"
+                  checked={esEfectivo}
+                  onChange={(e) => setEsEfectivo(e.target.checked)}
+                  style={{ width: 20, height: 20, padding: 0, accentColor: "var(--accent)" }}
+                />
+                Es efectivo
+              </label>
+              <Boton type="submit" variante="primario" icono={<Plus size={17} strokeWidth={2.2} />} disabled={!nombre.trim()}>
+                Agregar
+              </Boton>
+            </div>
+          </form>
+        </Tarjeta>
+
+        {error && <Aviso tono="peligro">{error}</Aviso>}
       </div>
-      {error && <p style={{ color: "#ff8080" }}>{error}</p>}
     </div>
   );
 }

@@ -6,9 +6,18 @@
  * impreso. Solo admin (personalizar_empresa) -- el layout de (admin)
  * ya oculta el enlace a quien no tenga el permiso, pero la ruta igual
  * se protege del lado del servidor en /api/configuracion.
+ *
+ * El color se muestra sobre un botón de ejemplo, no solo como un
+ * cuadrito: lo que importa no es el color en abstracto sino si el
+ * texto blanco encima se sigue leyendo.
  */
 import { useEffect, useRef, useState } from "react";
+import { Settings, Check, ImagePlus } from "lucide-react";
 import { subirLogo } from "@/lib/subir-logo";
+import { Boton } from "@/componentes/ui/boton";
+import { Tarjeta } from "@/componentes/ui/tarjeta";
+import { Campo, Aviso } from "@/componentes/ui/campo";
+import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
 interface Config {
   logoUrl: string | null;
@@ -86,95 +95,143 @@ export default function PaginaConfiguracion() {
     }
   }
 
-  if (!config) return <p>Cargando…</p>;
+  if (!config) {
+    return <Tarjeta style={{ textAlign: "center", color: "var(--ink-3)" }}>Cargando…</Tarjeta>;
+  }
 
   return (
     <div>
-      <h1>Configuración</h1>
-      <p style={{ opacity: 0.6, fontSize: 14 }}>
-        Los cambios de aquí se ven de inmediato en las tres puertas y en los próximos recibos
-        impresos -- no hace falta volver a desplegar nada.
-      </p>
+      <TituloPantalla
+        icono={<Settings size={24} strokeWidth={2} />}
+        titulo="Configuración"
+        descripcion="Los cambios se ven de inmediato en las tres puertas y en los próximos recibos impresos."
+      />
 
-      <section style={{ marginBottom: 28, maxWidth: 420 }}>
-        <h2 style={{ fontSize: 16 }}>Logo</h2>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-          {config.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={config.logoUrl} alt="Logo actual" style={{ height: 48, width: 48, objectFit: "contain", borderRadius: 6 }} />
-          ) : (
-            <div style={{ height: 48, width: 48, borderRadius: 6, background: "var(--rule)" }} />
-          )}
-          <input
-            ref={inputLogoRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/svg+xml"
-            onChange={(e) => {
-              const archivo = e.target.files?.[0];
-              if (archivo) cambiarLogo(archivo);
-            }}
-            disabled={subiendoLogo}
-          />
-        </div>
-        {subiendoLogo && <p style={{ fontSize: 13, opacity: 0.7 }}>Subiendo…</p>}
-      </section>
+      <div className="pila" style={{ maxWidth: 620 }}>
+        <Tarjeta>
+          <h2 style={{ marginBottom: 12 }}>Logo</h2>
+          <div className="fila" style={{ gap: 14, flexWrap: "nowrap" }}>
+            {config.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={config.logoUrl}
+                alt="Logo actual"
+                style={{ height: 56, width: 56, objectFit: "contain", borderRadius: "var(--r-md)", background: "var(--surface-2)", flexShrink: 0 }}
+              />
+            ) : (
+              <div
+                style={{
+                  height: 56,
+                  width: 56,
+                  borderRadius: "var(--r-md)",
+                  background: "var(--surface-2)",
+                  color: "var(--ink-3)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <ImagePlus size={24} strokeWidth={1.8} aria-hidden />
+              </div>
+            )}
+            <input
+              ref={inputLogoRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              onChange={(e) => {
+                const archivo = e.target.files?.[0];
+                if (archivo) cambiarLogo(archivo);
+              }}
+              disabled={subiendoLogo}
+              aria-label="Logo de la empresa"
+              style={{ height: "auto", padding: 10 }}
+            />
+          </div>
+          <p className="campo-ayuda">
+            {subiendoLogo ? "Subiendo…" : "Se ve en el menú lateral y en la pantalla de inicio de sesión."}
+          </p>
+        </Tarjeta>
 
-      <section style={{ marginBottom: 28, maxWidth: 420 }}>
-        <h2 style={{ fontSize: 16 }}>Color de marca</h2>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <input
-            type="color"
-            value={config.colorPrincipal}
-            onChange={(e) => setConfig({ ...config, colorPrincipal: e.target.value })}
-            onBlur={(e) => guardar({ colorPrincipal: e.target.value })}
-            style={{ width: 48, height: 36, padding: 0, border: "none" }}
-          />
-          <span style={{ fontFamily: "monospace" }}>{config.colorPrincipal}</span>
-        </div>
-      </section>
-
-      <section style={{ marginBottom: 28, maxWidth: 420 }}>
-        <h2 style={{ fontSize: 16 }}>Tema</h2>
-        <div style={{ display: "flex", gap: 8 }}>
-          {TEMAS.map((t) => (
-            <button
-              key={t.valor}
-              onClick={() => guardar({ tema: t.valor })}
-              disabled={guardando}
-              style={{ fontWeight: config.tema === t.valor ? 700 : 400 }}
+        <Tarjeta>
+          <h2 style={{ marginBottom: 12 }}>Color de marca</h2>
+          <div className="fila" style={{ gap: 14 }}>
+            <input
+              type="color"
+              value={config.colorPrincipal}
+              onChange={(e) => setConfig({ ...config, colorPrincipal: e.target.value })}
+              onBlur={(e) => guardar({ colorPrincipal: e.target.value })}
+              aria-label="Color de marca"
+              style={{ width: 56, height: 44, padding: 4, flexShrink: 0 }}
+            />
+            <span className="cifra" style={{ fontWeight: 700, letterSpacing: "0.04em" }}>
+              {config.colorPrincipal}
+            </span>
+            <span
+              className="btn btn-primario"
+              style={{ background: config.colorPrincipal, cursor: "default", marginLeft: "auto" }}
             >
-              {t.etiqueta}
-            </button>
-          ))}
-        </div>
-      </section>
+              Así se ve el botón de cobro
+            </span>
+          </div>
+          <p className="campo-ayuda">
+            Es el color de la acción en toda la aplicación. Los estados (verde, ámbar, rojo) no cambian con él.
+          </p>
+        </Tarjeta>
 
-      <section style={{ marginBottom: 28, maxWidth: 420 }}>
-        <h2 style={{ fontSize: 16 }}>Datos del recibo impreso</h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <input
-            placeholder="Dirección"
-            defaultValue={config.reciboDireccion ?? ""}
-            onBlur={(e) => guardar({ reciboDireccion: e.target.value || null })}
-            style={{ padding: 8 }}
-          />
-          <input
-            placeholder="Teléfono"
-            defaultValue={config.reciboTelefono ?? ""}
-            onBlur={(e) => guardar({ reciboTelefono: e.target.value || null })}
-            style={{ padding: 8 }}
-          />
-          <input
-            placeholder="Mensaje al pie (ej. Gracias por su preferencia)"
-            defaultValue={config.reciboPie}
-            onBlur={(e) => guardar({ reciboPie: e.target.value || "Gracias por su preferencia" })}
-            style={{ padding: 8 }}
-          />
-        </div>
-      </section>
+        <Tarjeta>
+          <h2 style={{ marginBottom: 12 }}>Tema</h2>
+          <div className="fila" style={{ gap: 8 }}>
+            {TEMAS.map((t) => (
+              <Boton
+                key={t.valor}
+                variante={config.tema === t.valor ? "primario" : "contorno"}
+                onClick={() => guardar({ tema: t.valor })}
+                disabled={guardando}
+                aria-pressed={config.tema === t.valor}
+              >
+                {t.etiqueta}
+              </Boton>
+            ))}
+          </div>
+          <p className="campo-ayuda">La puerta del taller es siempre oscura, sin importar lo que se elija aquí.</p>
+        </Tarjeta>
 
-      {mensaje && <p style={{ color: "#4ade80" }}>{mensaje}</p>}
-      {error && <p style={{ color: "#ff8080" }}>{error}</p>}
+        <Tarjeta>
+          <h2 style={{ marginBottom: 12 }}>Datos del recibo impreso</h2>
+          <div className="pila" style={{ gap: 12 }}>
+            <Campo etiqueta="Dirección">
+              <input
+                placeholder="Calle 00 # 00-00"
+                defaultValue={config.reciboDireccion ?? ""}
+                onBlur={(e) => guardar({ reciboDireccion: e.target.value || null })}
+              />
+            </Campo>
+            <Campo etiqueta="Teléfono">
+              <input
+                placeholder="300 000 0000"
+                defaultValue={config.reciboTelefono ?? ""}
+                onBlur={(e) => guardar({ reciboTelefono: e.target.value || null })}
+                className="cifra"
+              />
+            </Campo>
+            <Campo etiqueta="Mensaje al pie" ayuda="Se guarda al salir del campo.">
+              <input
+                placeholder="Ej. Gracias por su preferencia"
+                defaultValue={config.reciboPie}
+                onBlur={(e) => guardar({ reciboPie: e.target.value || "Gracias por su preferencia" })}
+              />
+            </Campo>
+          </div>
+        </Tarjeta>
+
+        {mensaje && (
+          <Aviso tono="ok" icono={<Check size={17} strokeWidth={2.4} />}>
+            {mensaje}
+          </Aviso>
+        )}
+        {error && <Aviso tono="peligro">{error}</Aviso>}
+      </div>
     </div>
   );
 }
