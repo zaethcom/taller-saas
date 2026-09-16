@@ -18,6 +18,7 @@ export interface ConfiguracionEmpresa {
   imagenMarcaUrl: string | null;
   eslogan: string | null;
   whatsappProveedor: string | null;
+  fondoLoginUrl: string | null;
 }
 
 export const CONFIG_POR_DEFECTO: ConfiguracionEmpresa = {
@@ -30,6 +31,7 @@ export const CONFIG_POR_DEFECTO: ConfiguracionEmpresa = {
   imagenMarcaUrl: null,
   eslogan: null,
   whatsappProveedor: null,
+  fondoLoginUrl: null,
 };
 
 export async function obtenerConfiguracion(
@@ -39,7 +41,7 @@ export async function obtenerConfiguracion(
   const { data } = await supabase
     .from("empresa_config")
     .select(
-      "logo_url, color_principal, tema, recibo_direccion, recibo_telefono, recibo_pie, imagen_marca_url, eslogan, whatsapp_proveedor",
+      "logo_url, color_principal, tema, recibo_direccion, recibo_telefono, recibo_pie, imagen_marca_url, eslogan, whatsapp_proveedor, fondo_login_url",
     )
     .eq("empresa_id", empresaId)
     .maybeSingle();
@@ -56,5 +58,6 @@ export async function obtenerConfiguracion(
     imagenMarcaUrl: data.imagen_marca_url,
     eslogan: data.eslogan,
     whatsappProveedor: data.whatsapp_proveedor,
+    fondoLoginUrl: data.fondo_login_url,
   };
 }
