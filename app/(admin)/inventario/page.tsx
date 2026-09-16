@@ -8,6 +8,7 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { FormularioRecepcion } from "@/componentes/inventario/formulario-recepcion";
+import { AjusteExistencia } from "@/componentes/inventario/ajuste-existencia";
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
@@ -44,7 +45,7 @@ export default async function PaginaInventario() {
     supabase
       .from("existencia")
       .select(
-        "cantidad, repuesto:repuesto_id ( id, codigo, descripcion, precio_venta, imagen_url ), sede:sede_id ( nombre )",
+        "cantidad, sede_id, repuesto:repuesto_id ( id, codigo, descripcion, precio_venta, imagen_url ), sede:sede_id ( nombre )",
       )
       .order("cantidad", { ascending: true }),
     supabase
@@ -74,7 +75,14 @@ export default async function PaginaInventario() {
               if (!repuesto) return null;
               const bajo = e.cantidad <= 2;
               return (
-                <Tarjeta key={i} relleno={false} style={{ padding: 11, display: "flex", flexDirection: "column", gap: 8 }}>
+                <Tarjeta
+                  key={i}
+                  relleno={false}
+                  style={{ padding: 11, display: "flex", flexDirection: "column", gap: 8, position: "relative" }}
+                >
+                  {editable && (
+                    <AjusteExistencia repuestoId={repuesto.id} sedeId={e.sede_id} cantidadActual={e.cantidad} />
+                  )}
                   <FotoProducto
                     tipo="repuesto"
                     id={repuesto.id}
