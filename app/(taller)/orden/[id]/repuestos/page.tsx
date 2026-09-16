@@ -4,15 +4,28 @@
  * Consumir un repuesto contra el inventario de la sede, o marcarlo
  * como faltante si no hay -- lo que crea la fila en repuesto_solicitud
  * que aparece en /compras. Fase 6 del plano de construcción.
+ *
+ * También muestra lo que este técnico ya pidió para esta orden y su
+ * estado -- antes no había ninguna manera de saber, desde acá, cuando
+ * Compras marcaba un faltante como recibido.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Package, Search, Minus, AlertTriangle, Check } from "lucide-react";
+import { Package, Search, Minus, AlertTriangle, Check, PackageCheck } from "lucide-react";
+import { clienteNavegador } from "@/lib/supabase/cliente";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+
+interface Solicitud {
+  id: string;
+  descripcion: string;
+  cantidad: number;
+  estado: string;
+  creada_en: string;
+}
 
 interface Repuesto {
   id: string;
@@ -35,6 +48,22 @@ export default function PaginaRepuestos() {
   const [procesando, setProcesando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
+
+  async function cargarSolicitudes() {
+    const supabase = clienteNavegador();
+    const { data } = await supabase
+      .from("repuesto_solicitud")
+      .select("id, descripcion, cantidad, estado, creada_en")
+      .eq("orden_id", id)
+      .order("creada_en", { ascending: false });
+    setSolicitudes((data as Solicitud[]) ?? []);
+  }
+
+  useEffect(() => {
+    cargarSolicitudes();
+  }, [id]);
 
   async function buscarRepuestos() {
     setBuscando(true);
@@ -82,6 +111,7 @@ export default function PaginaRepuestos() {
       setMensaje("Faltante registrado. Ya aparece en la lista de compras.");
       setFaltanteDescripcion("");
       setFaltanteCantidad("1");
+      cargarSolicitudes();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo marcar el faltante");
     } finally {
@@ -206,6 +236,42 @@ export default function PaginaRepuestos() {
           </Aviso>
         )}
         {error && <Aviso tono="peligro">{error}</Aviso>}
+
+        {solicitudes.length > 0 && (
+          <Tarjeta>
+            <h2 style={{ marginBottom: 12 }}>Lo que pediste para esta orden</h2>
+            <div className="pila" style={{ gap: 0 }}>
+              {solicitudes.map((s) => (
+                <div
+                  key={s.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "10px 0",
+                    borderTop: "1px solid var(--rule)",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>{s.descripcion}</div>
+                    <div className="cifra" style={{ fontSize: 12, color: "var(--ink-3)" }}>
+                      x{s.cantidad}
+                    </div>
+                  </div>
+                  {s.estado === "recibido" ? (
+                    <Etiqueta tono="ok" icono={<PackageCheck size={13} strokeWidth={2} />}>
+                      Ya llegó
+                    </Etiqueta>
+                  ) : (
+                    <Etiqueta tono="aviso" punto>
+                      <span style={{ textTransform: "capitalize" }}>{s.estado}</span>
+                    </Etiqueta>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Tarjeta>
+        )}
       </div>
     </div>
   );

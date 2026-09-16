@@ -35,6 +35,7 @@ interface CuerpoConfig {
   reciboPie?: string;
   imagenMarcaUrl?: string | null;
   eslogan?: string | null;
+  whatsappProveedor?: string | null;
 }
 
 export async function PATCH(req: Request) {
@@ -63,6 +64,7 @@ export async function PATCH(req: Request) {
       ...(body.reciboPie !== undefined && { recibo_pie: body.reciboPie }),
       ...(body.imagenMarcaUrl !== undefined && { imagen_marca_url: body.imagenMarcaUrl }),
       ...(body.eslogan !== undefined && { eslogan: body.eslogan }),
+      ...(body.whatsappProveedor !== undefined && { whatsapp_proveedor: body.whatsappProveedor }),
       actualizado_en: new Date().toISOString(),
     },
     { onConflict: "empresa_id" },

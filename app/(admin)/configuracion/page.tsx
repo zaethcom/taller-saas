@@ -28,6 +28,7 @@ interface Config {
   reciboPie: string;
   imagenMarcaUrl: string | null;
   eslogan: string | null;
+  whatsappProveedor: string | null;
 }
 
 const TEMAS: { valor: Config["tema"]; etiqueta: string }[] = [
@@ -295,6 +296,21 @@ export default function PaginaConfiguracion() {
               />
             </Campo>
           </div>
+        </Tarjeta>
+
+        <Tarjeta>
+          <h2 style={{ marginBottom: 12 }}>Compras</h2>
+          <Campo
+            etiqueta="WhatsApp del proveedor"
+            ayuda="A este número se manda la lista de faltantes desde /compras."
+          >
+            <input
+              placeholder="57300000000"
+              defaultValue={config.whatsappProveedor ?? ""}
+              onBlur={(e) => guardar({ whatsappProveedor: e.target.value || null })}
+              className="cifra"
+            />
+          </Campo>
         </Tarjeta>
 
         {mensaje && (
