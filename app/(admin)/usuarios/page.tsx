@@ -3,15 +3,21 @@
  * el requisito de la sección 7 del documento original: al retirar a un
  * trabajador, su usuario debe poder deshabilitarse de inmediato.
  */
+import { redirect } from "next/navigation";
 import { Users } from "lucide-react";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { obtenerPerfilActual } from "@/lib/perfil";
+import { puede } from "@/lib/permisos";
 import { EditarCodigo } from "@/componentes/ui/editar-codigo";
+import { NuevoUsuario } from "@/componentes/usuarios/nuevo-usuario";
 import { TarjetaTabla } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
 export default async function PaginaUsuarios() {
   const supabase = await clienteServidor();
+  const perfil = await obtenerPerfilActual(supabase);
+  if (!perfil) redirect("/login");
 
   const { data: perfiles } = await supabase
     .from("perfil")
@@ -25,6 +31,8 @@ export default async function PaginaUsuarios() {
         titulo="Usuarios"
         descripcion="El código es un identificador corto para recibos y reportes -- no reemplaza el usuario y contraseña de Supabase, que sigue siendo la única forma de iniciar sesión."
       />
+
+      {puede(perfil.rol, "gestionar_usuarios") && <NuevoUsuario />}
 
       <TarjetaTabla>
         <table>
