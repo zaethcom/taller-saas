@@ -22,6 +22,7 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { CabeceraOrden } from "@/componentes/taller/cabecera-orden";
 
 type Fase = "entrada" | "salida" | "";
 
@@ -115,6 +116,8 @@ export default function PaginaEvidencia() {
 
   return (
     <div>
+      <CabeceraOrden ordenId={id} anterior={{ href: `/orden/${id}`, etiqueta: "Orden" }} />
+
       <TituloPantalla
         icono={<Camera size={24} strokeWidth={2} />}
         titulo="Evidencia"
