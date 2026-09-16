@@ -86,3 +86,25 @@ export function qr(contenido: string): Buffer {
 export function componer(...partes: Buffer[]): Buffer {
   return Buffer.concat(partes);
 }
+
+/**
+ * Un código de barras Code128 que dibuja la propia impresora, igual que
+ * el QR: nunca se le manda una imagen.
+ *
+ * GS h fija la altura en puntos, GS w el ancho de módulo, GS H 2 pone
+ * el número legible debajo de las barras -- sin eso, un código que no
+ * escanea no se puede teclear a mano. El "{B" delante de los datos
+ * selecciona el juego de caracteres B (alfanumérico), que es lo que
+ * usan los códigos de repuesto.
+ */
+export function codigoBarras(contenido: string, altura = 80): Buffer {
+  const datos = Buffer.from(`{B${contenido}`, "ascii");
+
+  return Buffer.concat([
+    Buffer.from([GS, 0x68, altura]), // GS h -- altura
+    Buffer.from([GS, 0x77, 0x02]), // GS w -- ancho de módulo
+    Buffer.from([GS, 0x48, 0x02]), // GS H -- número legible debajo
+    Buffer.from([GS, 0x6b, 0x49, datos.length]), // GS k 73 n -- Code128
+    datos,
+  ]);
+}

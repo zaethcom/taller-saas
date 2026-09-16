@@ -14,19 +14,7 @@
  */
 import { readFileSync } from "node:fs";
 import { crearDestinos, type ConfigImpresoras } from "./destino";
-import { componer, inicializar, abrirCajon as abrirCajonBytes } from "./escpos";
-import {
-  etiquetaArticuloZpl,
-  etiquetaQrZpl,
-  etiquetaRepuestoZpl,
-  type DatosEtiquetaArticulo,
-  type DatosEtiquetaQr,
-  type DatosEtiquetaRepuesto,
-} from "./etiqueta";
-import { reciboVenta, type CargaReciboVenta } from "./plantillas/recibo";
-import { comprobanteRecepcion, type CargaComprobanteRecepcion } from "./plantillas/comprobante";
-import { cierreCaja, type CargaCierreCaja } from "./plantillas/cierre";
-import { comprobanteTraslado, type CargaComprobanteTraslado } from "./plantillas/traslado";
+import { resolverImpresion, type TrabajoPendiente } from "./ruteo";
 
 interface Config {
   sedeId: string;
@@ -37,20 +25,6 @@ interface Config {
   // responde (la sede todavía no tiene nada configurado desde la web,
   // o no hay red hacia el servidor en este arranque en particular).
   impresoras?: ConfigImpresoras;
-}
-
-interface TrabajoPendiente {
-  id: string;
-  tipo:
-    | "etiqueta_qr"
-    | "recibo_venta"
-    | "comprobante_recepcion"
-    | "cierre_caja"
-    | "abrir_cajon"
-    | "comprobante_traslado"
-    | "etiqueta_articulo"
-    | "etiqueta_repuesto";
-  carga: unknown;
 }
 
 function cargarConfig(ruta: string): Config {
@@ -116,50 +90,14 @@ async function reportarResultado(
   });
 }
 
-/** Traduce un trabajo pendiente a lo que hay que enviarle a cuál impresora. */
-function resolverImpresion(
-  trabajo: TrabajoPendiente,
-): { destino: "tickets" | "etiquetas"; contenido: Buffer | string } {
-  switch (trabajo.tipo) {
-    case "recibo_venta":
-      return { destino: "tickets", contenido: reciboVenta(trabajo.carga as CargaReciboVenta) };
-
-    case "comprobante_recepcion":
-      return {
-        destino: "tickets",
-        contenido: comprobanteRecepcion(trabajo.carga as CargaComprobanteRecepcion),
-      };
-
-    case "cierre_caja":
-      return { destino: "tickets", contenido: cierreCaja(trabajo.carga as CargaCierreCaja) };
-
-    case "comprobante_traslado":
-      return {
-        destino: "tickets",
-        contenido: comprobanteTraslado(trabajo.carga as CargaComprobanteTraslado),
-      };
-
-    case "abrir_cajon":
-      return { destino: "tickets", contenido: componer(inicializar(), abrirCajonBytes()) };
-
-    case "etiqueta_qr":
-      return { destino: "etiquetas", contenido: etiquetaQrZpl(trabajo.carga as DatosEtiquetaQr) };
-
-    case "etiqueta_articulo":
-      return { destino: "etiquetas", contenido: etiquetaArticuloZpl(trabajo.carga as DatosEtiquetaArticulo) };
-
-    case "etiqueta_repuesto":
-      return { destino: "etiquetas", contenido: etiquetaRepuestoZpl(trabajo.carga as DatosEtiquetaRepuesto) };
-  }
-}
-
 async function procesarUnTrabajo(
   config: Config,
   destinos: ReturnType<typeof crearDestinos>,
+  hayEtiquetadora: boolean,
   trabajo: TrabajoPendiente,
 ): Promise<void> {
   try {
-    const { destino, contenido } = resolverImpresion(trabajo);
+    const { destino, contenido } = resolverImpresion(trabajo, hayEtiquetadora);
     await destinos[destino].enviar(contenido);
     await reportarResultado(config, trabajo.id, { ok: true });
     console.log(`[estacion] impreso ${trabajo.tipo} (${trabajo.id})`);
@@ -174,14 +112,24 @@ async function procesarUnTrabajo(
 }
 
 async function cicloPrincipal(config: Config): Promise<void> {
-  const destinos = crearDestinos(await obtenerImpresoras(config));
+  const impresoras = await obtenerImpresoras(config);
+  const destinos = crearDestinos(impresoras);
+
+  // Sin impresora de etiquetas configurada, las etiquetas salen por la
+  // de tickets en ESC/POS -- ver resolverImpresion en ruteo.ts.
+  const hayEtiquetadora = Boolean(impresoras.etiquetas);
+  console.log(
+    hayEtiquetadora
+      ? "[estacion] etiquetas: impresora propia, en ZPL"
+      : "[estacion] etiquetas: sin etiquetadora, salen por la de tickets",
+  );
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       const pendientes = await obtenerPendientes(config);
       for (const trabajo of pendientes) {
-        await procesarUnTrabajo(config, destinos, trabajo);
+        await procesarUnTrabajo(config, destinos, hayEtiquetadora, trabajo);
       }
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : String(err);

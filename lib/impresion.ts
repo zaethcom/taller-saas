@@ -33,8 +33,9 @@ interface CargaEtiquetaQr {
  * Los cuatro campos que identifican a la empresa en el papel -- nunca
  * los llena quien encola el trabajo (/api/ventas, /api/ordenes, etc.):
  * encolarImpresion() los agrega solos, leyendo empresa + empresa_config,
- * para los tipos que de verdad son un recibo y no una etiqueta pequeña
- * sin espacio para esto.
+ * para los tipos que de verdad son un recibo. Las etiquetas llevan solo
+ * `nombreEmpresa`, que sí pone quien encola: en algo que se pega a un
+ * equipo no caben dirección, teléfono ni pie.
  */
 interface CargaMarcaEmpresa {
   empresaNombre: string;
@@ -118,6 +119,7 @@ const TIPOS_CON_MARCA = new Set<TipoTrabajo>([
   "comprobante_traslado",
 ]);
 
+
 export async function encolarImpresion<T extends TipoTrabajo>(
   supabase: SupabaseClient,
   params: {
@@ -137,11 +139,10 @@ export async function encolarImpresion<T extends TipoTrabajo>(
 ): Promise<{ id: string }> {
   let carga: object = params.carga;
 
-  // Las etiquetas (etiqueta_qr, etiqueta_articulo) y abrir_cajon no
-  // llevan esto -- son demasiado pequeñas o no imprimen texto de
-  // empresa en absoluto. Los cuatro tipos que sí son un recibo de
-  // verdad lo reciben aquí, una sola vez, en vez de que cada ruta que
-  // llama a encolarImpresion tenga que acordarse de pedirlo.
+  // abrir_cajon no lleva nada de esto: no imprime papel. Los cuatro
+  // tipos que son un recibo de verdad reciben la marca completa aquí,
+  // una sola vez, en vez de que cada ruta que llama a encolarImpresion
+  // tenga que acordarse de pedirla.
   if (TIPOS_CON_MARCA.has(params.tipo)) {
     const [{ data: empresa }, { data: config }] = await Promise.all([
       supabase.from("empresa").select("nombre").eq("id", params.empresaId).single(),
