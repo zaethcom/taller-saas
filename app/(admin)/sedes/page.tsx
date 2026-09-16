@@ -14,6 +14,7 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { ConfigImpresoras } from "@/componentes/sedes/config-impresoras";
 
 interface Sede {
   id: string;
@@ -72,19 +73,23 @@ export default function PaginaSedes() {
       />
 
       <div className="pila">
-        <Tarjeta>
-          {sedes.length === 0 ? (
+        {sedes.length === 0 ? (
+          <Tarjeta>
             <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>Todavía no hay sedes.</p>
-          ) : (
-            <div className="fila" style={{ gap: 8 }}>
-              {sedes.map((s) => (
-                <Etiqueta key={s.id} tono="neutro">
-                  {s.nombre} · {s.tipo}
-                </Etiqueta>
-              ))}
-            </div>
-          )}
-        </Tarjeta>
+          </Tarjeta>
+        ) : (
+          sedes.map((s) => (
+            <Tarjeta key={s.id}>
+              <div className="fila" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                <div className="fila" style={{ gap: 8, alignItems: "center" }}>
+                  <span style={{ fontWeight: 700 }}>{s.nombre}</span>
+                  <Etiqueta tono="neutro">{s.tipo}</Etiqueta>
+                </div>
+              </div>
+              <ConfigImpresoras sedeId={s.id} />
+            </Tarjeta>
+          ))
+        )}
 
         <Tarjeta>
           <form
