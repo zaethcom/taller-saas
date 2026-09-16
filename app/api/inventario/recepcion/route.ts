@@ -16,6 +16,7 @@ import { NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
+import { encolarImpresion } from "@/lib/impresion";
 
 interface CuerpoComun {
   sedeId: string;
@@ -46,6 +47,8 @@ export async function POST(req: Request) {
   }
 
   let repuestoId = "repuestoId" in body ? body.repuestoId : undefined;
+  let codigo: string;
+  let descripcion: string;
 
   if (!repuestoId) {
     const nuevo = body as Partial<Extract<Cuerpo, { codigo: string }>>;
@@ -65,7 +68,7 @@ export async function POST(req: Request) {
         precio_venta: nuevo.precioVenta ?? 0,
         categoria_id: nuevo.categoriaId ?? null,
       })
-      .select("id")
+      .select("id, codigo, descripcion")
       .single();
 
     if (errRepuesto) {
@@ -75,6 +78,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: errRepuesto.message }, { status: 500 });
     }
     repuestoId = repuesto.id;
+    codigo = repuesto.codigo;
+    descripcion = repuesto.descripcion;
+  } else {
+    const { data: repuesto, error: errRepuesto } = await supabase
+      .from("repuesto")
+      .select("codigo, descripcion")
+      .eq("id", repuestoId)
+      .single();
+    if (errRepuesto || !repuesto) {
+      return NextResponse.json({ error: "el repuesto no existe" }, { status: 404 });
+    }
+    codigo = repuesto.codigo;
+    descripcion = repuesto.descripcion;
   }
 
   const { data: nuevaCantidad, error: errMovimiento } = await supabase.rpc("mover_existencia", {
@@ -88,6 +104,17 @@ export async function POST(req: Request) {
   if (errMovimiento) {
     return NextResponse.json({ error: errMovimiento.message }, { status: 500 });
   }
+
+  // Una etiqueta de código de barras por unidad física recibida (punto 1
+  // del documento de trazabilidad del taller) -- un solo trabajo con
+  // ^PQ<cantidad> en vez de una fila por unidad.
+  await encolarImpresion(supabase, {
+    empresaId: perfil.empresaId,
+    sedeId: body.sedeId,
+    tipo: "etiqueta_repuesto",
+    creadoPor: perfil.id,
+    carga: { nombreEmpresa: perfil.empresaNombre, codigo, descripcion, cantidadCopias: body.cantidad },
+  });
 
   return NextResponse.json({ ok: true, repuestoId, cantidad: nuevaCantidad });
 }
