@@ -11,7 +11,7 @@
  */
 import { clienteNavegador } from "./supabase/cliente";
 
-async function subirImagenDeMarca(empresaId: string, archivo: File, nombre: "logo" | "marca"): Promise<string> {
+async function subirImagenDeMarca(empresaId: string, archivo: File, nombre: "logo" | "marca" | "fondo-login"): Promise<string> {
   const supabase = clienteNavegador();
   const extension = archivo.name.split(".").pop() ?? "png";
   const ruta = `${empresaId}/${nombre}.${extension}`;
@@ -37,4 +37,8 @@ export function subirLogo(empresaId: string, archivo: File): Promise<string> {
 
 export function subirImagenMarca(empresaId: string, archivo: File): Promise<string> {
   return subirImagenDeMarca(empresaId, archivo, "marca");
+}
+
+export function subirFondoLogin(empresaId: string, archivo: File): Promise<string> {
+  return subirImagenDeMarca(empresaId, archivo, "fondo-login");
 }
