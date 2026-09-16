@@ -43,6 +43,7 @@ interface CuerpoConfig {
   imagenMarcaUrl?: string | null;
   eslogan?: string | null;
   whatsappProveedor?: string | null;
+  prefijoEtiqueta?: string;
   fondoLoginUrl?: string | null;
   codigo?: string | null;
 }
@@ -60,6 +61,12 @@ export async function PATCH(req: Request) {
   }
   if (body.tema && !["claro", "oscuro", "alto_contraste"].includes(body.tema)) {
     return NextResponse.json({ error: "tema inválido" }, { status: 400 });
+  }
+  if (body.prefijoEtiqueta !== undefined && !/^[A-Za-z0-9]{1,6}$/.test(body.prefijoEtiqueta)) {
+    return NextResponse.json(
+      { error: "el prefijo debe tener entre 1 y 6 letras o números" },
+      { status: 400 },
+    );
   }
   if (body.codigo !== undefined && body.codigo !== null && !CODIGO_VALIDO.test(body.codigo)) {
     return NextResponse.json(
@@ -91,6 +98,7 @@ export async function PATCH(req: Request) {
       ...(body.imagenMarcaUrl !== undefined && { imagen_marca_url: body.imagenMarcaUrl }),
       ...(body.eslogan !== undefined && { eslogan: body.eslogan }),
       ...(body.whatsappProveedor !== undefined && { whatsapp_proveedor: body.whatsappProveedor }),
+      ...(body.prefijoEtiqueta !== undefined && { prefijo_etiqueta: body.prefijoEtiqueta.toUpperCase() }),
       ...(body.fondoLoginUrl !== undefined && { fondo_login_url: body.fondoLoginUrl }),
       actualizado_en: new Date().toISOString(),
     },

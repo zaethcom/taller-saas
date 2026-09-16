@@ -29,6 +29,7 @@ interface Config {
   imagenMarcaUrl: string | null;
   eslogan: string | null;
   whatsappProveedor: string | null;
+  prefijoEtiqueta: string;
   fondoLoginUrl: string | null;
   codigo: string | null;
 }
@@ -364,6 +365,23 @@ export default function PaginaConfiguracion() {
               />
             </Campo>
           </div>
+        </Tarjeta>
+
+        <Tarjeta>
+          <h2 style={{ marginBottom: 12 }}>Etiqueta de trazabilidad</h2>
+          <Campo
+            etiqueta="Prefijo del código de entrada"
+            ayuda='Se combina con el número de orden en la etiqueta impresa -- ej. "PS" da "PS000123".'
+          >
+            <input
+              placeholder="OR"
+              defaultValue={config.prefijoEtiqueta}
+              maxLength={6}
+              onBlur={(e) => guardar({ prefijoEtiqueta: (e.target.value.trim() || "OR").toUpperCase() })}
+              className="cifra"
+              style={{ maxWidth: 120, textTransform: "uppercase" }}
+            />
+          </Campo>
         </Tarjeta>
 
         <Tarjeta>
