@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { etiquetaArticuloZpl, etiquetaQrZpl, etiquetaRepuestoZpl } from "./etiqueta";
+import { etiquetaArticuloPplb, etiquetaQrPplb, etiquetaRepuestoPplb } from "./etiqueta";
 
-describe("etiquetaQrZpl", () => {
+describe("etiquetaQrPplb", () => {
   const base = {
     nombreEmpresa: "Polaco Scooter",
     codigoEntrada: "PS000045",
@@ -13,79 +13,55 @@ describe("etiquetaQrZpl", () => {
     contenidoQr: "https://taller.example.com/s/RL-000123",
   };
 
-  it("muestra el nombre de la empresa", () => {
-    const zpl = etiquetaQrZpl(base);
-    expect(zpl).toContain(`^FD${base.nombreEmpresa}^FS`);
+  it("empieza con N (limpiar buffer) y termina con P1 (imprimir una copia)", () => {
+    const pplb = etiquetaQrPplb(base);
+    expect(pplb.startsWith("N\r\n")).toBe(true);
+    expect(pplb.trimEnd().endsWith("P1")).toBe(true);
+  });
+
+  it("muestra el nombre de la empresa en un campo de texto", () => {
+    const pplb = etiquetaQrPplb(base);
+    expect(pplb).toContain(`"${base.nombreEmpresa}"`);
   });
 
   it("muestra el código de entrada en su propio campo", () => {
-    const zpl = etiquetaQrZpl(base);
-    expect(zpl).toContain(`^FD${base.codigoEntrada}^FS`);
-  });
-
-  it("abre con ^XA y cierra con ^XZ, como todo bloque ZPL válido", () => {
-    const zpl = etiquetaQrZpl(base);
-    expect(zpl.startsWith("^XA")).toBe(true);
-    expect(zpl.trimEnd().endsWith("^XZ")).toBe(true);
-  });
-
-  it("incluye el contenido del QR dentro del campo de datos ^FD...^FS", () => {
-    const zpl = etiquetaQrZpl(base);
-    expect(zpl).toContain(`^FDMM,A${base.contenidoQr}^FS`);
+    const pplb = etiquetaQrPplb(base);
+    expect(pplb).toContain(`"${base.codigoEntrada}"`);
   });
 
   it("muestra el serial en su propio campo de texto", () => {
-    const zpl = etiquetaQrZpl(base);
-    expect(zpl).toContain(`^FD${base.serial}^FS`);
+    const pplb = etiquetaQrPplb(base);
+    expect(pplb).toContain(`"${base.serial}"`);
   });
 
   it("junta marca y modelo cuando ambos existen", () => {
-    const zpl = etiquetaQrZpl(base);
-    expect(zpl).toContain("^FDXiaomi Pro 2^FS");
+    const pplb = etiquetaQrPplb(base);
+    expect(pplb).toContain('"Xiaomi Pro 2"');
   });
 
   it("cae al tipo de producto si no hay marca ni modelo", () => {
-    const zpl = etiquetaQrZpl({ ...base, marca: null, modelo: null });
-    expect(zpl).toContain("^FDpatineta^FS");
+    const pplb = etiquetaQrPplb({ ...base, marca: null, modelo: null });
+    expect(pplb).toContain('"patineta"');
   });
 
   it("muestra solo la marca si no hay modelo", () => {
-    const zpl = etiquetaQrZpl({ ...base, modelo: null });
-    expect(zpl).toContain("^FDXiaomi^FS");
+    const pplb = etiquetaQrPplb({ ...base, modelo: null });
+    expect(pplb).toContain('"Xiaomi"');
   });
 
   it("incluye el número de orden para poder rastrear una etiqueta despegada", () => {
-    const zpl = etiquetaQrZpl(base);
-    expect(zpl).toContain("^FDOrden #45^FS");
+    const pplb = etiquetaQrPplb(base);
+    expect(pplb).toContain('"Orden #45"');
   });
 
-  describe("con logo", () => {
-    // 8 puntos de ancho (1 byte/fila) x 2 de alto: 0xFF, 0x00.
-    const logoRaster = { anchoDots: 8, altoDots: 2, datosBase64: Buffer.from([0xff, 0x00]).toString("base64") };
-
-    it("dibuja el logo como ^GFA en vez del nombre de la empresa en texto", () => {
-      const zpl = etiquetaQrZpl({ ...base, logo: logoRaster });
-      expect(zpl).toContain("^GFA,2,2,1,FF00");
-      expect(zpl).not.toContain(`^FD${base.nombreEmpresa}^FS`);
-    });
-
-    it("baja el QR y los datos para dejarle espacio al logo", () => {
-      const sinLogo = etiquetaQrZpl(base);
-      const conLogo = etiquetaQrZpl({ ...base, logo: logoRaster });
-      expect(sinLogo).toContain("^FO20,42");
-      expect(conLogo).not.toContain("^FO20,42");
-      expect(conLogo).toContain("^FO20,74");
-    });
-
-    it("sin logoRaster sigue mostrando el nombre en texto, como antes", () => {
-      const zpl = etiquetaQrZpl(base);
-      expect(zpl).toContain(`^FD${base.nombreEmpresa}^FS`);
-      expect(zpl).not.toContain("^GFA");
-    });
+  it('escapa comillas dobles en los datos para no romper el campo "..."', () => {
+    const pplb = etiquetaQrPplb({ ...base, serial: 'RL"000123' });
+    expect(pplb).not.toContain('"RL"000123"');
+    expect(pplb).toContain("RL'000123");
   });
 });
 
-describe("etiquetaArticuloZpl", () => {
+describe("etiquetaArticuloPplb", () => {
   const base = {
     codigo: "ART-000123",
     tipo: "patineta",
@@ -93,39 +69,34 @@ describe("etiquetaArticuloZpl", () => {
     modelo: "Pro 2",
   };
 
-  it("abre con ^XA y cierra con ^XZ", () => {
-    const zpl = etiquetaArticuloZpl(base);
-    expect(zpl.startsWith("^XA")).toBe(true);
-    expect(zpl.trimEnd().endsWith("^XZ")).toBe(true);
-  });
-
-  it("el QR codifica el código del artículo, no una URL", () => {
-    const zpl = etiquetaArticuloZpl(base);
-    expect(zpl).toContain(`^FDMM,A${base.codigo}^FS`);
+  it("empieza con N y termina con P1", () => {
+    const pplb = etiquetaArticuloPplb(base);
+    expect(pplb.startsWith("N\r\n")).toBe(true);
+    expect(pplb.trimEnd().endsWith("P1")).toBe(true);
   });
 
   it("muestra el código en su propio campo de texto grande", () => {
-    const zpl = etiquetaArticuloZpl(base);
-    expect(zpl).toContain(`^FD${base.codigo}^FS`);
+    const pplb = etiquetaArticuloPplb(base);
+    expect(pplb).toContain(`"${base.codigo}"`);
   });
 
   it("junta marca y modelo cuando ambos existen", () => {
-    const zpl = etiquetaArticuloZpl(base);
-    expect(zpl).toContain("^FDXiaomi Pro 2^FS");
+    const pplb = etiquetaArticuloPplb(base);
+    expect(pplb).toContain('"Xiaomi Pro 2"');
   });
 
   it("cae al tipo si no hay marca ni modelo", () => {
-    const zpl = etiquetaArticuloZpl({ ...base, marca: null, modelo: null });
-    expect(zpl).toContain("^FDpatineta^FS");
+    const pplb = etiquetaArticuloPplb({ ...base, marca: null, modelo: null });
+    expect(pplb).toContain('"patineta"');
   });
 
-  it("no imprime número de orden -- un artículo no nace de una orden", () => {
-    const zpl = etiquetaArticuloZpl(base);
-    expect(zpl).not.toContain("Orden #");
+  it("dibuja un código de barras 1D con el código del artículo", () => {
+    const pplb = etiquetaArticuloPplb(base);
+    expect(pplb).toMatch(/^B\d+,\d+,0,2,3,7,60,N,"ART-000123"$/m);
   });
 });
 
-describe("etiquetaRepuestoZpl", () => {
+describe("etiquetaRepuestoPplb", () => {
   const base = {
     nombreEmpresa: "Polaco Scooter",
     codigo: "F-1023",
@@ -133,50 +104,27 @@ describe("etiquetaRepuestoZpl", () => {
     cantidadCopias: 3,
   };
 
-  it("abre con ^XA y cierra con ^XZ", () => {
-    const zpl = etiquetaRepuestoZpl(base);
-    expect(zpl.startsWith("^XA")).toBe(true);
-    expect(zpl.trimEnd().endsWith("^XZ")).toBe(true);
+  it("empieza con N y termina con P<cantidadCopias>", () => {
+    const pplb = etiquetaRepuestoPplb(base);
+    expect(pplb.startsWith("N\r\n")).toBe(true);
+    expect(pplb.trimEnd().endsWith("P3")).toBe(true);
   });
 
-  it("dibuja un código de barras Code128 con el código del repuesto", () => {
-    const zpl = etiquetaRepuestoZpl(base);
-    expect(zpl).toContain("^BCN,80,Y,N,N");
-    expect(zpl).toContain(`^FD${base.codigo}^FS`);
+  it("dibuja un código de barras 1D con el código del repuesto", () => {
+    const pplb = etiquetaRepuestoPplb(base);
+    expect(pplb).toMatch(/^B\d+,\d+,0,2,3,7,80,N,"F-1023"$/m);
   });
 
   it("muestra el nombre de la empresa y la descripción del repuesto", () => {
-    const zpl = etiquetaRepuestoZpl(base);
-    expect(zpl).toContain(`^FD${base.nombreEmpresa}^FS`);
-    expect(zpl).toContain(`^FD${base.descripcion}^FS`);
+    const pplb = etiquetaRepuestoPplb(base);
+    expect(pplb).toContain(`"${base.nombreEmpresa}"`);
+    expect(pplb).toContain(`"${base.descripcion}"`);
   });
 
-  it("pide una copia por cada unidad recibida, antes de cerrar el formato", () => {
-    const zpl = etiquetaRepuestoZpl(base);
-    expect(zpl).toContain("^PQ3");
-    expect(zpl.indexOf("^PQ3")).toBeLessThan(zpl.lastIndexOf("^XZ"));
-  });
-
-  it("no usa QR -- un repuesto se escanea como cualquier producto de estante", () => {
-    const zpl = etiquetaRepuestoZpl(base);
-    expect(zpl).not.toContain("^BQN");
-  });
-
-  describe("con logo", () => {
-    const logoRaster = { anchoDots: 8, altoDots: 2, datosBase64: Buffer.from([0xff, 0x00]).toString("base64") };
-
-    it("dibuja el logo como ^GFA en vez del nombre de la empresa en texto", () => {
-      const zpl = etiquetaRepuestoZpl({ ...base, logo: logoRaster });
-      expect(zpl).toContain("^GFA,2,2,1,FF00");
-      expect(zpl).not.toContain(`^FD${base.nombreEmpresa}^FS`);
-    });
-
-    it("baja el código de barras para dejarle espacio al logo", () => {
-      const sinLogo = etiquetaRepuestoZpl(base);
-      const conLogo = etiquetaRepuestoZpl({ ...base, logo: logoRaster });
-      expect(sinLogo).toContain("^FO20,50");
-      expect(conLogo).not.toContain("^FO20,50");
-      expect(conLogo).toContain("^FO20,82");
-    });
+  it("pide una copia por cada unidad recibida (P<cantidadCopias>, no P1 fijo)", () => {
+    const unaCopia = etiquetaRepuestoPplb({ ...base, cantidadCopias: 1 });
+    const tresCopias = etiquetaRepuestoPplb({ ...base, cantidadCopias: 3 });
+    expect(unaCopia.trimEnd().endsWith("P1")).toBe(true);
+    expect(tresCopias.trimEnd().endsWith("P3")).toBe(true);
   });
 });

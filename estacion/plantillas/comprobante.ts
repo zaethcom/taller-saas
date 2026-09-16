@@ -38,7 +38,7 @@ export function comprobanteRecepcion(c: CargaComprobanteRecepcion): Buffer {
     negrita(true),
     texto(`Orden #${c.numeroOrden}`),
     negrita(false),
-    texto(`  ·  ${c.codigoEntrada}`),
+    texto(`  -  ${c.codigoEntrada}`),
     salto(),
     texto(c.fecha),
     salto(2),
@@ -47,7 +47,7 @@ export function comprobanteRecepcion(c: CargaComprobanteRecepcion): Buffer {
     texto("CLIENTE"),
     negrita(false),
     salto(),
-    texto(c.clienteNombre + (c.clienteTelefono ? ` · ${c.clienteTelefono}` : "")),
+    texto(c.clienteNombre + (c.clienteTelefono ? ` - ${c.clienteTelefono}` : "")),
     salto(2),
 
     negrita(true),
@@ -68,7 +68,7 @@ export function comprobanteRecepcion(c: CargaComprobanteRecepcion): Buffer {
     texto("ESCANEA PARA CONSULTAR TU ORDEN"),
     negrita(false),
     salto(),
-    texto("Historial · Estado · Diagnóstico · Entrega"),
+    texto("Historial - Estado - Diagnostico - Entrega"),
     salto(2),
 
     negrita(true),

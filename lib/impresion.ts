@@ -28,12 +28,6 @@ interface CargaEtiquetaQr {
   modelo: string | null;
   numeroOrden: number;
   contenidoQr: string;
-  // Nombre distinto de `logoRaster` (el de CargaMarcaEmpresa) a propósito:
-  // esta etiqueta no pasa por TIPOS_CON_MARCA, así que arma su propia
-  // carga a mano -- si se llamara igual, Omit<T, keyof CargaMarcaEmpresa>
-  // se lo comería del tipo esperado aquí también (pasó de verdad, ver
-  // el mismo problema resuelto con nombreEmpresa más arriba).
-  logo?: LogoRaster | null;
 }
 
 /**
@@ -109,7 +103,6 @@ interface CargaEtiquetaRepuesto {
   codigo: string;
   descripcion: string;
   cantidadCopias: number;
-  logo?: LogoRaster | null; // ver comentario en CargaEtiquetaQr.logo
 }
 
 type CargaPorTipo = {

@@ -21,13 +21,27 @@ export function inicializar(): Buffer {
 }
 
 /**
- * Codifica texto plano. CP437 cubre acentos y ñ en la mayoría de
- * impresoras térmicas de 80mm configuradas de fábrica; si una impresora
- * concreta usa otra página de códigos, ajustar aquí -- es la única
- * función que necesita saberlo.
+ * Quita tildes/ñ y cualquier otro carácter fuera de ASCII imprimible.
+ * Probado en la T20II real: la suposición original (CP437 cubre
+ * acentos "en la mayoría de impresoras de fábrica") resultó falsa para
+ * este modelo -- toda tilde, la ñ, y hasta el separador "·" salieron
+ * como símbolos ilegibles ("RECEPCIÓN" -> "RECEPCI[?]N"). En vez de
+ * apostarle a adivinar qué página de códigos concreta necesita esta
+ * impresora (varía por clon/firmware y es un problema real y conocido
+ * de las térmicas genéricas chinas), se normaliza a ASCII plano antes
+ * de imprimir: garantiza texto legible en cualquier impresora ESC/POS,
+ * al precio de que "Recepción" salga sin la tilde.
  */
+function aAscii(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // separa "ó" en "o" + tilde combinada, y quita la tilde
+    .replace(/[^\x00-\x7f]/g, "-"); // cualquier otro no-ASCII (ej. "·") -> guion, nunca basura
+}
+
+/** Codifica texto plano, ya normalizado a ASCII -- ver aAscii(). */
 export function texto(s: string): Buffer {
-  return Buffer.from(s, "latin1");
+  return Buffer.from(aAscii(s), "ascii");
 }
 
 export function salto(lineas = 1): Buffer {

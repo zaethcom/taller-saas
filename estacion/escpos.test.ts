@@ -52,8 +52,18 @@ describe("comandos de control", () => {
 });
 
 describe("texto()", () => {
-  it("codifica en latin1 para que tildes y ñ salgan bien", () => {
-    expect(texto("Ñandú")).toEqual(Buffer.from("Ñandú", "latin1"));
+  it("quita tildes y normaliza ñ/Ñ -- probado en la T20II real, esos bytes salían como símbolos ilegibles", () => {
+    expect(texto("Ñandú")).toEqual(Buffer.from("Nandu", "ascii"));
+    expect(texto("año")).toEqual(Buffer.from("ano", "ascii"));
+    expect(texto("Reparación")).toEqual(Buffer.from("Reparacion", "ascii"));
+  });
+
+  it("cualquier otro carácter no-ASCII (ej. el separador ·) se reemplaza por un guion, nunca basura", () => {
+    expect(texto("A · B")).toEqual(Buffer.from("A - B", "ascii"));
+  });
+
+  it("el texto ya ASCII no cambia", () => {
+    expect(texto("Venta #999")).toEqual(Buffer.from("Venta #999", "ascii"));
   });
 });
 

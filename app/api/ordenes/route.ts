@@ -16,7 +16,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { encolarImpresion } from "@/lib/impresion";
 import { notificarCliente } from "@/lib/mensajeria/notificar";
-import { generarLogoRaster, TAMANO_ETIQUETA } from "@/lib/logo-bitmap";
 
 interface ClienteNuevo {
   nombre: string;
@@ -136,7 +135,7 @@ export async function POST(req: NextRequest) {
     supabase.from("empresa").select("nombre").eq("id", perfil.empresa_id).single(),
     supabase
       .from("empresa_config")
-      .select("prefijo_etiqueta, logo_url")
+      .select("prefijo_etiqueta")
       .eq("empresa_id", perfil.empresa_id)
       .maybeSingle(),
   ]);
@@ -152,10 +151,6 @@ export async function POST(req: NextRequest) {
   const cliente = producto?.cliente as unknown as
     | { nombre: string; telefono: string | null; correo: string | null }
     | undefined;
-  // La etiqueta es mucho más chica que el recibo (50x30mm vs 80mm de
-  // ancho), así que pide su propio tamaño de logo -- ver TAMANO_ETIQUETA
-  // en lib/logo-bitmap.ts.
-  const logoEtiqueta = await generarLogoRaster(config?.logo_url, TAMANO_ETIQUETA);
 
   await encolarImpresion(supabase, {
     empresaId: perfil.empresa_id,
@@ -190,7 +185,6 @@ export async function POST(req: NextRequest) {
       modelo: producto?.modelo ?? null,
       numeroOrden: orden.numero,
       contenidoQr: urlSeguimiento,
-      logo: logoEtiqueta,
     },
   });
 
