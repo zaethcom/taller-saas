@@ -18,6 +18,7 @@ import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { CabeceraOrden } from "@/componentes/taller/cabecera-orden";
 
 interface Diagnostico {
   hallazgos: string;
@@ -89,6 +90,8 @@ export default function PaginaDiagnostico() {
 
   return (
     <div>
+      <CabeceraOrden ordenId={id} anterior={{ href: `/orden/${id}`, etiqueta: "Orden" }} />
+
       <TituloPantalla
         icono={<Wrench size={24} strokeWidth={2} />}
         titulo="Diagnóstico"

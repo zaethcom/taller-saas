@@ -20,6 +20,7 @@ import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { CabeceraOrden } from "@/componentes/taller/cabecera-orden";
 
 type Origen = "repuesto" | "servicio" | "mano_obra" | "libre";
 
@@ -254,20 +255,12 @@ export default function PaginaCotizacion() {
 
   return (
     <div>
+      <CabeceraOrden ordenId={id} anterior={{ href: `/orden/${id}/diagnostico`, etiqueta: "Diagnóstico" }} />
+
       <TituloPantalla
         icono={<Receipt size={24} strokeWidth={2} />}
         titulo="Cotización"
         descripcion="Repuestos, servicios y mano de obra para el cliente."
-        acciones={
-          <Boton
-            variante="fantasma"
-            tamano="sm"
-            icono={<ArrowLeft size={16} strokeWidth={2} />}
-            onClick={() => router.push(`/orden/${id}/diagnostico`)}
-          >
-            Volver a diagnóstico
-          </Boton>
-        }
       />
 
       <div className="pila">
