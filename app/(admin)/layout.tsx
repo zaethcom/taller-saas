@@ -21,6 +21,8 @@ import {
   CreditCard,
   Settings,
   BarChart3,
+  Wrench,
+  HardHat,
 } from "lucide-react";
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
 import { BarraSuperior } from "@/componentes/ui/barra-superior";
@@ -53,6 +55,8 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
     { href: "/inventario", etiqueta: "Inventario", icono: <Package size={18} strokeWidth={2} /> },
     { href: "/equipos", etiqueta: "Equipos", icono: <Tag size={18} strokeWidth={2} /> },
     { href: "/categorias", etiqueta: "Categorías", icono: <Tags size={18} strokeWidth={2} /> },
+    { href: "/servicios", etiqueta: "Servicios", icono: <Wrench size={18} strokeWidth={2} /> },
+    { href: "/mano-obra", etiqueta: "Mano de obra", icono: <HardHat size={18} strokeWidth={2} /> },
     ...(puede(perfil.rol, "gestionar_sedes")
       ? [{ href: "/sedes", etiqueta: "Sedes", icono: <Building2 size={18} strokeWidth={2} /> }]
       : []),

@@ -13,7 +13,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { Settings, Check, ImagePlus } from "lucide-react";
-import { subirLogo, subirImagenMarca } from "@/lib/subir-logo";
+import { subirLogo, subirImagenMarca, subirFondoLogin } from "@/lib/subir-logo";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
@@ -30,6 +30,8 @@ interface Config {
   eslogan: string | null;
   whatsappProveedor: string | null;
   prefijoEtiqueta: string;
+  fondoLoginUrl: string | null;
+  codigo: string | null;
 }
 
 const TEMAS: { valor: Config["tema"]; etiqueta: string }[] = [
@@ -43,6 +45,7 @@ export default function PaginaConfiguracion() {
   const [empresaId, setEmpresaId] = useState<string | null>(null);
   const [subiendoLogo, setSubiendoLogo] = useState(false);
   const [subiendoMarca, setSubiendoMarca] = useState(false);
+  const [subiendoFondo, setSubiendoFondo] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +117,20 @@ export default function PaginaConfiguracion() {
     }
   }
 
+  async function cambiarFondoLogin(archivo: File) {
+    if (!empresaId) return;
+    setSubiendoFondo(true);
+    setError(null);
+    try {
+      const url = await subirFondoLogin(empresaId, archivo);
+      await guardar({ fondoLoginUrl: url });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo subir el fondo");
+    } finally {
+      setSubiendoFondo(false);
+    }
+  }
+
   if (!config) {
     return <Tarjeta style={{ textAlign: "center", color: "var(--ink-3)" }}>Cargando…</Tarjeta>;
   }
@@ -173,6 +190,21 @@ export default function PaginaConfiguracion() {
         </Tarjeta>
 
         <Tarjeta>
+          <h2 style={{ marginBottom: 12 }}>Código de acceso</h2>
+          <Campo
+            etiqueta="Código"
+            ayuda="Quien va a iniciar sesión lo escribe primero, en /login, para ver el logo, el color y el fondo de esta empresa antes de escribir su correo. Minúsculas, números y guiones."
+          >
+            <input
+              placeholder="Ej. polaco-scooter"
+              defaultValue={config.codigo ?? ""}
+              onBlur={(e) => guardar({ codigo: e.target.value.trim().toLowerCase() || null })}
+              className="cifra"
+            />
+          </Campo>
+        </Tarjeta>
+
+        <Tarjeta>
           <h2 style={{ marginBottom: 12 }}>Color de marca</h2>
           <div className="fila" style={{ gap: 14 }}>
             <input
@@ -195,6 +227,42 @@ export default function PaginaConfiguracion() {
           </div>
           <p className="campo-ayuda">
             Es el color de la acción en toda la aplicación. Los estados (verde, ámbar, rojo) no cambian con él.
+          </p>
+        </Tarjeta>
+
+        <Tarjeta>
+          <h2 style={{ marginBottom: 12 }}>Fondo de inicio de sesión</h2>
+          <div
+            style={{
+              height: 140,
+              borderRadius: "var(--r-md)",
+              marginBottom: 12,
+              background: config.fondoLoginUrl
+                ? `#000 url(${config.fondoLoginUrl}) center/cover no-repeat`
+                : "var(--chrome)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--chrome-apagado)",
+            }}
+          >
+            {!config.fondoLoginUrl && <span style={{ fontSize: 13 }}>Negro (sin imagen)</span>}
+          </div>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(e) => {
+              const archivo = e.target.files?.[0];
+              if (archivo) cambiarFondoLogin(archivo);
+            }}
+            disabled={subiendoFondo}
+            aria-label="Fondo de inicio de sesión"
+            style={{ height: "auto", padding: 10 }}
+          />
+          <p className="campo-ayuda">
+            {subiendoFondo
+              ? "Subiendo…"
+              : "Se ve detrás de la tarjeta de inicio de sesión, solo cuando alguien escribe el código de esta empresa. Sin imagen, el fondo es negro."}
           </p>
         </Tarjeta>
 

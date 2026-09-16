@@ -23,8 +23,15 @@ export async function GET() {
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
-  return NextResponse.json(await obtenerConfiguracion(supabase, perfil.empresaId));
+  const [config, { data: empresa }] = await Promise.all([
+    obtenerConfiguracion(supabase, perfil.empresaId),
+    supabase.from("empresa").select("codigo").eq("id", perfil.empresaId).maybeSingle(),
+  ]);
+
+  return NextResponse.json({ ...config, codigo: empresa?.codigo ?? null });
 }
+
+const CODIGO_VALIDO = /^[a-z0-9-]{3,30}$/;
 
 interface CuerpoConfig {
   logoUrl?: string | null;
@@ -37,6 +44,8 @@ interface CuerpoConfig {
   eslogan?: string | null;
   whatsappProveedor?: string | null;
   prefijoEtiqueta?: string;
+  fondoLoginUrl?: string | null;
+  codigo?: string | null;
 }
 
 export async function PATCH(req: Request) {
@@ -59,6 +68,23 @@ export async function PATCH(req: Request) {
       { status: 400 },
     );
   }
+  if (body.codigo !== undefined && body.codigo !== null && !CODIGO_VALIDO.test(body.codigo)) {
+    return NextResponse.json(
+      { error: "el código debe tener entre 3 y 30 caracteres: minúsculas, números y guiones" },
+      { status: 400 },
+    );
+  }
+
+  if (body.codigo !== undefined) {
+    const { error: errCodigo } = await supabase
+      .from("empresa")
+      .update({ codigo: body.codigo })
+      .eq("id", perfil.empresaId);
+    if (errCodigo) {
+      const mensaje = errCodigo.code === "23505" ? "ese código ya lo está usando otra empresa" : errCodigo.message;
+      return NextResponse.json({ error: mensaje }, { status: errCodigo.code === "23505" ? 409 : 500 });
+    }
+  }
 
   const { error } = await supabase.from("empresa_config").upsert(
     {
@@ -73,6 +99,7 @@ export async function PATCH(req: Request) {
       ...(body.eslogan !== undefined && { eslogan: body.eslogan }),
       ...(body.whatsappProveedor !== undefined && { whatsapp_proveedor: body.whatsappProveedor }),
       ...(body.prefijoEtiqueta !== undefined && { prefijo_etiqueta: body.prefijoEtiqueta.toUpperCase() }),
+      ...(body.fondoLoginUrl !== undefined && { fondo_login_url: body.fondoLoginUrl }),
       actualizado_en: new Date().toISOString(),
     },
     { onConflict: "empresa_id" },
