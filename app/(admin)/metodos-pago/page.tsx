@@ -7,7 +7,7 @@
  * activar/desactivar los que ya no use, sin tocar código.
  */
 import { useEffect, useState } from "react";
-import { CreditCard, Plus, Banknote } from "lucide-react";
+import { CreditCard, Plus, Banknote, Pencil, Check, X } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
@@ -27,6 +27,11 @@ export default function PaginaMetodosPago() {
   const [esEfectivo, setEsEfectivo] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [nombreEditado, setNombreEditado] = useState("");
+  const [esEfectivoEditado, setEsEfectivoEditado] = useState(false);
+  const [procesando, setProcesando] = useState<string | null>(null);
 
   async function cargar() {
     setCargando(true);
@@ -74,6 +79,33 @@ export default function PaginaMetodosPago() {
     await cargar();
   }
 
+  function iniciarEdicion(m: Metodo) {
+    setEditandoId(m.id);
+    setNombreEditado(m.nombre);
+    setEsEfectivoEditado(m.es_efectivo);
+    setError(null);
+  }
+
+  async function guardarEdicion(id: string) {
+    if (!nombreEditado.trim()) return;
+    setProcesando(id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/metodos-pago/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre: nombreEditado.trim(), esEfectivo: esEfectivoEditado }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setEditandoId(null);
+      await cargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo guardar el método");
+    } finally {
+      setProcesando(null);
+    }
+  }
+
   if (cargando) {
     return <Tarjeta style={{ textAlign: "center", color: "var(--ink-3)" }}>Cargando…</Tarjeta>;
   }
@@ -98,30 +130,83 @@ export default function PaginaMetodosPago() {
               </tr>
             </thead>
             <tbody>
-              {metodos.map((m) => (
-                <tr key={m.id}>
-                  <td style={{ fontWeight: 600 }}>{m.nombre}</td>
-                  <td>
-                    {m.es_efectivo ? (
-                      <Etiqueta tono="marca" icono={<Banknote size={14} strokeWidth={2} />}>
+              {metodos.map((m) =>
+                editandoId === m.id ? (
+                  <tr key={m.id}>
+                    <td>
+                      <input
+                        value={nombreEditado}
+                        onChange={(e) => setNombreEditado(e.target.value)}
+                        autoFocus
+                        style={{ maxWidth: 200 }}
+                      />
+                    </td>
+                    <td>
+                      <label style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", whiteSpace: "nowrap" }}>
+                        <input
+                          type="checkbox"
+                          checked={esEfectivoEditado}
+                          onChange={(e) => setEsEfectivoEditado(e.target.checked)}
+                          style={{ width: 18, height: 18, padding: 0, accentColor: "var(--accent)" }}
+                        />
                         Efectivo
+                      </label>
+                    </td>
+                    <td>
+                      <Etiqueta tono={m.activo ? "ok" : "neutro"} punto>
+                        {m.activo ? "Activo" : "Inactivo"}
                       </Etiqueta>
-                    ) : (
-                      <span style={{ color: "var(--ink-3)" }}>No</span>
-                    )}
-                  </td>
-                  <td>
-                    <Etiqueta tono={m.activo ? "ok" : "neutro"} punto>
-                      {m.activo ? "Activo" : "Inactivo"}
-                    </Etiqueta>
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    <Boton variante={m.activo ? "contorno" : "primario"} tamano="sm" onClick={() => alternarActivo(m)}>
-                      {m.activo ? "Desactivar" : "Activar"}
-                    </Boton>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <Boton
+                        variante="fantasma"
+                        tamano="sm"
+                        icono={<Check size={15} strokeWidth={2.2} />}
+                        onClick={() => guardarEdicion(m.id)}
+                        disabled={procesando === m.id || !nombreEditado.trim()}
+                        aria-label="Guardar"
+                      />
+                      <Boton
+                        variante="fantasma"
+                        tamano="sm"
+                        icono={<X size={15} strokeWidth={2} />}
+                        onClick={() => setEditandoId(null)}
+                        aria-label="Cancelar"
+                      />
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={m.id}>
+                    <td style={{ fontWeight: 600 }}>{m.nombre}</td>
+                    <td>
+                      {m.es_efectivo ? (
+                        <Etiqueta tono="marca" icono={<Banknote size={14} strokeWidth={2} />}>
+                          Efectivo
+                        </Etiqueta>
+                      ) : (
+                        <span style={{ color: "var(--ink-3)" }}>No</span>
+                      )}
+                    </td>
+                    <td>
+                      <Etiqueta tono={m.activo ? "ok" : "neutro"} punto>
+                        {m.activo ? "Activo" : "Inactivo"}
+                      </Etiqueta>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <Boton
+                        variante="fantasma"
+                        tamano="sm"
+                        icono={<Pencil size={14} strokeWidth={2} />}
+                        onClick={() => iniciarEdicion(m)}
+                        aria-label="Editar"
+                      />
+                      <Boton variante={m.activo ? "contorno" : "primario"} tamano="sm" onClick={() => alternarActivo(m)}>
+                        {m.activo ? "Desactivar" : "Activar"}
+                      </Boton>
+                    </td>
+                  </tr>
+                ),
+              )}
             </tbody>
           </table>
         </TarjetaTabla>
