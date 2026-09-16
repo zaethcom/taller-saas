@@ -4,6 +4,7 @@ import {
   alinear,
   componer,
   cortar,
+  imagenRaster,
   inicializar,
   negrita,
   qr,
@@ -92,6 +93,30 @@ describe("qr()", () => {
     const corto = qr("A");
     const largo = qr("A".repeat(100));
     expect(largo.length).toBeGreaterThan(corto.length);
+  });
+});
+
+describe("imagenRaster()", () => {
+  it("arma la cabecera GS v 0 con ancho en bytes y alto en puntos, little-endian", () => {
+    // 12 puntos de ancho -> ceil(12/8) = 2 bytes por fila; 5 puntos de alto.
+    const datos = Buffer.alloc(2 * 5, 0xff);
+    const buf = imagenRaster(12, 5, datos);
+
+    const cabecera = buf.subarray(0, 8);
+    expect(cabecera).toEqual(Buffer.from([0x1d, 0x76, 0x30, 0x00, 2, 0x00, 5, 0x00]));
+  });
+
+  it("adjunta los datos del bitmap tal cual, sin transformarlos", () => {
+    const datos = Buffer.from([0xaa, 0x55, 0x00, 0xff]);
+    const buf = imagenRaster(8, 4, datos);
+    expect(buf.subarray(8)).toEqual(datos);
+  });
+
+  it("un bitmap más ancho ocupa más bytes por fila en la cabecera", () => {
+    const anchoBytes = (dots: number) => imagenRaster(dots, 1, Buffer.alloc(Math.ceil(dots / 8)))[4];
+    expect(anchoBytes(8)).toBe(1);
+    expect(anchoBytes(9)).toBe(2); // 9 puntos ya no caben en un byte
+    expect(anchoBytes(384)).toBe(48);
   });
 });
 

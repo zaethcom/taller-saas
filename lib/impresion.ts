@@ -7,6 +7,7 @@
  * Ver supabase/migrations/0005_impresion.sql para el porqué de este diseño.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { generarLogoRaster, type LogoRaster } from "./logo-bitmap";
 
 export type TipoTrabajo =
   | "etiqueta_qr"
@@ -27,11 +28,17 @@ interface CargaEtiquetaQr {
   modelo: string | null;
   numeroOrden: number;
   contenidoQr: string;
+  // Nombre distinto de `logoRaster` (el de CargaMarcaEmpresa) a propósito:
+  // esta etiqueta no pasa por TIPOS_CON_MARCA, así que arma su propia
+  // carga a mano -- si se llamara igual, Omit<T, keyof CargaMarcaEmpresa>
+  // se lo comería del tipo esperado aquí también (pasó de verdad, ver
+  // el mismo problema resuelto con nombreEmpresa más arriba).
+  logo?: LogoRaster | null;
 }
 
 /**
- * Los cuatro campos que identifican a la empresa en el papel -- nunca
- * los llena quien encola el trabajo (/api/ventas, /api/ordenes, etc.):
+ * Los campos que identifican a la empresa en el papel -- nunca los
+ * llena quien encola el trabajo (/api/ventas, /api/ordenes, etc.):
  * encolarImpresion() los agrega solos, leyendo empresa + empresa_config,
  * para los tipos que de verdad son un recibo y no una etiqueta pequeña
  * sin espacio para esto.
@@ -41,6 +48,7 @@ interface CargaMarcaEmpresa {
   empresaDireccion: string | null;
   empresaTelefono: string | null;
   reciboPie: string;
+  logoRaster?: LogoRaster | null;
 }
 
 interface CargaReciboVenta extends CargaMarcaEmpresa {
@@ -56,8 +64,11 @@ interface CargaReciboVenta extends CargaMarcaEmpresa {
 
 interface CargaComprobanteRecepcion extends CargaMarcaEmpresa {
   numeroOrden: number;
+  codigoEntrada: string;
   clienteNombre: string;
+  clienteTelefono: string | null;
   producto: string;
+  serial: string;
   motivo: string;
   fecha: string;
   urlSeguimiento: string;
@@ -98,6 +109,7 @@ interface CargaEtiquetaRepuesto {
   codigo: string;
   descripcion: string;
   cantidadCopias: number;
+  logo?: LogoRaster | null; // ver comentario en CargaEtiquetaQr.logo
 }
 
 type CargaPorTipo = {
@@ -147,7 +159,7 @@ export async function encolarImpresion<T extends TipoTrabajo>(
       supabase.from("empresa").select("nombre").eq("id", params.empresaId).single(),
       supabase
         .from("empresa_config")
-        .select("recibo_direccion, recibo_telefono, recibo_pie")
+        .select("recibo_direccion, recibo_telefono, recibo_pie, logo_url")
         .eq("empresa_id", params.empresaId)
         .maybeSingle(),
     ]);
@@ -157,6 +169,7 @@ export async function encolarImpresion<T extends TipoTrabajo>(
       empresaDireccion: config?.recibo_direccion ?? null,
       empresaTelefono: config?.recibo_telefono ?? null,
       reciboPie: config?.recibo_pie ?? "Gracias por su preferencia",
+      logoRaster: await generarLogoRaster(config?.logo_url),
     };
     carga = { ...params.carga, ...marca };
   }

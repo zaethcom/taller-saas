@@ -58,6 +58,31 @@ describe("etiquetaQrZpl", () => {
     const zpl = etiquetaQrZpl(base);
     expect(zpl).toContain("^FDOrden #45^FS");
   });
+
+  describe("con logo", () => {
+    // 8 puntos de ancho (1 byte/fila) x 2 de alto: 0xFF, 0x00.
+    const logoRaster = { anchoDots: 8, altoDots: 2, datosBase64: Buffer.from([0xff, 0x00]).toString("base64") };
+
+    it("dibuja el logo como ^GFA en vez del nombre de la empresa en texto", () => {
+      const zpl = etiquetaQrZpl({ ...base, logo: logoRaster });
+      expect(zpl).toContain("^GFA,2,2,1,FF00");
+      expect(zpl).not.toContain(`^FD${base.nombreEmpresa}^FS`);
+    });
+
+    it("baja el QR y los datos para dejarle espacio al logo", () => {
+      const sinLogo = etiquetaQrZpl(base);
+      const conLogo = etiquetaQrZpl({ ...base, logo: logoRaster });
+      expect(sinLogo).toContain("^FO20,42");
+      expect(conLogo).not.toContain("^FO20,42");
+      expect(conLogo).toContain("^FO20,74");
+    });
+
+    it("sin logoRaster sigue mostrando el nombre en texto, como antes", () => {
+      const zpl = etiquetaQrZpl(base);
+      expect(zpl).toContain(`^FD${base.nombreEmpresa}^FS`);
+      expect(zpl).not.toContain("^GFA");
+    });
+  });
 });
 
 describe("etiquetaArticuloZpl", () => {
@@ -135,5 +160,23 @@ describe("etiquetaRepuestoZpl", () => {
   it("no usa QR -- un repuesto se escanea como cualquier producto de estante", () => {
     const zpl = etiquetaRepuestoZpl(base);
     expect(zpl).not.toContain("^BQN");
+  });
+
+  describe("con logo", () => {
+    const logoRaster = { anchoDots: 8, altoDots: 2, datosBase64: Buffer.from([0xff, 0x00]).toString("base64") };
+
+    it("dibuja el logo como ^GFA en vez del nombre de la empresa en texto", () => {
+      const zpl = etiquetaRepuestoZpl({ ...base, logo: logoRaster });
+      expect(zpl).toContain("^GFA,2,2,1,FF00");
+      expect(zpl).not.toContain(`^FD${base.nombreEmpresa}^FS`);
+    });
+
+    it("baja el código de barras para dejarle espacio al logo", () => {
+      const sinLogo = etiquetaRepuestoZpl(base);
+      const conLogo = etiquetaRepuestoZpl({ ...base, logo: logoRaster });
+      expect(sinLogo).toContain("^FO20,50");
+      expect(conLogo).not.toContain("^FO20,50");
+      expect(conLogo).toContain("^FO20,82");
+    });
   });
 });

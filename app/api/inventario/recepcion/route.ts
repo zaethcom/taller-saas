@@ -17,6 +17,7 @@ import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
 import { encolarImpresion } from "@/lib/impresion";
+import { generarLogoRaster, TAMANO_ETIQUETA } from "@/lib/logo-bitmap";
 
 interface CuerpoComun {
   sedeId: string;
@@ -108,12 +109,25 @@ export async function POST(req: Request) {
   // Una etiqueta de código de barras por unidad física recibida (punto 1
   // del documento de trazabilidad del taller) -- un solo trabajo con
   // ^PQ<cantidad> en vez de una fila por unidad.
+  const { data: config } = await supabase
+    .from("empresa_config")
+    .select("logo_url")
+    .eq("empresa_id", perfil.empresaId)
+    .maybeSingle();
+  const logoEtiqueta = await generarLogoRaster(config?.logo_url, TAMANO_ETIQUETA);
+
   await encolarImpresion(supabase, {
     empresaId: perfil.empresaId,
     sedeId: body.sedeId,
     tipo: "etiqueta_repuesto",
     creadoPor: perfil.id,
-    carga: { nombreEmpresa: perfil.empresaNombre, codigo, descripcion, cantidadCopias: body.cantidad },
+    carga: {
+      nombreEmpresa: perfil.empresaNombre,
+      codigo,
+      descripcion,
+      cantidadCopias: body.cantidad,
+      logo: logoEtiqueta,
+    },
   });
 
   return NextResponse.json({ ok: true, repuestoId, cantidad: nuevaCantidad });

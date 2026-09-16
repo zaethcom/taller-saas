@@ -63,6 +63,30 @@ export function cortar(): Buffer {
 }
 
 /**
+ * El logo, como bitmap monocromático -- a diferencia del QR, esto sí es
+ * una imagen de verdad. GS v 0 (raster bit image, modo normal): ancho
+ * en BYTES (8 puntos por byte, MSB primero) y alto en puntos, seguido
+ * del bitmap ya empacado a 1 bit por punto. La conversión (bajar el
+ * logo, reducirlo, pasarlo a blanco y negro) pasa en el servidor
+ * (lib/logo-bitmap.ts) -- la estación solo imprime bytes ya listos,
+ * igual que con el resto de la carga.
+ */
+export function imagenRaster(anchoDots: number, altoDots: number, datos: Buffer): Buffer {
+  const anchoBytes = Math.ceil(anchoDots / 8);
+  const cabecera = Buffer.from([
+    GS,
+    0x76,
+    0x30,
+    0x00,
+    anchoBytes & 0xff,
+    (anchoBytes >> 8) & 0xff,
+    altoDots & 0xff,
+    (altoDots >> 8) & 0xff,
+  ]);
+  return Buffer.concat([cabecera, datos]);
+}
+
+/**
  * La impresora dibuja el QR sola: nunca se le manda una imagen.
  * Secuencia estándar GS ( k para módulo QR (Epson y compatibles):
  * modelo 2, tamaño de módulo 8, corrección de errores M, cargar los

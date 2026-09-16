@@ -3,47 +3,86 @@ import { encabezadoEmpresa, piePersonalizado, type CargaMarcaEmpresa } from "../
 
 export interface CargaComprobanteRecepcion extends CargaMarcaEmpresa {
   numeroOrden: number;
+  codigoEntrada: string;
   clienteNombre: string;
+  clienteTelefono: string | null;
   producto: string;
+  serial: string;
   motivo: string;
   fecha: string;
   urlSeguimiento: string;
 }
 
+/**
+ * El comprobante que se lleva el cliente al dejar el equipo -- rediseñado
+ * a partir de la maqueta que mandó el usuario (logo, secciones Cliente/
+ * Equipo, QR grande, código del equipo repetido en grande, nota legal).
+ * No imprime la URL cruda: el QR ya la codifica, y el código de entrada
+ * (mismo que lleva la etiqueta física) es lo que de verdad necesita
+ * poder leer alguien a simple vista si no puede escanear.
+ */
 export function comprobanteRecepcion(c: CargaComprobanteRecepcion): Buffer {
   return componer(
     inicializar(),
     ...encabezadoEmpresa(c),
     salto(),
+    alinear("centro"),
     negrita(true),
-    texto("Comprobante de recepción"),
+    tamano(true),
+    texto("RECEPCIÓN DE EQUIPO"),
+    tamano(false),
     negrita(false),
-    salto(),
-    texto(`Orden #${c.numeroOrden} · ${c.fecha}`),
     salto(2),
+
     alinear("izquierda"),
     negrita(true),
-    texto("Cliente: "),
+    texto(`Orden #${c.numeroOrden}`),
     negrita(false),
-    texto(c.clienteNombre),
+    texto(`  ·  ${c.codigoEntrada}`),
     salto(),
+    texto(c.fecha),
+    salto(2),
+
     negrita(true),
-    texto("Equipo: "),
+    texto("CLIENTE"),
     negrita(false),
+    salto(),
+    texto(c.clienteNombre + (c.clienteTelefono ? ` · ${c.clienteTelefono}` : "")),
+    salto(2),
+
+    negrita(true),
+    texto("EQUIPO"),
+    negrita(false),
+    salto(),
     texto(c.producto),
     salto(),
-    negrita(true),
-    texto("Motivo: "),
-    negrita(false),
-    texto(c.motivo),
-    salto(2),
-    alinear("centro"),
-    texto("Consulte el estado de su orden:"),
+    texto(`Serial: ${c.serial}`),
     salto(),
+    texto(`Motivo: ${c.motivo}`),
+    salto(2),
+
+    alinear("centro"),
     qr(c.urlSeguimiento),
     salto(),
-    texto(c.urlSeguimiento),
+    negrita(true),
+    texto("ESCANEA PARA CONSULTAR TU ORDEN"),
+    negrita(false),
+    salto(),
+    texto("Historial · Estado · Diagnóstico · Entrega"),
     salto(2),
+
+    negrita(true),
+    tamano(true),
+    texto(`CÓDIGO: ${c.codigoEntrada}`),
+    tamano(false),
+    negrita(false),
+    salto(2),
+
+    texto("Conserve este comprobante para consultar y"),
+    salto(),
+    texto("reclamar su equipo. El QR es único para esta orden."),
+    salto(2),
+
     ...piePersonalizado(c),
     salto(3),
     cortar(),

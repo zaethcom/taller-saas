@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { encolarImpresion } from "@/lib/impresion";
 import { notificarCliente } from "@/lib/mensajeria/notificar";
+import { generarLogoRaster, TAMANO_ETIQUETA } from "@/lib/logo-bitmap";
 
 interface ClienteNuevo {
   nombre: string;
@@ -133,7 +134,11 @@ export async function POST(req: NextRequest) {
       .eq("id", productoId)
       .single(),
     supabase.from("empresa").select("nombre").eq("id", perfil.empresa_id).single(),
-    supabase.from("empresa_config").select("prefijo_etiqueta").eq("empresa_id", perfil.empresa_id).maybeSingle(),
+    supabase
+      .from("empresa_config")
+      .select("prefijo_etiqueta, logo_url")
+      .eq("empresa_id", perfil.empresa_id)
+      .maybeSingle(),
   ]);
 
   const urlSeguimiento = `${process.env.NEXT_PUBLIC_APP_URL}/seguimiento/${orden.token_publico}`;
@@ -142,6 +147,15 @@ export async function POST(req: NextRequest) {
   // empresa configuró (ej. "PS") + el número de orden, siempre
   // recalculable desde ahí -- nunca se guarda en `orden`.
   const codigoEntrada = `${config?.prefijo_etiqueta ?? "OR"}${String(orden.numero).padStart(6, "0")}`;
+  // El join de Supabase infiere `cliente` como arreglo aunque la relación
+  // sea 1:1.
+  const cliente = producto?.cliente as unknown as
+    | { nombre: string; telefono: string | null; correo: string | null }
+    | undefined;
+  // La etiqueta es mucho más chica que el recibo (50x30mm vs 80mm de
+  // ancho), así que pide su propio tamaño de logo -- ver TAMANO_ETIQUETA
+  // en lib/logo-bitmap.ts.
+  const logoEtiqueta = await generarLogoRaster(config?.logo_url, TAMANO_ETIQUETA);
 
   await encolarImpresion(supabase, {
     empresaId: perfil.empresa_id,
@@ -150,9 +164,11 @@ export async function POST(req: NextRequest) {
     creadoPor: user.id,
     carga: {
       numeroOrden: orden.numero,
-      // @ts-expect-error -- join inferido como array por el tipado genérico
-      clienteNombre: producto?.cliente?.nombre ?? "",
+      codigoEntrada,
+      clienteNombre: cliente?.nombre ?? "",
+      clienteTelefono: cliente?.telefono ?? null,
       producto: nombreProducto,
+      serial: producto?.serial ?? "",
       motivo: body.motivo.trim(),
       fecha: new Date().toLocaleDateString("es-CO"),
       urlSeguimiento,
@@ -174,14 +190,10 @@ export async function POST(req: NextRequest) {
       modelo: producto?.modelo ?? null,
       numeroOrden: orden.numero,
       contenidoQr: urlSeguimiento,
+      logo: logoEtiqueta,
     },
   });
 
-  // El join de Supabase infiere `cliente` como arreglo aunque la relación
-  // sea 1:1 -- mismo caso que en el bloque de arriba.
-  const cliente = producto?.cliente as unknown as
-    | { nombre: string; telefono: string | null; correo: string | null }
-    | undefined;
   const esCelular = /cel|tel[eé]fono|smartphone/i.test(producto?.tipo ?? "");
   await notificarCliente({
     clienteNombre: cliente?.nombre ?? "",
