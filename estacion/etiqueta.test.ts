@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { etiquetaArticuloZpl, etiquetaQrZpl } from "./etiqueta";
+import { etiquetaArticuloZpl, etiquetaQrZpl, etiquetaRepuestoZpl } from "./etiqueta";
 
 describe("etiquetaQrZpl", () => {
   const base = {
+    nombreEmpresa: "Polaco Scooter",
+    codigoEntrada: "PS000045",
     serial: "RL-000123",
     tipo: "patineta",
     marca: "Xiaomi",
@@ -10,6 +12,16 @@ describe("etiquetaQrZpl", () => {
     numeroOrden: 45,
     contenidoQr: "https://taller.example.com/s/RL-000123",
   };
+
+  it("muestra el nombre de la empresa", () => {
+    const zpl = etiquetaQrZpl(base);
+    expect(zpl).toContain(`^FD${base.nombreEmpresa}^FS`);
+  });
+
+  it("muestra el código de entrada en su propio campo", () => {
+    const zpl = etiquetaQrZpl(base);
+    expect(zpl).toContain(`^FD${base.codigoEntrada}^FS`);
+  });
 
   it("abre con ^XA y cierra con ^XZ, como todo bloque ZPL válido", () => {
     const zpl = etiquetaQrZpl(base);
@@ -85,5 +97,43 @@ describe("etiquetaArticuloZpl", () => {
   it("no imprime número de orden -- un artículo no nace de una orden", () => {
     const zpl = etiquetaArticuloZpl(base);
     expect(zpl).not.toContain("Orden #");
+  });
+});
+
+describe("etiquetaRepuestoZpl", () => {
+  const base = {
+    nombreEmpresa: "Polaco Scooter",
+    codigo: "F-1023",
+    descripcion: "Pastilla de freno delantera",
+    cantidadCopias: 3,
+  };
+
+  it("abre con ^XA y cierra con ^XZ", () => {
+    const zpl = etiquetaRepuestoZpl(base);
+    expect(zpl.startsWith("^XA")).toBe(true);
+    expect(zpl.trimEnd().endsWith("^XZ")).toBe(true);
+  });
+
+  it("dibuja un código de barras Code128 con el código del repuesto", () => {
+    const zpl = etiquetaRepuestoZpl(base);
+    expect(zpl).toContain("^BCN,80,Y,N,N");
+    expect(zpl).toContain(`^FD${base.codigo}^FS`);
+  });
+
+  it("muestra el nombre de la empresa y la descripción del repuesto", () => {
+    const zpl = etiquetaRepuestoZpl(base);
+    expect(zpl).toContain(`^FD${base.nombreEmpresa}^FS`);
+    expect(zpl).toContain(`^FD${base.descripcion}^FS`);
+  });
+
+  it("pide una copia por cada unidad recibida, antes de cerrar el formato", () => {
+    const zpl = etiquetaRepuestoZpl(base);
+    expect(zpl).toContain("^PQ3");
+    expect(zpl.indexOf("^PQ3")).toBeLessThan(zpl.lastIndexOf("^XZ"));
+  });
+
+  it("no usa QR -- un repuesto se escanea como cualquier producto de estante", () => {
+    const zpl = etiquetaRepuestoZpl(base);
+    expect(zpl).not.toContain("^BQN");
   });
 });

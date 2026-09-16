@@ -15,9 +15,12 @@ export type TipoTrabajo =
   | "cierre_caja"
   | "abrir_cajon"
   | "comprobante_traslado"
-  | "etiqueta_articulo";
+  | "etiqueta_articulo"
+  | "etiqueta_repuesto";
 
 interface CargaEtiquetaQr {
+  nombreEmpresa: string;
+  codigoEntrada: string;
   serial: string;
   tipo: string;
   marca: string | null;
@@ -90,6 +93,13 @@ interface CargaEtiquetaArticulo {
   modelo: string | null;
 }
 
+interface CargaEtiquetaRepuesto {
+  nombreEmpresa: string;
+  codigo: string;
+  descripcion: string;
+  cantidadCopias: number;
+}
+
 type CargaPorTipo = {
   etiqueta_qr: CargaEtiquetaQr;
   recibo_venta: CargaReciboVenta;
@@ -98,6 +108,7 @@ type CargaPorTipo = {
   abrir_cajon: CargaAbrirCajon;
   comprobante_traslado: CargaComprobanteTraslado;
   etiqueta_articulo: CargaEtiquetaArticulo;
+  etiqueta_repuesto: CargaEtiquetaRepuesto;
 };
 
 const TIPOS_CON_MARCA = new Set<TipoTrabajo>([

@@ -15,7 +15,14 @@
 import { readFileSync } from "node:fs";
 import { crearDestinos, type ConfigImpresoras } from "./destino";
 import { componer, inicializar, abrirCajon as abrirCajonBytes } from "./escpos";
-import { etiquetaArticuloZpl, etiquetaQrZpl, type DatosEtiquetaArticulo, type DatosEtiquetaQr } from "./etiqueta";
+import {
+  etiquetaArticuloZpl,
+  etiquetaQrZpl,
+  etiquetaRepuestoZpl,
+  type DatosEtiquetaArticulo,
+  type DatosEtiquetaQr,
+  type DatosEtiquetaRepuesto,
+} from "./etiqueta";
 import { reciboVenta, type CargaReciboVenta } from "./plantillas/recibo";
 import { comprobanteRecepcion, type CargaComprobanteRecepcion } from "./plantillas/comprobante";
 import { cierreCaja, type CargaCierreCaja } from "./plantillas/cierre";
@@ -26,7 +33,10 @@ interface Config {
   apiBase: string;
   servicioClave: string;
   intervaloMs: number;
-  impresoras: ConfigImpresoras;
+  // Respaldo local: se usa solo si GET /api/estacion/impresoras no
+  // responde (la sede todavía no tiene nada configurado desde la web,
+  // o no hay red hacia el servidor en este arranque en particular).
+  impresoras?: ConfigImpresoras;
 }
 
 interface TrabajoPendiente {
@@ -38,12 +48,46 @@ interface TrabajoPendiente {
     | "cierre_caja"
     | "abrir_cajon"
     | "comprobante_traslado"
-    | "etiqueta_articulo";
+    | "etiqueta_articulo"
+    | "etiqueta_repuesto";
   carga: unknown;
 }
 
 function cargarConfig(ruta: string): Config {
   return JSON.parse(readFileSync(ruta, "utf-8"));
+}
+
+/**
+ * A qué host/puerto/protocolo mandar tickets y etiquetas -- se pide una
+ * vez al arrancar a la API (editable desde /sedes en la web), y si la
+ * sede no tiene nada configurado ahí todavía, o no hay red en este
+ * momento, se cae al `impresoras` de config.json. Si ninguno de los dos
+ * existe, no hay a dónde imprimir y el arranque falla con un mensaje
+ * claro en vez de un error críptico más adelante.
+ */
+async function obtenerImpresoras(config: Config): Promise<ConfigImpresoras> {
+  try {
+    const res = await fetch(
+      `${config.apiBase}/api/estacion/impresoras?sede=${config.sedeId}`,
+      { headers: { Authorization: `Bearer ${config.servicioClave}` } },
+    );
+    if (res.ok) {
+      console.log("[estacion] impresoras: usando la configuración de la web");
+      return res.json();
+    }
+  } catch (err) {
+    const mensaje = err instanceof Error ? err.message : String(err);
+    console.error(`[estacion] no se pudo pedir la configuración de impresoras a la web: ${mensaje}`);
+  }
+
+  if (config.impresoras) {
+    console.log("[estacion] impresoras: usando el respaldo local de config.json");
+    return config.impresoras;
+  }
+
+  throw new Error(
+    "no hay impresoras configuradas: ni la web (GET /api/estacion/impresoras) ni config.json tienen nada",
+  );
 }
 
 async function obtenerPendientes(config: Config): Promise<TrabajoPendiente[]> {
@@ -103,6 +147,9 @@ function resolverImpresion(
 
     case "etiqueta_articulo":
       return { destino: "etiquetas", contenido: etiquetaArticuloZpl(trabajo.carga as DatosEtiquetaArticulo) };
+
+    case "etiqueta_repuesto":
+      return { destino: "etiquetas", contenido: etiquetaRepuestoZpl(trabajo.carga as DatosEtiquetaRepuesto) };
   }
 }
 
@@ -127,7 +174,7 @@ async function procesarUnTrabajo(
 }
 
 async function cicloPrincipal(config: Config): Promise<void> {
-  const destinos = crearDestinos(config.impresoras);
+  const destinos = crearDestinos(await obtenerImpresoras(config));
 
   // eslint-disable-next-line no-constant-condition
   while (true) {

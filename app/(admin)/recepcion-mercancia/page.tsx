@@ -12,8 +12,16 @@
  * que tocar el mouse. La lista de "esta sesión" queda visible para que
  * quien recibe pueda contar contra la caja física y notar de inmediato
  * si algo quedó sin registrar.
+ *
+ * Por eso las dos mitades van lado a lado y no una debajo de la otra:
+ * el conteo tiene que verse sin desplazar mientras se teclea.
  */
 import { useEffect, useRef, useState } from "react";
+import { PackagePlus, Printer } from "lucide-react";
+import { Boton } from "@/componentes/ui/boton";
+import { Tarjeta } from "@/componentes/ui/tarjeta";
+import { Campo, Aviso } from "@/componentes/ui/campo";
+import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
 interface ArticuloRegistrado {
   codigo: string;
@@ -93,81 +101,133 @@ export default function PaginaRecepcionMercancia() {
 
   return (
     <div>
-      <h1>Recepción de mercancía</h1>
-      <p style={{ opacity: 0.6, fontSize: 14 }}>
-        Un artículo a la vez: al registrar, la etiqueta sale a imprimir sola. Pégala en el
-        artículo y sigue con el siguiente -- el foco vuelve aquí solo.
-      </p>
+      <style>{`
+        .recepcion{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start;}
+        @media (max-width:900px){.recepcion{grid-template-columns:minmax(0,1fr);}}
+      `}</style>
 
-      <form onSubmit={registrar} style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
-        <input
-          ref={inputTipoRef}
-          placeholder="Tipo (patineta, celular, accesorio…)"
-          value={tipo}
-          onChange={(e) => setTipo(e.target.value)}
-          style={{ padding: 8 }}
-          autoFocus
-        />
-        <div style={{ display: "flex", gap: 8 }}>
-          <input placeholder="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} style={{ padding: 8, flex: 1 }} />
-          <input placeholder="Modelo" value={modelo} onChange={(e) => setModelo(e.target.value)} style={{ padding: 8, flex: 1 }} />
-        </div>
-        <input
-          placeholder="Número de serie / IMEI (opcional)"
-          value={numeroSerie}
-          onChange={(e) => setNumeroSerie(e.target.value)}
-          style={{ padding: 8 }}
-        />
-        <select value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} style={{ padding: 8 }}>
-          <option value="">Sin categoría</option>
-          {categorias.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nombre}
-            </option>
-          ))}
-        </select>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            type="number"
-            placeholder="Costo"
-            value={costo}
-            onChange={(e) => setCosto(e.target.value)}
-            style={{ padding: 8, flex: 1 }}
-          />
-          <input
-            type="number"
-            placeholder="Precio de venta"
-            value={precioVenta}
-            onChange={(e) => setPrecioVenta(e.target.value)}
-            style={{ padding: 8, flex: 1 }}
-          />
-        </div>
-        <button type="submit" disabled={enviando || !tipo.trim()}>
-          {enviando ? "Registrando…" : "Registrar e imprimir etiqueta"}
-        </button>
-      </form>
+      <TituloPantalla
+        icono={<PackagePlus size={24} strokeWidth={2} />}
+        titulo="Recepción de mercancía"
+        descripcion="Un artículo a la vez: al registrar, la etiqueta sale a imprimir sola y el foco vuelve aquí."
+      />
 
-      {error && <p style={{ color: "#ff8080", marginTop: 12 }}>{error}</p>}
+      <div className="recepcion">
+        <Tarjeta>
+          <form onSubmit={registrar} className="pila" style={{ gap: 12 }}>
+            <Campo etiqueta="Tipo">
+              <input
+                ref={inputTipoRef}
+                placeholder="patineta, celular, accesorio…"
+                value={tipo}
+                onChange={(e) => setTipo(e.target.value)}
+                autoFocus
+              />
+            </Campo>
 
-      <section style={{ marginTop: 32 }}>
-        <h2 style={{ fontSize: 16 }}>
-          Recibido en esta sesión: {sesion.length} {sesion.length === 1 ? "unidad" : "unidades"}
-        </h2>
-        {sesion.length === 0 ? (
-          <p style={{ opacity: 0.6 }}>Todavía no has registrado nada.</p>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <tbody>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+              <Campo etiqueta="Marca">
+                <input placeholder="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} />
+              </Campo>
+              <Campo etiqueta="Modelo">
+                <input placeholder="Modelo" value={modelo} onChange={(e) => setModelo(e.target.value)} />
+              </Campo>
+            </div>
+
+            <Campo etiqueta="Número de serie / IMEI" ayuda="Opcional. Si viene, queda impreso en la etiqueta.">
+              <input
+                placeholder="Opcional"
+                value={numeroSerie}
+                onChange={(e) => setNumeroSerie(e.target.value)}
+                className="cifra"
+              />
+            </Campo>
+
+            <Campo etiqueta="Categoría">
+              <select value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)}>
+                <option value="">Sin categoría</option>
+                {categorias.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+            </Campo>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+              <Campo etiqueta="Costo">
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={costo}
+                  onChange={(e) => setCosto(e.target.value)}
+                  className="cifra"
+                />
+              </Campo>
+              <Campo etiqueta="Precio de venta">
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={precioVenta}
+                  onChange={(e) => setPrecioVenta(e.target.value)}
+                  className="cifra"
+                />
+              </Campo>
+            </div>
+
+            <div>
+              <Boton
+                type="submit"
+                variante="primario"
+                tamano="lg"
+                icono={<Printer size={19} strokeWidth={2} />}
+                disabled={enviando || !tipo.trim()}
+              >
+                {enviando ? "Registrando…" : "Registrar e imprimir etiqueta"}
+              </Boton>
+            </div>
+
+            {error && <Aviso tono="peligro">{error}</Aviso>}
+          </form>
+        </Tarjeta>
+
+        <Tarjeta relleno={false} style={{ overflow: "hidden" }}>
+          <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--rule)" }}>
+            <div className="campo-etiqueta" style={{ margin: 0 }}>
+              Recibido en esta sesión
+            </div>
+            <div className="cifra" style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.1 }}>
+              {sesion.length}
+              <span style={{ fontSize: 14, fontWeight: 600, color: "var(--ink-2)" }}>
+                {" "}
+                {sesion.length === 1 ? "unidad" : "unidades"}
+              </span>
+            </div>
+          </div>
+
+          {sesion.length === 0 ? (
+            <p style={{ margin: 0, padding: "18px 16px", fontSize: 13, color: "var(--ink-3)" }}>
+              Todavía no has registrado nada.
+            </p>
+          ) : (
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, maxHeight: 420, overflowY: "auto" }}>
               {sesion.map((a) => (
-                <tr key={a.codigo} style={{ borderBottom: "1px solid #223038" }}>
-                  <td style={{ fontFamily: "monospace" }}>{a.codigo}</td>
-                  <td>{[a.marca, a.modelo].filter(Boolean).join(" ") || a.tipo}</td>
-                </tr>
+                <li
+                  key={a.codigo}
+                  style={{ padding: "11px 16px", borderBottom: "1px solid var(--rule)", fontSize: 13 }}
+                >
+                  <div className="cifra" style={{ fontWeight: 800 }}>
+                    {a.codigo}
+                  </div>
+                  <div style={{ color: "var(--ink-2)" }}>
+                    {[a.marca, a.modelo].filter(Boolean).join(" ") || a.tipo}
+                  </div>
+                </li>
               ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+            </ul>
+          )}
+        </Tarjeta>
+      </div>
     </div>
   );
 }

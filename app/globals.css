@@ -1,38 +1,142 @@
 /**
- * Tres temas por empresa (empresa_config.tema), aplicados con
- * [data-tema] en <html> desde el layout raíz. --accent no vive aquí --
- * lo pone el layout raíz inline, como color_principal de cada empresa,
- * porque es un valor libre (cualquier color), no una de tres opciones.
+ * El sistema de diseño de la plataforma, en un solo archivo.
  *
- * Esto cambia el fondo, texto y bordes por defecto de toda la
- * aplicación -- no repinta cada color fijo que ya exista en el estilo
- * en línea de una pantalla puntual (un rojo de error, por ejemplo).
- * Repintar cada pantalla una por una es un rediseño completo, no una
- * personalización -- queda fuera de este alcance a propósito.
+ * Sigue habiendo tres temas por empresa (empresa_config.tema) aplicados
+ * con [data-tema] en <html> desde el layout raíz, y --accent sigue sin
+ * vivir aquí -- lo pone el layout raíz inline, como color_principal de
+ * cada empresa, porque es un valor libre (cualquier color), no una de
+ * tres opciones.
+ *
+ * Lo que sí vive aquí ahora es el resto del sistema: escala tipográfica,
+ * radios, sombras, alturas de control y los colores de estado. Antes
+ * cada pantalla los inventaba en su estilo en línea; ahora los toma de
+ * estas variables, y los componentes de componentes/ui/ las usan por
+ * ella. Ese era el "rediseño pantalla por pantalla" que este archivo
+ * declaraba fuera de alcance -- ya está hecho.
+ *
+ * Los tonos derivados del color de empresa (hover, presionado, fondo
+ * suave, aro de foco) se calculan con color-mix en vez de fijarse a
+ * mano: el color de cada empresa es libre, así que la única forma de
+ * tener sus variantes es derivarlas.
  */
 :root {
+  /* Texto y superficies */
   --ink: #141d24;
   --ink-2: #42535e;
+  --ink-3: #7b8790;
   --ground: #f4f6f7;
   --surface: #ffffff;
+  --surface-2: #eef1f3;
   --rule: #d8dee1;
+  --rule-fuerte: #b9c3c8;
+
+  /* Color de empresa. --accent lo pisa el layout raíz por request. */
   --accent: #0b6c78;
+  --accent-texto: #ffffff;
+  --accent-fuerte: color-mix(in oklab, var(--accent) 82%, black);
+  --accent-presion: color-mix(in oklab, var(--accent) 64%, black);
+  --accent-suave: color-mix(in oklab, var(--accent) 10%, white);
+  --accent-linea: color-mix(in oklab, var(--accent) 30%, white);
+  --accent-aro: color-mix(in oklab, var(--accent) 34%, transparent);
+
+  /* El negro de la plataforma: menú lateral, barra superior, pie y la
+     puerta del taller entera. Neutro a propósito -- tiene que convivir
+     con el color de cualquier empresa, no solo con el de una. */
+  --chrome: #0b0b0c;
+  --chrome-2: #17181b;
+  --chrome-linea: rgba(255, 255, 255, 0.08);
+  --chrome-campo: rgba(255, 255, 255, 0.06);
+  --chrome-texto: #ffffff;
+  --chrome-apagado: #9297a0;
+  --chrome-tenue: #c8ccd2;
+
+  /* Estado. Nunca el color de empresa: un estado no es una acción. */
+  --ok: #15803d;
+  --ok-fondo: #e7f6ec;
+  --ok-linea: #bfe5cb;
+  --info: #1d4ed8;
+  --info-fondo: #e9effd;
+  --info-linea: #c6d7fa;
+  --aviso: #a96206;
+  --aviso-fondo: #fcf1de;
+  --aviso-linea: #f2ddb4;
+  --peligro: #c1121f;
+  --peligro-fondo: #fdecec;
+  --peligro-linea: #f7cfd0;
+  --espera: #6027c6;
+  --espera-fondo: #ede9fb;
+  --espera-linea: #d2c7f5;
+  --neutro: #4b5058;
+  --neutro-fondo: #eff1f4;
+  --neutro-linea: #dde0e5;
+
+  /* Forma y profundidad */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-pill: 999px;
+  --sombra-1: 0 1px 2px rgba(11, 11, 12, 0.06);
+  --sombra-2: 0 1px 2px rgba(11, 11, 12, 0.05), 0 10px 24px -14px rgba(11, 11, 12, 0.35);
+
+  /* Altura de control. 44 es el mínimo que se toca con guantes. */
+  --alto-sm: 36px;
+  --alto-md: 44px;
+  --alto-lg: 52px;
+  --alto-xl: 58px;
+
+  /* Tipografía. Las dos familias las inyecta next/font desde el layout
+     raíz; el fallback cubre el primer render y la impresión. */
+  --fuente-ui: var(--fuente-archivo), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --fuente-marca: var(--fuente-saira), "Arial Narrow", system-ui, sans-serif;
 }
 
 :root[data-tema="oscuro"] {
   --ink: #eef2f4;
   --ink-2: #b7c3ca;
+  --ink-3: #8896a0;
   --ground: #10171b;
   --surface: #1a262c;
+  --surface-2: #22313a;
   --rule: #2b3940;
+  --rule-fuerte: #3d4e58;
+
+  --accent-suave: color-mix(in oklab, var(--accent) 22%, #1a262c);
+  --accent-linea: color-mix(in oklab, var(--accent) 45%, #1a262c);
+
+  --ok-fondo: #12291c;
+  --ok-linea: #1e4a30;
+  --info-fondo: #151f3a;
+  --info-linea: #23346a;
+  --aviso-fondo: #2e2312;
+  --aviso-linea: #57411d;
+  --peligro-fondo: #331617;
+  --peligro-linea: #5d2528;
+  --espera-fondo: #241a3c;
+  --espera-linea: #3d2c66;
+  --neutro: #b7c3ca;
+  --neutro-fondo: #22313a;
+  --neutro-linea: #33434c;
 }
 
 :root[data-tema="alto_contraste"] {
   --ink: #000000;
   --ink-2: #000000;
+  --ink-3: #000000;
   --ground: #ffffff;
   --surface: #ffffff;
+  --surface-2: #ffffff;
   --rule: #000000;
+  --rule-fuerte: #000000;
+  --sombra-1: none;
+  --sombra-2: none;
+  --accent-suave: #ffffff;
+  --accent-linea: #000000;
+  --ok-fondo: #ffffff;
+  --info-fondo: #ffffff;
+  --aviso-fondo: #ffffff;
+  --peligro-fondo: #ffffff;
+  --espera-fondo: #ffffff;
+  --neutro-fondo: #ffffff;
 }
 
 * {
@@ -45,13 +149,554 @@ body {
   padding: 0;
   background: var(--ground);
   color: var(--ink);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--fuente-ui);
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
   color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--accent-fuerte);
+  text-decoration: underline;
 }
 
 button {
   font-family: inherit;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+}
+
+h1 {
+  font-size: 28px;
+  font-weight: 800;
+}
+
+h2 {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+h3 {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* Toda cifra de dinero, cantidad, fecha o código se lee en columna:
+   sin esto los totales de una tabla bailan de fila en fila. */
+.cifra {
+  font-variant-numeric: tabular-nums;
+}
+
+/* La voz de marca -- lemas y rótulos, nunca texto de interfaz. */
+.marca {
+  font-family: var(--fuente-marca);
+  font-weight: 800;
+  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule-fuerte);
+  border-radius: var(--r-md);
+  padding: 0 12px;
+  height: var(--alto-md);
+  width: 100%;
+  outline: none;
+}
+
+textarea {
+  height: auto;
+  min-height: 84px;
+  padding: 10px 12px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-aro);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--surface-2);
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink-3);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+
+td {
+  font-size: 14px;
+  padding: 12px;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: middle;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ---------------------------------------------------------------
+   Las piezas del sistema. Viven aquí y no en el estilo en línea de
+   cada componente porque :hover, :active, :focus-visible y :disabled
+   no existen en un atributo style -- y un botón sin estados no es un
+   botón. Los componentes de componentes/ui/ solo ponen la clase.
+   --------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  height: var(--alto-md);
+  padding: 0 20px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: none;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease;
+}
+
+.btn:hover {
+  text-decoration: none;
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--surface), 0 0 0 6px var(--accent-aro);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  background: var(--surface-2);
+  border-color: var(--rule);
+  color: var(--ink-3);
+  box-shadow: none;
+}
+
+.btn-primario {
+  background: var(--accent);
+  color: var(--accent-texto);
+  box-shadow: 0 8px 18px -12px rgba(11, 11, 12, 0.7);
+}
+.btn-primario:hover {
+  background: var(--accent-fuerte);
+  color: var(--accent-texto);
+}
+.btn-primario:active:not(:disabled) {
+  background: var(--accent-presion);
+  transform: translateY(1px);
+}
+
+.btn-secundario {
+  background: var(--ink);
+  color: var(--surface);
+}
+.btn-secundario:hover {
+  background: var(--ink-2);
+  color: var(--surface);
+}
+.btn-secundario:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn-contorno {
+  background: var(--surface);
+  border-color: var(--rule-fuerte);
+  color: var(--ink);
+}
+.btn-contorno:hover {
+  background: var(--surface-2);
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+.btn-contorno:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn-fantasma {
+  color: var(--ink-2);
+}
+.btn-fantasma:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.btn-peligro {
+  background: var(--peligro-fondo);
+  border-color: var(--peligro-linea);
+  color: var(--peligro);
+}
+.btn-peligro:hover {
+  background: var(--peligro);
+  border-color: var(--peligro);
+  color: #ffffff;
+}
+
+/* Sobre el negro de la plataforma: barra superior, menú y taller. */
+.btn-oscuro {
+  background: var(--chrome-campo);
+  border-color: var(--chrome-linea);
+  color: var(--chrome-texto);
+}
+.btn-oscuro:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--chrome-texto);
+}
+.btn-oscuro:focus-visible {
+  box-shadow: 0 0 0 3px var(--chrome), 0 0 0 6px var(--accent-aro);
+}
+
+.btn-sm {
+  height: var(--alto-sm);
+  padding: 0 14px;
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  gap: 7px;
+}
+.btn-lg {
+  height: var(--alto-lg);
+  padding: 0 22px;
+  font-size: 15px;
+}
+.btn-xl {
+  height: var(--alto-xl);
+  padding: 0 26px;
+  border-radius: var(--r-lg);
+  font-size: 16px;
+}
+
+.btn-ancho {
+  width: 100%;
+}
+
+/* Solo ícono: cuadrado, sin relleno lateral. */
+.btn-icono {
+  width: var(--alto-md);
+  padding: 0;
+}
+.btn-sm.btn-icono {
+  width: var(--alto-sm);
+}
+.btn-lg.btn-icono {
+  width: var(--alto-lg);
+}
+
+.btn-atajo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--r-sm);
+  background: rgba(127, 127, 127, 0.22);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.etq {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.etq-punto {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.etq-ok {
+  background: var(--ok-fondo);
+  border-color: var(--ok-linea);
+  color: var(--ok);
+}
+.etq-info {
+  background: var(--info-fondo);
+  border-color: var(--info-linea);
+  color: var(--info);
+}
+.etq-aviso {
+  background: var(--aviso-fondo);
+  border-color: var(--aviso-linea);
+  color: var(--aviso);
+}
+.etq-peligro {
+  background: var(--peligro-fondo);
+  border-color: var(--peligro-linea);
+  color: var(--peligro);
+}
+.etq-espera {
+  background: var(--espera-fondo);
+  border-color: var(--espera-linea);
+  color: var(--espera);
+}
+.etq-neutro {
+  background: var(--neutro-fondo);
+  border-color: var(--neutro-linea);
+  color: var(--neutro);
+}
+.etq-marca {
+  background: var(--accent-suave);
+  border-color: var(--accent-linea);
+  color: var(--accent);
+}
+.etq-fuerte {
+  background: var(--chrome);
+  border-color: var(--chrome);
+  color: #ffffff;
+}
+
+/* Píldora de filtro y pestaña. */
+.pastilla {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+}
+.pastilla:hover {
+  border-color: var(--ink-3);
+  color: var(--ink);
+  text-decoration: none;
+}
+.pastilla-activa,
+.pastilla-activa:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-texto);
+  font-weight: 700;
+}
+
+.pastilla-conteo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 19px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--neutro-fondo);
+  color: var(--neutro);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pastilla-activa .pastilla-conteo {
+  background: rgba(255, 255, 255, 0.24);
+  color: inherit;
+}
+
+.tarjeta {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sombra-1);
+}
+
+.tarjeta-relleno {
+  padding: 20px;
+}
+
+/* Una tabla nunca desborda la página: se desplaza dentro de su tarjeta. */
+.tabla-envoltura {
+  overflow-x: auto;
+}
+
+.campo-etiqueta {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.campo-ayuda {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.campo-error {
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--peligro);
+}
+
+.campo-invalido input,
+.campo-invalido select,
+.campo-invalido textarea,
+input.invalido,
+select.invalido,
+textarea.invalido {
+  border-color: var(--peligro);
+}
+
+.aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 15px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.aviso-ok {
+  background: var(--ok-fondo);
+  border-color: var(--ok-linea);
+  color: var(--ok);
+}
+.aviso-info {
+  background: var(--info-fondo);
+  border-color: var(--info-linea);
+  color: var(--info);
+}
+.aviso-aviso {
+  background: var(--aviso-fondo);
+  border-color: var(--aviso-linea);
+  color: var(--aviso);
+}
+.aviso-peligro {
+  background: var(--peligro-fondo);
+  border-color: var(--peligro-linea);
+  color: var(--peligro);
+}
+
+/* La rejilla de catálogo de /vender e /inventario: se acomoda sola
+   entre el escritorio de caja y el celular, sin punto de quiebre. */
+.rejilla-catalogo {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 12px;
+}
+
+.pila {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fila {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ---------------------------------------------------------------
+   La puerta del taller es siempre oscura, sin importar el tema que
+   la empresa haya elegido para el resto de la aplicación (visibilidad
+   y batería en un celular usado con una mano). Antes eso era un
+   `background` fijo en su layout; ahora es un ámbito de tokens, para
+   que las mismas tarjetas, botones y etiquetas del sistema se vean
+   bien ahí sin que ninguna pantalla del taller tenga que saberlo.
+   --------------------------------------------------------------- */
+.puerta-oscura {
+  --ink: #eef2f4;
+  --ink-2: #b7c3ca;
+  --ink-3: #8896a0;
+  --ground: #0b0b0c;
+  --surface: #17181b;
+  --surface-2: #22252a;
+  --rule: #2b2f35;
+  --rule-fuerte: #3d434b;
+
+  --accent-suave: color-mix(in oklab, var(--accent) 24%, #17181b);
+  --accent-linea: color-mix(in oklab, var(--accent) 48%, #17181b);
+
+  --ok-fondo: #12291c;
+  --ok-linea: #1e4a30;
+  --info-fondo: #151f3a;
+  --info-linea: #23346a;
+  --aviso-fondo: #2e2312;
+  --aviso-linea: #57411d;
+  --peligro-fondo: #331617;
+  --peligro-linea: #5d2528;
+  --espera-fondo: #241a3c;
+  --espera-linea: #3d2c66;
+  --neutro: #b7c3ca;
+  --neutro-fondo: #22252a;
+  --neutro-linea: #33383f;
+
+  --ok: #4ade80;
+  --info: #7aa5ff;
+  --aviso: #f0b357;
+  --peligro: #ff8f8f;
+  --espera: #b79cf5;
+
+  background: var(--ground);
+  color: var(--ink);
 }

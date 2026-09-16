@@ -126,14 +126,22 @@ export async function POST(req: NextRequest) {
     nota: "Recepción inicial",
   });
 
-  const { data: producto } = await supabase
-    .from("producto")
-    .select("serial, tipo, marca, modelo, cliente:cliente_id ( nombre, telefono, correo )")
-    .eq("id", productoId)
-    .single();
+  const [{ data: producto }, { data: empresa }, { data: config }] = await Promise.all([
+    supabase
+      .from("producto")
+      .select("serial, tipo, marca, modelo, cliente:cliente_id ( nombre, telefono, correo )")
+      .eq("id", productoId)
+      .single(),
+    supabase.from("empresa").select("nombre").eq("id", perfil.empresa_id).single(),
+    supabase.from("empresa_config").select("prefijo_etiqueta").eq("empresa_id", perfil.empresa_id).maybeSingle(),
+  ]);
 
   const urlSeguimiento = `${process.env.NEXT_PUBLIC_APP_URL}/seguimiento/${orden.token_publico}`;
   const nombreProducto = [producto?.marca, producto?.modelo].filter(Boolean).join(" ") || producto?.tipo || "";
+  // El "código de entrada" que se ve en la etiqueta: el prefijo que la
+  // empresa configuró (ej. "PS") + el número de orden, siempre
+  // recalculable desde ahí -- nunca se guarda en `orden`.
+  const codigoEntrada = `${config?.prefijo_etiqueta ?? "OR"}${String(orden.numero).padStart(6, "0")}`;
 
   await encolarImpresion(supabase, {
     empresaId: perfil.empresa_id,
@@ -158,6 +166,8 @@ export async function POST(req: NextRequest) {
     creadoPor: user.id,
     ordenId: orden.id,
     carga: {
+      nombreEmpresa: empresa?.nombre ?? "",
+      codigoEntrada,
       serial: producto?.serial ?? "",
       tipo: producto?.tipo ?? "",
       marca: producto?.marca ?? null,

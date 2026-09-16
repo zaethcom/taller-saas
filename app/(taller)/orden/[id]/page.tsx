@@ -5,10 +5,19 @@
  * nada más. Muestra el historial completo del equipo -- esta pantalla,
  * llegada por el QR, es donde se cumple la primera de las dos promesas
  * del proyecto.
+ *
+ * Los tres accesos (evidencia, diagnóstico, repuestos) son tarjetas y
+ * no enlaces de texto: se tocan con guantes, con una sola mano.
  */
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { Camera, Wrench, Package, ChevronRight, ArrowRight } from "lucide-react";
 import { ETIQUETA_ESTADO, siguientesEstados, type Estado } from "@/lib/estados";
+import { Boton } from "@/componentes/ui/boton";
+import { Tarjeta } from "@/componentes/ui/tarjeta";
+import { Aviso } from "@/componentes/ui/campo";
+import { EstadoOrden } from "@/componentes/ui/estado-orden";
 
 interface OrdenTecnico {
   id: string;
@@ -20,6 +29,44 @@ interface OrdenTecnico {
   marca: string | null;
   modelo: string | null;
   cliente_nombre: string;
+}
+
+function Acceso({ href, icono, titulo, descripcion }: { href: string; icono: React.ReactNode; titulo: string; descripcion: string }) {
+  return (
+    <Link
+      href={href}
+      className="tarjeta"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 13,
+        padding: 14,
+        color: "var(--ink)",
+        textDecoration: "none",
+      }}
+    >
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 44,
+          height: 44,
+          borderRadius: "var(--r-md)",
+          background: "var(--accent-suave)",
+          color: "var(--accent)",
+          flexShrink: 0,
+        }}
+      >
+        {icono}
+      </span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: 15, fontWeight: 700 }}>{titulo}</span>
+        <span style={{ display: "block", fontSize: 12, color: "var(--ink-2)" }}>{descripcion}</span>
+      </span>
+      <ChevronRight size={19} strokeWidth={2} color="var(--ink-3)" aria-hidden />
+    </Link>
+  );
 }
 
 export default function PaginaOrdenTecnico() {
@@ -55,47 +102,78 @@ export default function PaginaOrdenTecnico() {
     }
   }
 
-  if (!orden) return <p>Cargando…</p>;
+  if (!orden) {
+    return <Tarjeta style={{ textAlign: "center", color: "var(--ink-3)" }}>Cargando…</Tarjeta>;
+  }
 
   return (
-    <div>
-      <h1>Orden #{orden.numero}</h1>
-      <p>
-        {orden.marca} {orden.modelo} ({orden.tipo}) · {orden.serial}
-      </p>
-      <p>Cliente: {orden.cliente_nombre}</p>
-      <p>Motivo: {orden.motivo}</p>
-
-      <div
-        style={{
-          margin: "16px 0",
-          padding: 16,
-          background: "#132029",
-          borderRadius: 8,
-        }}
-      >
-        <strong>Estado: {ETIQUETA_ESTADO[orden.estado]}</strong>
-      </div>
-
-      <nav style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <a href={`/orden/${id}/evidencia`}>📷 Evidencia</a>
-        <a href={`/orden/${id}/diagnostico`}>🔧 Diagnóstico y cotización</a>
-        <a href={`/orden/${id}/repuestos`}>🧰 Repuestos</a>
-      </nav>
-
-      {siguientesEstados(orden.estado).length > 0 && (
-        <div style={{ marginTop: 20 }}>
-          <p style={{ opacity: 0.7, fontSize: 14 }}>Avanzar a:</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {siguientesEstados(orden.estado).map((e) => (
-              <button key={e} disabled={cambiando} onClick={() => avanzar(e)}>
-                {ETIQUETA_ESTADO[e]}
-              </button>
-            ))}
+    <div className="pila">
+      <Tarjeta>
+        <div className="fila" style={{ justifyContent: "space-between", marginBottom: 12 }}>
+          <h1 className="cifra">Orden #{orden.numero}</h1>
+          <EstadoOrden estado={orden.estado} />
+        </div>
+        <h2 style={{ fontSize: 17 }}>
+          {orden.marca} {orden.modelo}
+        </h2>
+        <p className="cifra" style={{ margin: "4px 0 14px", fontSize: 13, color: "var(--ink-2)" }}>
+          {orden.tipo} · {orden.serial}
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 14 }}>
+          <div>
+            <span style={{ color: "var(--ink-3)" }}>Cliente · </span>
+            <strong>{orden.cliente_nombre}</strong>
+          </div>
+          <div>
+            <span style={{ color: "var(--ink-3)" }}>Motivo · </span>
+            {orden.motivo}
           </div>
         </div>
+      </Tarjeta>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <Acceso
+          href={`/orden/${id}/evidencia`}
+          icono={<Camera size={21} strokeWidth={2} />}
+          titulo="Evidencia"
+          descripcion="Fotos y videos del equipo"
+        />
+        <Acceso
+          href={`/orden/${id}/diagnostico`}
+          icono={<Wrench size={21} strokeWidth={2} />}
+          titulo="Diagnóstico y cotización"
+          descripcion="Hallazgos y precio para el cliente"
+        />
+        <Acceso
+          href={`/orden/${id}/repuestos`}
+          icono={<Package size={21} strokeWidth={2} />}
+          titulo="Repuestos"
+          descripcion="Consumir del inventario o marcar faltante"
+        />
+      </div>
+
+      {siguientesEstados(orden.estado).length > 0 && (
+        <Tarjeta>
+          <div className="campo-etiqueta">Avanzar a</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {siguientesEstados(orden.estado).map((e) => (
+              <Boton
+                key={e}
+                variante="primario"
+                tamano="lg"
+                ancho
+                icono={<ArrowRight size={19} strokeWidth={2} />}
+                disabled={cambiando}
+                onClick={() => avanzar(e)}
+              >
+                {ETIQUETA_ESTADO[e]}
+              </Boton>
+            ))}
+          </div>
+        </Tarjeta>
       )}
-      {error && <p style={{ color: "#ff8080" }}>{error}</p>}
+
+      {error && <Aviso tono="peligro">{error}</Aviso>}
     </div>
   );
 }

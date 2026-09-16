@@ -4,7 +4,7 @@
  *     | { accion: "faltante", descripcion, cantidad, prioridad }
  *
  * Consumir descuenta el inventario de la sede de la orden (vía
- * consumir_repuesto, la misma función que usa /api/ventas) y deja el
+ * mover_existencia, la misma función que usa /api/ventas) y deja el
  * registro en orden_repuesto. Faltante crea la solicitud que aparece
  * en /compras -- la lista central de la sección 4 del documento
  * original: qué hace falta, para qué orden, con qué prioridad.
@@ -43,10 +43,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "faltan datos del repuesto" }, { status: 400 });
     }
 
-    const { error: errConsumo } = await supabase.rpc("consumir_repuesto", {
+    const { error: errConsumo } = await supabase.rpc("mover_existencia", {
       p_repuesto_id: body.repuestoId,
       p_sede_id: orden.sede_id,
-      p_cantidad: body.cantidad,
+      p_delta: -body.cantidad,
+      p_tipo: "consumo_orden",
+      p_referencia_id: id,
     });
     if (errConsumo) {
       return NextResponse.json({ error: errConsumo.message }, { status: 409 });

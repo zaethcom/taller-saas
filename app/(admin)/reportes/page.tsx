@@ -5,8 +5,30 @@
  * la describe como algo que se cronometra a mano durante el piloto,
  * no como un timestamp que el sistema capture solo. Se muestra como
  * instrucción, nunca como un número inventado.
+ *
+ * Por eso esa tarjeta no lleva cifra grande: una casilla vacía donde
+ * las otras tres muestran un número se lee como "todavía no hay
+ * datos", y no es eso -- es que ese dato no existe en el sistema.
  */
+import { BarChart3, Timer } from "lucide-react";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
+import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+
+/** Una métrica: rótulo arriba, cifra grande, y de qué sale abajo. */
+function Metrica({ rotulo, valor, pie }: { rotulo: string; valor: string; pie: string }) {
+  return (
+    <Tarjeta>
+      <div className="campo-etiqueta" style={{ letterSpacing: "0.1em", textTransform: "uppercase" }}>
+        {rotulo}
+      </div>
+      <div className="cifra" style={{ fontSize: 34, fontWeight: 800, letterSpacing: "-0.025em", lineHeight: 1.1 }}>
+        {valor}
+      </div>
+      <div style={{ marginTop: 6, fontSize: 13, color: "var(--ink-2)" }}>{pie}</div>
+    </Tarjeta>
+  );
+}
 
 const HORAS = (ms: number) => ms / 1000 / 60 / 60;
 
@@ -116,89 +138,98 @@ export default async function PaginaReportes() {
 
   return (
     <div>
-      <h1>Reportes</h1>
-      <p style={{ opacity: 0.7, marginBottom: 24 }}>
-        Las cuatro métricas de éxito del piloto, Fase 8 del plano de construcción.
-      </p>
+      <TituloPantalla
+        icono={<BarChart3 size={24} strokeWidth={2} />}
+        titulo="Reportes"
+        descripcion="Las cuatro métricas de éxito del piloto, Fase 8 del plano de construcción."
+      />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
-        <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>
-          <div style={{ fontSize: 12, opacity: 0.6, textTransform: "uppercase" }}>Tiempo de recepción</div>
-          <div style={{ fontSize: 15, marginTop: 8 }}>
-            Meta: menos de 3 minutos. No hay un timestamp de inicio/fin de la recepción en el
-            sistema -- se mide con cronómetro, en persona, durante el piloto.
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 14 }}>
+        <Tarjeta>
+          <div className="campo-etiqueta" style={{ letterSpacing: "0.1em", textTransform: "uppercase" }}>
+            Tiempo de recepción
           </div>
-        </div>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 4 }}>
+            <Timer size={22} strokeWidth={1.9} color="var(--ink-3)" aria-hidden style={{ flexShrink: 0, marginTop: 2 }} />
+            <div style={{ fontSize: 14, lineHeight: 1.45, color: "var(--ink-2)" }}>
+              Meta: menos de 3 minutos. No hay un timestamp de inicio/fin de la recepción en el sistema --
+              se mide con cronómetro, en persona, durante el piloto.
+            </div>
+          </div>
+        </Tarjeta>
 
-        <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>
-          <div style={{ fontSize: 12, opacity: 0.6, textTransform: "uppercase" }}>
-            Evidencia completa (entrada + salida)
-          </div>
-          <div style={{ fontSize: 32, fontWeight: 700, marginTop: 8 }}>
-            {porcentajeEvidenciaCompleta === null ? "—" : `${porcentajeEvidenciaCompleta}%`}
-          </div>
-          <div style={{ fontSize: 13, opacity: 0.6 }}>
-            {idsEntregadas.length === 0
+        <Metrica
+          rotulo="Evidencia completa (entrada + salida)"
+          valor={porcentajeEvidenciaCompleta === null ? "—" : `${porcentajeEvidenciaCompleta}%`}
+          pie={
+            idsEntregadas.length === 0
               ? "Todavía no hay órdenes entregadas."
-              : `de ${idsEntregadas.length} orden${idsEntregadas.length === 1 ? "" : "es"} entregada${idsEntregadas.length === 1 ? "" : "s"}`}
-          </div>
-        </div>
+              : `de ${idsEntregadas.length} orden${idsEntregadas.length === 1 ? "" : "es"} entregada${idsEntregadas.length === 1 ? "" : "s"}`
+          }
+        />
 
-        <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>
-          <div style={{ fontSize: 12, opacity: 0.6, textTransform: "uppercase" }}>
-            Tiempo hasta aprobación
-          </div>
-          <div style={{ fontSize: 32, fontWeight: 700, marginTop: 8 }}>
-            {horasPromedioAprobacion === null ? "—" : fmtHoras(horasPromedioAprobacion)}
-          </div>
-          <div style={{ fontSize: 13, opacity: 0.6 }}>
-            {cotizacionesAprobadas?.length
+        <Metrica
+          rotulo="Tiempo hasta aprobación"
+          valor={horasPromedioAprobacion === null ? "—" : fmtHoras(horasPromedioAprobacion)}
+          pie={
+            cotizacionesAprobadas?.length
               ? `promedio de ${cotizacionesAprobadas.length} cotización${cotizacionesAprobadas.length === 1 ? "" : "es"} aprobada${cotizacionesAprobadas.length === 1 ? "" : "s"}`
-              : "Todavía no hay cotizaciones aprobadas."}
-          </div>
-        </div>
+              : "Todavía no hay cotizaciones aprobadas."
+          }
+        />
 
-        <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>
-          <div style={{ fontSize: 12, opacity: 0.6, textTransform: "uppercase" }}>
-            Faltantes resueltos en menos de 48h
-          </div>
-          <div style={{ fontSize: 32, fontWeight: 700, marginTop: 8 }}>
-            {porcentajeFaltantesA48h === null ? "—" : `${porcentajeFaltantesA48h}%`}
-          </div>
-          <div style={{ fontSize: 13, opacity: 0.6 }}>
-            {faltantesResueltos?.length
+        <Metrica
+          rotulo="Faltantes resueltos en menos de 48h"
+          valor={porcentajeFaltantesA48h === null ? "—" : `${porcentajeFaltantesA48h}%`}
+          pie={
+            faltantesResueltos?.length
               ? `de ${faltantesResueltos.length} faltante${faltantesResueltos.length === 1 ? "" : "s"} resuelto${faltantesResueltos.length === 1 ? "" : "s"}`
-              : "Todavía no hay faltantes marcados como recibidos."}
-          </div>
-        </div>
+              : "Todavía no hay faltantes marcados como recibidos."
+          }
+        />
       </div>
 
-      <h2 style={{ fontSize: 18, marginTop: 32, marginBottom: 12 }}>Productividad por técnico</h2>
+      <h2 style={{ marginTop: 32, marginBottom: 12 }}>Productividad por técnico</h2>
       {productividad.length === 0 ? (
-        <p style={{ opacity: 0.6 }}>Todavía no hay técnicos registrados.</p>
+        <Tarjeta style={{ borderStyle: "dashed", textAlign: "center", color: "var(--ink-3)", fontSize: 13 }}>
+          Todavía no hay técnicos registrados.
+        </Tarjeta>
       ) : (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
-              <th>Técnico</th>
-              <th>Asignados</th>
-              <th>Terminados</th>
-              <th>En curso</th>
-              <th>Tiempo promedio</th>
-            </tr>
-          </thead>
-          <tbody>
-            {productividad.map((p) => (
-              <tr key={p.id} style={{ borderBottom: "1px solid #eee" }}>
-                <td>{p.codigo ? `${p.codigo} · ${p.nombre}` : p.nombre}</td>
-                <td>{p.asignados}</td>
-                <td>{p.terminados}</td>
-                <td>{p.enCurso}</td>
-                <td>{p.horasPromedio === null ? "—" : fmtHoras(p.horasPromedio)}</td>
+        <TarjetaTabla>
+          <table>
+            <thead>
+              <tr>
+                <th>Técnico</th>
+                <th>Asignados</th>
+                <th>Terminados</th>
+                <th>En curso</th>
+                <th>Tiempo promedio</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {productividad.map((p) => (
+                <tr key={p.id}>
+                  <td style={{ fontWeight: 600 }}>
+                    {p.codigo ? (
+                      <>
+                        <span className="cifra" style={{ color: "var(--ink-3)" }}>
+                          {p.codigo}
+                        </span>{" "}
+                        · {p.nombre}
+                      </>
+                    ) : (
+                      p.nombre
+                    )}
+                  </td>
+                  <td className="cifra">{p.asignados}</td>
+                  <td className="cifra">{p.terminados}</td>
+                  <td className="cifra">{p.enCurso}</td>
+                  <td className="cifra">{p.horasPromedio === null ? "—" : fmtHoras(p.horasPromedio)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TarjetaTabla>
       )}
     </div>
   );
