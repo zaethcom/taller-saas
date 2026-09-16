@@ -7,6 +7,7 @@ import { FotoProducto } from "@/componentes/ui/foto-producto";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { FormularioRecepcion } from "@/componentes/inventario/formulario-recepcion";
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
@@ -62,6 +63,7 @@ export default async function PaginaInventario() {
 
       <section style={{ marginBottom: 32 }}>
         <Seccion icono={<Boxes size={19} strokeWidth={2} color="var(--ink-2)" />} titulo="Repuestos y accesorios a granel" />
+        {editable && <FormularioRecepcion sedeIdDefault={perfil.sedeId} />}
         {(existencias ?? []).length === 0 ? (
           <Vacio>No hay repuestos en el catálogo.</Vacio>
         ) : (
