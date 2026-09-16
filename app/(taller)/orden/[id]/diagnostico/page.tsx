@@ -1,247 +1,159 @@
 "use client";
 
 /**
- * El técnico registra los hallazgos y arma la cotización -- repuestos
- * más mano de obra -- y la envía en un solo paso. Al enviar,
- * POST /api/ordenes/[id]/cotizacion mueve la orden a
- * esperando_aprobacion y devuelve el enlace de seguimiento para
- * mandarlo por WhatsApp. Fase 5 del plano de construcción.
+ * El diagnóstico, como paso propio: qué se encontró y qué se propone
+ * hacer, antes de armar la cotización (punto 3 del documento de
+ * trazabilidad del taller). Antes esta pantalla también construía la
+ * cotización en el mismo formulario -- eso se movió a /cotizacion, que
+ * es donde de verdad se transiciona la orden a esperando_aprobacion.
+ *
+ * "Continuar a cotización" guarda el diagnóstico y navega -- no cambia
+ * el estado de la orden todavía; eso sigue pasando solo al enviar la
+ * cotización, como antes.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Wrench, Plus, X, Send, Copy, Check, ArrowLeft } from "lucide-react";
+import { Wrench, ArrowRight } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
-interface Linea {
-  descripcion: string;
-  cantidad: number;
-  precioUnit: number;
+interface Diagnostico {
+  hallazgos: string;
+  fallas: string;
+  observaciones: string;
+  recomendaciones: string;
 }
 
-const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
-
-const LINEA_VACIA: Linea = { descripcion: "", cantidad: 1, precioUnit: 0 };
+const VACIO: Diagnostico = { hallazgos: "", fallas: "", observaciones: "", recomendaciones: "" };
 
 export default function PaginaDiagnostico() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
-  const [nota, setNota] = useState("");
-  const [lineas, setLineas] = useState<Linea[]>([{ ...LINEA_VACIA }]);
-  const [manoObra, setManoObra] = useState("0");
-  const [enviando, setEnviando] = useState(false);
+  const [datos, setDatos] = useState<Diagnostico>(VACIO);
+  const [cargando, setCargando] = useState(true);
+  const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [resultado, setResultado] = useState<{ total: number; urlSeguimiento: string } | null>(null);
-  const [copiado, setCopiado] = useState(false);
 
-  const totalItems = lineas.reduce((s, l) => s + l.cantidad * l.precioUnit, 0);
-  const total = totalItems + (Number(manoObra) || 0);
+  useEffect(() => {
+    fetch(`/api/ordenes/${id}/diagnostico`)
+      .then((r) => r.json())
+      .then((data: Partial<Diagnostico> | null) => {
+        if (data) {
+          setDatos({
+            hallazgos: data.hallazgos ?? "",
+            fallas: data.fallas ?? "",
+            observaciones: data.observaciones ?? "",
+            recomendaciones: data.recomendaciones ?? "",
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => setCargando(false));
+  }, [id]);
 
-  function actualizarLinea(i: number, cambios: Partial<Linea>) {
-    setLineas((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...cambios } : l)));
-  }
-
-  function agregarLinea() {
-    setLineas((prev) => [...prev, { ...LINEA_VACIA }]);
-  }
-
-  function quitarLinea(i: number) {
-    setLineas((prev) => prev.filter((_, idx) => idx !== i));
-  }
-
-  async function enviar() {
-    setEnviando(true);
+  async function guardar(): Promise<boolean> {
+    setGuardando(true);
     setError(null);
     try {
-      const items = lineas.filter((l) => l.descripcion.trim() && l.cantidad > 0);
-      if (items.length === 0) throw new Error("Agrega al menos un repuesto o servicio con descripción.");
-
-      const res = await fetch(`/api/ordenes/${id}/cotizacion`, {
-        method: "POST",
+      const res = await fetch(`/api/ordenes/${id}/diagnostico`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items, manoObra: Number(manoObra) || 0, nota: nota.trim() || undefined }),
+        body: JSON.stringify(datos),
       });
       if (!res.ok) throw new Error((await res.json()).error);
-
-      const data = await res.json();
-      setResultado({ total: data.total, urlSeguimiento: data.urlSeguimiento });
+      return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo enviar la cotización");
+      setError(e instanceof Error ? e.message : "No se pudo guardar el diagnóstico");
+      return false;
     } finally {
-      setEnviando(false);
+      setGuardando(false);
     }
   }
 
-  async function copiarEnlace() {
-    if (!resultado) return;
-    await navigator.clipboard.writeText(resultado.urlSeguimiento);
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 2000);
+  async function continuar() {
+    if (!datos.hallazgos.trim()) {
+      setError("Registra al menos los hallazgos del diagnóstico.");
+      return;
+    }
+    if (await guardar()) {
+      router.push(`/orden/${id}/cotizacion`);
+    }
   }
 
-  if (resultado) {
-    return (
-      <div className="pila">
-        <Tarjeta style={{ textAlign: "center" }}>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 54,
-              height: 54,
-              borderRadius: "var(--r-lg)",
-              background: "var(--ok-fondo)",
-              color: "var(--ok)",
-              marginBottom: 12,
-            }}
-          >
-            <Check size={28} strokeWidth={2.4} />
-          </span>
-          <h1>Cotización enviada</h1>
-          <p className="cifra" style={{ margin: "8px 0 0", fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em" }}>
-            {fmt(resultado.total)}
-          </p>
-        </Tarjeta>
-
-        <Tarjeta>
-          <div className="campo-etiqueta">
-            Comparte este enlace con el cliente para que apruebe o rechace desde su celular
-          </div>
-          <div
-            style={{
-              padding: 12,
-              borderRadius: "var(--r-md)",
-              background: "var(--surface-2)",
-              border: "1px solid var(--rule)",
-              wordBreak: "break-all",
-              fontSize: 13,
-              marginBottom: 12,
-            }}
-          >
-            {resultado.urlSeguimiento}
-          </div>
-          <div className="fila">
-            <Boton
-              variante="primario"
-              icono={copiado ? <Check size={17} strokeWidth={2.4} /> : <Copy size={17} strokeWidth={2} />}
-              onClick={copiarEnlace}
-            >
-              {copiado ? "¡Copiado!" : "Copiar enlace"}
-            </Boton>
-            <Boton
-              variante="contorno"
-              icono={<ArrowLeft size={17} strokeWidth={2} />}
-              onClick={() => router.push(`/orden/${id}`)}
-            >
-              Volver a la orden
-            </Boton>
-          </div>
-        </Tarjeta>
-      </div>
-    );
+  if (cargando) {
+    return <Tarjeta style={{ textAlign: "center", color: "var(--ink-3)" }}>Cargando…</Tarjeta>;
   }
 
   return (
     <div>
       <TituloPantalla
         icono={<Wrench size={24} strokeWidth={2} />}
-        titulo="Diagnóstico y cotización"
-        descripcion="Lo que encontraste y lo que cuesta arreglarlo."
+        titulo="Diagnóstico"
+        descripcion="Qué tiene el equipo y qué se propone hacer."
       />
 
       <div className="pila">
         <Tarjeta>
-          <Campo etiqueta="Hallazgos del diagnóstico" ayuda="El cliente no lo ve; queda en la orden para el historial del equipo.">
+          <Campo etiqueta="Diagnóstico técnico" ayuda="Qué se encontró al revisar el equipo.">
             <textarea
-              placeholder="Hallazgos del diagnóstico…"
-              value={nota}
-              onChange={(e) => setNota(e.target.value)}
+              placeholder="Ej. Pastillas de freno delanteras desgastadas por completo…"
+              value={datos.hallazgos}
+              onChange={(e) => setDatos({ ...datos, hallazgos: e.target.value })}
               rows={3}
             />
           </Campo>
         </Tarjeta>
 
         <Tarjeta>
-          <h2 style={{ marginBottom: 12 }}>Repuestos y servicios</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {lineas.map((l, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 72px 110px 44px", gap: 8 }}>
-                <input
-                  placeholder="Descripción"
-                  value={l.descripcion}
-                  onChange={(e) => actualizarLinea(i, { descripcion: e.target.value })}
-                  aria-label={`Descripción de la línea ${i + 1}`}
-                />
-                <input
-                  type="number"
-                  min={1}
-                  value={l.cantidad}
-                  onChange={(e) => actualizarLinea(i, { cantidad: Number(e.target.value) || 1 })}
-                  aria-label={`Cantidad de la línea ${i + 1}`}
-                  className="cifra"
-                  style={{ textAlign: "center" }}
-                />
-                <input
-                  type="number"
-                  min={0}
-                  placeholder="Precio"
-                  value={l.precioUnit || ""}
-                  onChange={(e) => actualizarLinea(i, { precioUnit: Number(e.target.value) || 0 })}
-                  aria-label={`Precio de la línea ${i + 1}`}
-                  className="cifra"
-                  style={{ textAlign: "right" }}
-                />
-                <Boton
-                  variante="peligro"
-                  icono={<X size={16} strokeWidth={2.4} />}
-                  onClick={() => quitarLinea(i)}
-                  disabled={lineas.length === 1}
-                  aria-label={`Quitar la línea ${i + 1}`}
-                />
-              </div>
-            ))}
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <Boton variante="fantasma" icono={<Plus size={17} strokeWidth={2.2} />} onClick={agregarLinea}>
-              Agregar línea
-            </Boton>
-          </div>
+          <Campo etiqueta="Fallas encontradas" ayuda="Opcional. Lista de fallas puntuales, si aplica.">
+            <textarea
+              placeholder="Ej. Ruido en el motor, batería no carga al 100%…"
+              value={datos.fallas}
+              onChange={(e) => setDatos({ ...datos, fallas: e.target.value })}
+              rows={3}
+            />
+          </Campo>
         </Tarjeta>
 
         <Tarjeta>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 160px", gap: 12, alignItems: "end" }}>
-            <Campo etiqueta="Mano de obra" ayuda="Se suma al total, aparte de los repuestos.">
-              <input
-                type="number"
-                min={0}
-                value={manoObra}
-                onChange={(e) => setManoObra(e.target.value)}
-                className="cifra"
-              />
-            </Campo>
-            <div style={{ textAlign: "right" }}>
-              <div className="campo-etiqueta">Total</div>
-              <div className="cifra" style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em" }}>
-                {fmt(total)}
-              </div>
-            </div>
-          </div>
+          <Campo etiqueta="Observaciones" ayuda="Opcional. El cliente no las ve; quedan en el historial del equipo.">
+            <textarea
+              placeholder="Ej. Equipo con golpes previos en el chasis…"
+              value={datos.observaciones}
+              onChange={(e) => setDatos({ ...datos, observaciones: e.target.value })}
+              rows={3}
+            />
+          </Campo>
         </Tarjeta>
 
-        <Boton
-          variante="primario"
-          tamano="xl"
-          ancho
-          icono={<Send size={19} strokeWidth={2} />}
-          onClick={enviar}
-          disabled={enviando}
-        >
-          {enviando ? "Enviando…" : "Enviar cotización"}
-        </Boton>
+        <Tarjeta>
+          <Campo etiqueta="Recomendaciones" ayuda="Opcional. Qué se le sugiere al cliente además de la reparación.">
+            <textarea
+              placeholder="Ej. Cambiar también el cable de freno trasero antes de que falle…"
+              value={datos.recomendaciones}
+              onChange={(e) => setDatos({ ...datos, recomendaciones: e.target.value })}
+              rows={2}
+            />
+          </Campo>
+        </Tarjeta>
+
+        <div className="fila">
+          <Boton variante="contorno" onClick={guardar} disabled={guardando}>
+            {guardando ? "Guardando…" : "Guardar borrador"}
+          </Boton>
+          <Boton
+            variante="primario"
+            tamano="lg"
+            icono={<ArrowRight size={19} strokeWidth={2} />}
+            onClick={continuar}
+            disabled={guardando}
+          >
+            Continuar a cotización
+          </Boton>
+        </div>
 
         {error && <Aviso tono="peligro">{error}</Aviso>}
       </div>
