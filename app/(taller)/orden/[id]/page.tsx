@@ -141,8 +141,8 @@ export default function PaginaOrdenTecnico() {
         <Acceso
           href={`/orden/${id}/diagnostico`}
           icono={<Wrench size={21} strokeWidth={2} />}
-          titulo="Diagnóstico y cotización"
-          descripcion="Hallazgos y precio para el cliente"
+          titulo="Diagnóstico"
+          descripcion="Qué se encontró, y de ahí a la cotización"
         />
         <Acceso
           href={`/orden/${id}/repuestos`}
