@@ -5,7 +5,7 @@
  *
  * Registra una venta de mostrador (o el cobro de una orden si se manda
  * ordenId). Cada item sale del inventario de una de dos maneras: un
- * repuesto descuenta cantidad (consumir_repuesto, a granel, se deja
+ * repuesto descuenta cantidad (mover_existencia, a granel, se deja
  * fallar después de crear la venta -- ver comentario más abajo); un
  * artículo individualizado (patineta, teléfono) se valida ANTES de
  * crear nada, porque vender dos veces la misma unidad física es un
@@ -148,25 +148,41 @@ export async function POST(req: NextRequest) {
   });
 
   // Descontar inventario. Si un repuesto no tiene existencia registrada
-  // en esta sede, consumir_repuesto lanza -- se deja que falle: es
+  // en esta sede, mover_existencia lanza -- se deja que falle: es
   // preferible una venta con un item sin descontar visible en logs a
   // fingir que el inventario cuadra cuando no cuadra.
   for (const item of body.items) {
     if (item.repuestoId) {
-      await supabase.rpc("consumir_repuesto", {
+      await supabase.rpc("mover_existencia", {
         p_repuesto_id: item.repuestoId,
         p_sede_id: perfil.sede_id,
-        p_cantidad: item.cantidad,
+        p_delta: -item.cantidad,
+        p_tipo: "venta",
+        p_referencia_id: venta.id,
       });
     } else if (item.articuloId) {
       // Ya se validó arriba que estaba en_stock en esta sede -- este
       // guard repite la condición por si algo cambió entre medio.
-      await supabase
+      const { data: articuloVendido } = await supabase
         .from("articulo")
         .update({ estado: "vendido" })
         .eq("id", item.articuloId)
         .eq("estado", "en_stock")
-        .eq("sede_id", perfil.sede_id);
+        .eq("sede_id", perfil.sede_id)
+        .select("id")
+        .maybeSingle();
+      if (articuloVendido) {
+        await supabase.from("movimiento_inventario").insert({
+          empresa_id: perfil.empresa_id,
+          sede_id: perfil.sede_id,
+          articulo_id: item.articuloId,
+          tipo: "venta",
+          estado_anterior: "en_stock",
+          estado_nuevo: "vendido",
+          autor_id: user.id,
+          referencia_id: venta.id,
+        });
+      }
     }
     // si no tiene ninguno de los dos, es un ítem suelto sin ficha de inventario
   }

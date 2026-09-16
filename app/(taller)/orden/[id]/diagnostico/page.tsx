@@ -9,6 +9,11 @@
  */
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { Wrench, Plus, X, Send, Copy, Check, ArrowLeft } from "lucide-react";
+import { Boton } from "@/componentes/ui/boton";
+import { Tarjeta } from "@/componentes/ui/tarjeta";
+import { Campo, Aviso } from "@/componentes/ui/campo";
+import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
 interface Linea {
   descripcion: string;
@@ -79,94 +84,167 @@ export default function PaginaDiagnostico() {
 
   if (resultado) {
     return (
-      <div>
-        <h1>Cotización enviada</h1>
-        <p>Total: {fmt(resultado.total)}</p>
-        <p style={{ opacity: 0.7, fontSize: 14 }}>
-          Comparte este enlace con el cliente para que apruebe o rechace desde su celular:
-        </p>
-        <div
-          style={{
-            background: "#132029",
-            padding: 12,
-            borderRadius: 8,
-            wordBreak: "break-all",
-            fontSize: 13,
-            marginBottom: 12,
-          }}
-        >
-          {resultado.urlSeguimiento}
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={copiarEnlace}>{copiado ? "¡Copiado!" : "Copiar enlace"}</button>
-          <button onClick={() => router.push(`/orden/${id}`)}>Volver a la orden</button>
-        </div>
+      <div className="pila">
+        <Tarjeta style={{ textAlign: "center" }}>
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 54,
+              height: 54,
+              borderRadius: "var(--r-lg)",
+              background: "var(--ok-fondo)",
+              color: "var(--ok)",
+              marginBottom: 12,
+            }}
+          >
+            <Check size={28} strokeWidth={2.4} />
+          </span>
+          <h1>Cotización enviada</h1>
+          <p className="cifra" style={{ margin: "8px 0 0", fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em" }}>
+            {fmt(resultado.total)}
+          </p>
+        </Tarjeta>
+
+        <Tarjeta>
+          <div className="campo-etiqueta">
+            Comparte este enlace con el cliente para que apruebe o rechace desde su celular
+          </div>
+          <div
+            style={{
+              padding: 12,
+              borderRadius: "var(--r-md)",
+              background: "var(--surface-2)",
+              border: "1px solid var(--rule)",
+              wordBreak: "break-all",
+              fontSize: 13,
+              marginBottom: 12,
+            }}
+          >
+            {resultado.urlSeguimiento}
+          </div>
+          <div className="fila">
+            <Boton
+              variante="primario"
+              icono={copiado ? <Check size={17} strokeWidth={2.4} /> : <Copy size={17} strokeWidth={2} />}
+              onClick={copiarEnlace}
+            >
+              {copiado ? "¡Copiado!" : "Copiar enlace"}
+            </Boton>
+            <Boton
+              variante="contorno"
+              icono={<ArrowLeft size={17} strokeWidth={2} />}
+              onClick={() => router.push(`/orden/${id}`)}
+            >
+              Volver a la orden
+            </Boton>
+          </div>
+        </Tarjeta>
       </div>
     );
   }
 
   return (
     <div>
-      <h1>Diagnóstico y cotización</h1>
-
-      <textarea
-        placeholder="Hallazgos del diagnóstico…"
-        value={nota}
-        onChange={(e) => setNota(e.target.value)}
-        rows={3}
-        style={{ width: "100%", padding: 8, marginBottom: 16 }}
+      <TituloPantalla
+        icono={<Wrench size={24} strokeWidth={2} />}
+        titulo="Diagnóstico y cotización"
+        descripcion="Lo que encontraste y lo que cuesta arreglarlo."
       />
 
-      <h2 style={{ fontSize: 16 }}>Repuestos y servicios</h2>
-      {lineas.map((l, i) => (
-        <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-          <input
-            placeholder="Descripción"
-            value={l.descripcion}
-            onChange={(e) => actualizarLinea(i, { descripcion: e.target.value })}
-            style={{ padding: 8, flex: 2 }}
-          />
-          <input
-            type="number"
-            min={1}
-            value={l.cantidad}
-            onChange={(e) => actualizarLinea(i, { cantidad: Number(e.target.value) || 1 })}
-            style={{ padding: 8, width: 60 }}
-          />
-          <input
-            type="number"
-            min={0}
-            placeholder="Precio"
-            value={l.precioUnit || ""}
-            onChange={(e) => actualizarLinea(i, { precioUnit: Number(e.target.value) || 0 })}
-            style={{ padding: 8, width: 100 }}
-          />
-          <button onClick={() => quitarLinea(i)} disabled={lineas.length === 1}>
-            ✕
-          </button>
-        </div>
-      ))}
-      <button onClick={agregarLinea} style={{ marginBottom: 16 }}>
-        + Agregar línea
-      </button>
+      <div className="pila">
+        <Tarjeta>
+          <Campo etiqueta="Hallazgos del diagnóstico" ayuda="El cliente no lo ve; queda en la orden para el historial del equipo.">
+            <textarea
+              placeholder="Hallazgos del diagnóstico…"
+              value={nota}
+              onChange={(e) => setNota(e.target.value)}
+              rows={3}
+            />
+          </Campo>
+        </Tarjeta>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-        <label>Mano de obra:</label>
-        <input
-          type="number"
-          min={0}
-          value={manoObra}
-          onChange={(e) => setManoObra(e.target.value)}
-          style={{ padding: 8, width: 120 }}
-        />
+        <Tarjeta>
+          <h2 style={{ marginBottom: 12 }}>Repuestos y servicios</h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {lineas.map((l, i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 72px 110px 44px", gap: 8 }}>
+                <input
+                  placeholder="Descripción"
+                  value={l.descripcion}
+                  onChange={(e) => actualizarLinea(i, { descripcion: e.target.value })}
+                  aria-label={`Descripción de la línea ${i + 1}`}
+                />
+                <input
+                  type="number"
+                  min={1}
+                  value={l.cantidad}
+                  onChange={(e) => actualizarLinea(i, { cantidad: Number(e.target.value) || 1 })}
+                  aria-label={`Cantidad de la línea ${i + 1}`}
+                  className="cifra"
+                  style={{ textAlign: "center" }}
+                />
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="Precio"
+                  value={l.precioUnit || ""}
+                  onChange={(e) => actualizarLinea(i, { precioUnit: Number(e.target.value) || 0 })}
+                  aria-label={`Precio de la línea ${i + 1}`}
+                  className="cifra"
+                  style={{ textAlign: "right" }}
+                />
+                <Boton
+                  variante="peligro"
+                  icono={<X size={16} strokeWidth={2.4} />}
+                  onClick={() => quitarLinea(i)}
+                  disabled={lineas.length === 1}
+                  aria-label={`Quitar la línea ${i + 1}`}
+                />
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <Boton variante="fantasma" icono={<Plus size={17} strokeWidth={2.2} />} onClick={agregarLinea}>
+              Agregar línea
+            </Boton>
+          </div>
+        </Tarjeta>
+
+        <Tarjeta>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 160px", gap: 12, alignItems: "end" }}>
+            <Campo etiqueta="Mano de obra" ayuda="Se suma al total, aparte de los repuestos.">
+              <input
+                type="number"
+                min={0}
+                value={manoObra}
+                onChange={(e) => setManoObra(e.target.value)}
+                className="cifra"
+              />
+            </Campo>
+            <div style={{ textAlign: "right" }}>
+              <div className="campo-etiqueta">Total</div>
+              <div className="cifra" style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em" }}>
+                {fmt(total)}
+              </div>
+            </div>
+          </div>
+        </Tarjeta>
+
+        <Boton
+          variante="primario"
+          tamano="xl"
+          ancho
+          icono={<Send size={19} strokeWidth={2} />}
+          onClick={enviar}
+          disabled={enviando}
+        >
+          {enviando ? "Enviando…" : "Enviar cotización"}
+        </Boton>
+
+        {error && <Aviso tono="peligro">{error}</Aviso>}
       </div>
-
-      <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>Total: {fmt(total)}</p>
-
-      <button onClick={enviar} disabled={enviando} style={{ padding: "10px 20px" }}>
-        {enviando ? "Enviando…" : "Enviar cotización"}
-      </button>
-      {error && <p style={{ color: "#ff8080" }}>{error}</p>}
     </div>
   );
 }

@@ -8,6 +8,12 @@
  * mano todavía.
  */
 import { useEffect, useState } from "react";
+import { ArrowLeftRight, Search, Plus, Trash2, Send, PackageCheck, Check } from "lucide-react";
+import { Boton } from "@/componentes/ui/boton";
+import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
+import { Etiqueta } from "@/componentes/ui/etiqueta";
+import { Campo, Aviso } from "@/componentes/ui/campo";
+import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
 interface Sede {
   id: string;
@@ -205,153 +211,285 @@ export default function PaginaTraslados() {
 
   return (
     <div>
-      <h1>Traslados entre sedes</h1>
+      <TituloPantalla
+        icono={<ArrowLeftRight size={24} strokeWidth={2} />}
+        titulo="Traslados entre sedes"
+        descripcion="Enviar descuenta el inventario de origen de inmediato; recibir es un paso aparte, en el destino."
+      />
 
-      {entrantes.length > 0 && (
-        <section style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: 16 }}>Por recibir en mi sede</h2>
-          {entrantes.map((t) => (
-            <div
-              key={t.id}
-              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #223038" }}
-            >
-              <div>
-                <strong>Traslado #{t.numero}</strong> desde {nombreSede(t.sede_origen)}
-                <div style={{ fontSize: 12, opacity: 0.6 }}>
-                  {t.items.map((i) => `${i.cantidad} x ${i.descripcion}`).join(", ")}
+      <div className="pila">
+        {entrantes.length > 0 && (
+          <Tarjeta relleno={false} style={{ overflow: "hidden", borderColor: "var(--accent-linea)" }}>
+            <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--rule)", background: "var(--accent-suave)" }}>
+              <h2 style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                <PackageCheck size={19} strokeWidth={2} color="var(--accent)" aria-hidden />
+                Por recibir en mi sede
+                <span className="pastilla-conteo cifra">{entrantes.length}</span>
+              </h2>
+            </div>
+            {entrantes.map((t) => (
+              <div
+                key={t.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  padding: "12px 16px",
+                  borderBottom: "1px solid var(--rule)",
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>
+                    <span className="cifra">Traslado #{t.numero}</span>{" "}
+                    <span style={{ fontWeight: 500, color: "var(--ink-2)" }}>desde {nombreSede(t.sede_origen)}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--ink-3)" }}>
+                    {t.items.map((i) => `${i.cantidad} x ${i.descripcion}`).join(", ")}
+                  </div>
                 </div>
+                <Boton
+                  variante="primario"
+                  tamano="sm"
+                  icono={<Check size={15} strokeWidth={2.4} />}
+                  onClick={() => marcarRecibido(t.id)}
+                  disabled={procesando}
+                >
+                  Marcar recibido
+                </Boton>
               </div>
-              <button onClick={() => marcarRecibido(t.id)} disabled={procesando}>
-                Marcar recibido
-              </button>
-            </div>
-          ))}
-        </section>
-      )}
-
-      <section style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 16 }}>Enviar mercancía a otra sede</h2>
-
-        <select value={sedeDestinoId} onChange={(e) => setSedeDestinoId(e.target.value)} style={{ padding: 8, marginBottom: 8, width: "100%" }}>
-          <option value="">Elegir sede destino…</option>
-          {sedes.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.nombre}
-            </option>
-          ))}
-        </select>
-
-        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-          <input
-            placeholder="Buscar repuesto por código o descripción"
-            value={buscar}
-            onChange={(e) => setBuscar(e.target.value)}
-            style={{ padding: 8, flex: 1 }}
-          />
-          <button onClick={buscarRepuestos}>Buscar</button>
-        </div>
-
-        {resultados.map((r) => (
-          <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0" }}>
-            <div>
-              {r.descripcion} <span style={{ opacity: 0.6, fontSize: 12 }}>({r.existenciaAqui} en mi sede)</span>
-            </div>
-            <button onClick={() => agregarAlCarrito(r)} disabled={r.existenciaAqui <= 0}>
-              Agregar
-            </button>
-          </div>
-        ))}
-
-        <div style={{ display: "flex", gap: 8, marginTop: 12, marginBottom: 8 }}>
-          <input
-            placeholder="Buscar artículo individual por código, marca o modelo"
-            value={buscarArt}
-            onChange={(e) => setBuscarArt(e.target.value)}
-            style={{ padding: 8, flex: 1 }}
-          />
-          <button onClick={buscarArticulos}>Buscar</button>
-        </div>
-
-        {resultadosArt.map((a) => (
-          <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0" }}>
-            <div>
-              <span style={{ fontFamily: "monospace" }}>{a.codigo}</span>{" "}
-              {[a.marca, a.modelo].filter(Boolean).join(" ") || a.tipo}
-            </div>
-            <button onClick={() => agregarArticuloAlCarrito(a)}>Agregar</button>
-          </div>
-        ))}
-
-        {carrito.length > 0 && (
-          <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 12 }}>
-            <tbody>
-              {carrito.map((l, i) => (
-                <tr key={i}>
-                  <td>{l.descripcion}</td>
-                  <td>
-                    {l.kind === "repuesto" ? (
-                      <input
-                        type="number"
-                        min={1}
-                        value={l.cantidad}
-                        onChange={(e) => cambiarCantidad(l.repuestoId, Number(e.target.value) || 1)}
-                        style={{ width: 60, padding: 4 }}
-                      />
-                    ) : (
-                      1
-                    )}
-                  </td>
-                  <td>
-                    <button onClick={() => quitarDelCarrito(i)}>Quitar</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            ))}
+          </Tarjeta>
         )}
 
-        <input
-          placeholder="Nota (opcional)"
-          value={nota}
-          onChange={(e) => setNota(e.target.value)}
-          style={{ padding: 8, width: "100%", marginTop: 8, marginBottom: 8 }}
-        />
+        <Tarjeta>
+          <h2 style={{ marginBottom: 14 }}>Enviar mercancía a otra sede</h2>
 
-        <button onClick={enviarTraslado} disabled={procesando || !sedeDestinoId || carrito.length === 0}>
-          Enviar traslado
-        </button>
-      </section>
+          <Campo etiqueta="Sede destino">
+            <select value={sedeDestinoId} onChange={(e) => setSedeDestinoId(e.target.value)}>
+              <option value="">Elegir sede destino…</option>
+              {sedes.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nombre}
+                </option>
+              ))}
+            </select>
+          </Campo>
 
-      <section>
-        <h2 style={{ fontSize: 16 }}>Enviados por mi sede</h2>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
-              <th>#</th>
-              <th>Destino</th>
-              <th>Items</th>
-              <th>Estado</th>
-              <th>Enviado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {salientes.map((t) => (
-              <tr key={t.id} style={{ borderBottom: "1px solid #eee" }}>
-                <td>#{t.numero}</td>
-                <td>{nombreSede(t.sede_destino)}</td>
-                <td>{t.items.map((i) => `${i.cantidad} x ${i.descripcion}`).join(", ")}</td>
-                <td>{t.estado}</td>
-                <td>{new Date(t.enviado_en).toLocaleDateString("es-CO")}</td>
-              </tr>
+          <div style={{ marginTop: 16 }}>
+            <form
+              className="fila"
+              style={{ gap: 8, flexWrap: "nowrap" }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                buscarRepuestos();
+              }}
+            >
+              <input
+                placeholder="Buscar repuesto por código o descripción"
+                value={buscar}
+                onChange={(e) => setBuscar(e.target.value)}
+                aria-label="Buscar repuesto"
+              />
+              <Boton type="submit" variante="contorno" icono={<Search size={17} strokeWidth={2} />} />
+            </form>
+
+            {resultados.map((r) => (
+              <div
+                key={r.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  padding: "10px 0",
+                  borderBottom: "1px solid var(--rule)",
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{r.descripcion}</div>
+                  <div className="cifra" style={{ fontSize: 12, color: "var(--ink-3)" }}>
+                    {r.codigo}
+                  </div>
+                </div>
+                <div className="fila" style={{ flexWrap: "nowrap" }}>
+                  <Etiqueta tono={r.existenciaAqui <= 0 ? "neutro" : "ok"}>
+                    <span className="cifra">{r.existenciaAqui <= 0 ? "Agotado" : `${r.existenciaAqui} aquí`}</span>
+                  </Etiqueta>
+                  <Boton
+                    variante="contorno"
+                    tamano="sm"
+                    icono={<Plus size={15} strokeWidth={2.2} />}
+                    onClick={() => agregarAlCarrito(r)}
+                    disabled={r.existenciaAqui <= 0}
+                  >
+                    Agregar
+                  </Boton>
+                </div>
+              </div>
             ))}
-          </tbody>
-        </table>
-        {salientes.length === 0 && <p>Todavía no se ha enviado ningún traslado.</p>}
-      </section>
+          </div>
 
-      {mensaje && <p style={{ color: "#4ade80", marginTop: 16 }}>{mensaje}</p>}
-      {error && <p style={{ color: "#ff8080", marginTop: 16 }}>{error}</p>}
-      {!miSedeId && <p style={{ opacity: 0.6 }}>Cargando sede…</p>}
+          <div style={{ marginTop: 20 }}>
+            <form
+              className="fila"
+              style={{ gap: 8, flexWrap: "nowrap" }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                buscarArticulos();
+              }}
+            >
+              <input
+                placeholder="Buscar artículo individual por código, marca o modelo"
+                value={buscarArt}
+                onChange={(e) => setBuscarArt(e.target.value)}
+                aria-label="Buscar artículo individual"
+              />
+              <Boton type="submit" variante="contorno" icono={<Search size={17} strokeWidth={2} />} />
+            </form>
+
+            {resultadosArt.map((a) => (
+              <div
+                key={a.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  padding: "10px 0",
+                  borderBottom: "1px solid var(--rule)",
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>
+                    {[a.marca, a.modelo].filter(Boolean).join(" ") || a.tipo}
+                  </div>
+                  <div className="cifra" style={{ fontSize: 12, color: "var(--ink-3)" }}>
+                    {a.codigo}
+                  </div>
+                </div>
+                <Boton
+                  variante="contorno"
+                  tamano="sm"
+                  icono={<Plus size={15} strokeWidth={2.2} />}
+                  onClick={() => agregarArticuloAlCarrito(a)}
+                >
+                  Agregar
+                </Boton>
+              </div>
+            ))}
+          </div>
+
+          {carrito.length > 0 && (
+            <div style={{ marginTop: 18, border: "1px solid var(--rule)", borderRadius: "var(--r-md)", overflow: "hidden" }}>
+              {carrito.map((l, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 12px",
+                    borderBottom: i === carrito.length - 1 ? "none" : "1px solid var(--rule)",
+                  }}
+                >
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600 }}>{l.descripcion}</span>
+                  {l.kind === "repuesto" ? (
+                    <input
+                      type="number"
+                      min={1}
+                      value={l.cantidad}
+                      onChange={(e) => cambiarCantidad(l.repuestoId, Number(e.target.value) || 1)}
+                      aria-label={`Cantidad de ${l.descripcion}`}
+                      className="cifra"
+                      style={{ width: 74, height: "var(--alto-sm)", textAlign: "center", flexShrink: 0 }}
+                    />
+                  ) : (
+                    <Etiqueta tono="neutro">1 unidad</Etiqueta>
+                  )}
+                  <Boton
+                    variante="peligro"
+                    tamano="sm"
+                    icono={<Trash2 size={15} strokeWidth={2} />}
+                    onClick={() => quitarDelCarrito(i)}
+                    aria-label={`Quitar ${l.descripcion}`}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ marginTop: 16 }}>
+            <Campo etiqueta="Nota" ayuda="Opcional. Sale impresa en el comprobante del traslado.">
+              <input placeholder="Nota (opcional)" value={nota} onChange={(e) => setNota(e.target.value)} />
+            </Campo>
+          </div>
+
+          <div style={{ marginTop: 16 }}>
+            <Boton
+              variante="primario"
+              tamano="lg"
+              icono={<Send size={19} strokeWidth={2} />}
+              onClick={enviarTraslado}
+              disabled={procesando || !sedeDestinoId || carrito.length === 0}
+            >
+              {procesando ? "Enviando…" : "Enviar traslado"}
+            </Boton>
+          </div>
+        </Tarjeta>
+
+        <section>
+          <h2 style={{ marginBottom: 12 }}>Enviados por mi sede</h2>
+          {salientes.length === 0 ? (
+            <Tarjeta style={{ borderStyle: "dashed", textAlign: "center", color: "var(--ink-3)", fontSize: 13 }}>
+              Todavía no se ha enviado ningún traslado.
+            </Tarjeta>
+          ) : (
+            <TarjetaTabla>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Traslado</th>
+                    <th>Destino</th>
+                    <th>Items</th>
+                    <th>Estado</th>
+                    <th>Enviado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {salientes.map((t) => (
+                    <tr key={t.id}>
+                      <td className="cifra" style={{ fontWeight: 800 }}>
+                        #{t.numero}
+                      </td>
+                      <td>{nombreSede(t.sede_destino)}</td>
+                      <td style={{ color: "var(--ink-2)" }}>
+                        {t.items.map((i) => `${i.cantidad} x ${i.descripcion}`).join(", ")}
+                      </td>
+                      <td>
+                        <Etiqueta tono={t.estado === "recibido" ? "ok" : "aviso"} punto>
+                          <span style={{ textTransform: "capitalize" }}>{t.estado}</span>
+                        </Etiqueta>
+                      </td>
+                      <td className="cifra" style={{ whiteSpace: "nowrap", color: "var(--ink-2)" }}>
+                        {new Date(t.enviado_en).toLocaleDateString("es-CO")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TarjetaTabla>
+          )}
+        </section>
+
+        {mensaje && (
+          <Aviso tono="ok" icono={<Check size={17} strokeWidth={2.4} />}>
+            {mensaje}
+          </Aviso>
+        )}
+        {error && <Aviso tono="peligro">{error}</Aviso>}
+        {!miSedeId && <p style={{ fontSize: 13, color: "var(--ink-3)" }}>Cargando sede…</p>}
+      </div>
     </div>
   );
 }

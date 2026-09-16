@@ -11,8 +11,11 @@ import {
   etiquetaArticuloZpl,
   etiquetaQrTicket,
   etiquetaQrZpl,
+  etiquetaRepuestoTicket,
+  etiquetaRepuestoZpl,
   type DatosEtiquetaArticulo,
   type DatosEtiquetaQr,
+  type DatosEtiquetaRepuesto,
 } from "./etiqueta";
 import { reciboVenta, type CargaReciboVenta } from "./plantillas/recibo";
 import { comprobanteRecepcion, type CargaComprobanteRecepcion } from "./plantillas/comprobante";
@@ -28,18 +31,24 @@ export interface TrabajoPendiente {
     | "cierre_caja"
     | "abrir_cajon"
     | "comprobante_traslado"
-    | "etiqueta_articulo";
+    | "etiqueta_articulo"
+    | "etiqueta_repuesto";
   carga: unknown;
 }
 
 /**
  * Traduce un trabajo pendiente a lo que hay que enviarle a cuál impresora.
  *
- * `hayEtiquetadora` sale de config.json, no de un flag en el código: sin
- * una impresora `etiquetas` configurada -- que es el caso de todas las
- * sedes hoy -- las etiquetas se imprimen en ESC/POS por la impresora de
- * tickets. Con una etiquetadora conectada vuelven a salir en ZPL por la
- * suya, sin tocar nada más.
+ * `hayEtiquetadora` sale de la configuración de impresoras de la sede
+ * (la de la web, o el config.json local), no de un flag en el código:
+ * sin una impresora `etiquetas` configurada -- que es el caso de todas
+ * las sedes hoy -- las etiquetas se imprimen en ESC/POS por la
+ * impresora de tickets. Con una etiquetadora conectada salen en ZPL por
+ * la suya, sin tocar nada más.
+ *
+ * Mandar ZPL a una impresora de recibos no falla con un error: saca
+ * papel con basura, o no saca nada. Por eso la decisión vive aquí y no
+ * en quien encola el trabajo.
  */
 export function resolverImpresion(
   trabajo: TrabajoPendiente,
@@ -79,6 +88,13 @@ export function resolverImpresion(
       return hayEtiquetadora
         ? { destino: "etiquetas", contenido: etiquetaArticuloZpl(carga) }
         : { destino: "tickets", contenido: etiquetaArticuloTicket(carga) };
+    }
+
+    case "etiqueta_repuesto": {
+      const carga = trabajo.carga as DatosEtiquetaRepuesto;
+      return hayEtiquetadora
+        ? { destino: "etiquetas", contenido: etiquetaRepuestoZpl(carga) }
+        : { destino: "tickets", contenido: etiquetaRepuestoTicket(carga) };
     }
   }
 }

@@ -3,7 +3,7 @@
  * Body: { sedeDestinoId: string, items: {repuestoId?, articuloId?, descripcion, cantidad}[], nota?: string }
  *
  * Un traslado sale de la sede del usuario hacia sedeDestinoId. Un item
- * de repuesto descuenta cantidad de inmediato (consumir_repuesto, igual
+ * de repuesto descuenta cantidad de inmediato (mover_existencia, igual
  * que una venta de mostrador); un item de artículo individualizado
  * pasa esa unidad a 'trasladado' -- en tránsito, ya no vendible ni
  * volvible a trasladar hasta que alguien la reciba. Ninguno de los dos
@@ -70,13 +70,17 @@ export async function POST(req: NextRequest) {
 
   // Descontar en origen ANTES de crear la fila: si algún repuesto no
   // alcanza, o algún artículo ya no está disponible, el traslado no
-  // debe quedar registrado a medias.
+  // debe quedar registrado a medias. Por eso el movimiento de
+  // artículo (a diferencia del de mover_existencia, que audita desde
+  // dentro de la función) no puede llevar referencia_id al traslado
+  // todavía -- ese id nace después, en el insert de más abajo.
   for (const item of body.items) {
     if (item.repuestoId) {
-      const { error: errConsumo } = await supabase.rpc("consumir_repuesto", {
+      const { error: errConsumo } = await supabase.rpc("mover_existencia", {
         p_repuesto_id: item.repuestoId,
         p_sede_id: perfil.sede_id,
-        p_cantidad: item.cantidad,
+        p_delta: -item.cantidad,
+        p_tipo: "traslado_envio",
       });
       if (errConsumo) {
         return NextResponse.json(
@@ -99,6 +103,15 @@ export async function POST(req: NextRequest) {
           { status: 409 },
         );
       }
+      await supabase.from("movimiento_inventario").insert({
+        empresa_id: perfil.empresa_id,
+        sede_id: perfil.sede_id,
+        articulo_id: item.articuloId,
+        tipo: "traslado_envio",
+        estado_anterior: "en_stock",
+        estado_nuevo: "trasladado",
+        autor_id: user.id,
+      });
     }
   }
 

@@ -10,6 +10,12 @@
  * la aplicación, no solo aquí.
  */
 import { useEffect, useState } from "react";
+import { Building2, Plus, Check } from "lucide-react";
+import { Boton } from "@/componentes/ui/boton";
+import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
+import { Etiqueta } from "@/componentes/ui/etiqueta";
+import { Campo, Aviso } from "@/componentes/ui/campo";
+import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
 interface Empresa {
   id: string;
@@ -104,98 +110,145 @@ export default function PaginaSuperadminEmpresas() {
     }
   }
 
-  if (cargando) return <p>Cargando…</p>;
+  if (cargando) {
+    return <Tarjeta style={{ textAlign: "center", color: "var(--ink-3)" }}>Cargando…</Tarjeta>;
+  }
 
   return (
     <div>
-      <h1>Empresas</h1>
+      <TituloPantalla
+        icono={<Building2 size={24} strokeWidth={2} />}
+        titulo="Empresas"
+        descripcion="Suspender es inmediato y reversible: la empresa deja de ver sus datos en toda la aplicación."
+      />
 
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 32 }}>
-        <thead>
-          <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
-            <th>Nombre</th>
-            <th>NIT</th>
-            <th>Usuarios</th>
-            <th>Sedes</th>
-            <th>Estado</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {empresas.map((e) => (
-            <tr key={e.id} style={{ borderBottom: "1px solid #eee" }}>
-              <td>{e.nombre}</td>
-              <td>{e.nit ?? "—"}</td>
-              <td>{e.usuarios}</td>
-              <td>{e.sedes}</td>
-              <td style={{ color: e.activa ? "#2e7d32" : "#c0392b", fontWeight: 700 }}>
-                {e.activa ? "Activa" : "Suspendida"}
-              </td>
-              <td>
-                <button onClick={() => alternarActiva(e)} disabled={procesando === e.id}>
-                  {e.activa ? "Suspender" : "Reactivar"}
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {empresas.length === 0 && <p style={{ opacity: 0.6 }}>Todavía no hay empresas.</p>}
+      <div className="pila">
+        {empresas.length === 0 ? (
+          <Tarjeta style={{ borderStyle: "dashed", textAlign: "center", color: "var(--ink-3)", fontSize: 13 }}>
+            Todavía no hay empresas.
+          </Tarjeta>
+        ) : (
+          <TarjetaTabla>
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>NIT</th>
+                  <th>Usuarios</th>
+                  <th>Sedes</th>
+                  <th>Estado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {empresas.map((e) => (
+                  <tr key={e.id}>
+                    <td style={{ fontWeight: 700 }}>{e.nombre}</td>
+                    <td className="cifra" style={{ color: "var(--ink-2)" }}>
+                      {e.nit ?? "—"}
+                    </td>
+                    <td className="cifra">{e.usuarios}</td>
+                    <td className="cifra">{e.sedes}</td>
+                    <td>
+                      <Etiqueta tono={e.activa ? "ok" : "peligro"} punto>
+                        {e.activa ? "Activa" : "Suspendida"}
+                      </Etiqueta>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <Boton
+                        variante={e.activa ? "peligro" : "primario"}
+                        tamano="sm"
+                        onClick={() => alternarActiva(e)}
+                        disabled={procesando === e.id}
+                      >
+                        {e.activa ? "Suspender" : "Reactivar"}
+                      </Boton>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TarjetaTabla>
+        )}
 
-      <h2 style={{ fontSize: 16 }}>Crear empresa nueva</h2>
-      <form onSubmit={crearEmpresa} style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 420 }}>
-        <input
-          placeholder="Nombre de la empresa"
-          value={nombreEmpresa}
-          onChange={(e) => setNombreEmpresa(e.target.value)}
-          style={{ padding: 8 }}
-        />
-        <input placeholder="NIT (opcional)" value={nit} onChange={(e) => setNit(e.target.value)} style={{ padding: 8 }} />
-        <input
-          placeholder="Nombre de la primera sede"
-          value={nombreSede}
-          onChange={(e) => setNombreSede(e.target.value)}
-          style={{ padding: 8 }}
-        />
-        <hr style={{ border: "none", borderTop: "1px solid #223038", margin: "8px 0" }} />
-        <p style={{ fontSize: 13, opacity: 0.6, margin: 0 }}>Primer usuario administrador de la empresa:</p>
-        <input
-          placeholder="Nombre del admin"
-          value={adminNombre}
-          onChange={(e) => setAdminNombre(e.target.value)}
-          style={{ padding: 8 }}
-        />
-        <input
-          type="email"
-          placeholder="Correo del admin"
-          value={adminCorreo}
-          onChange={(e) => setAdminCorreo(e.target.value)}
-          style={{ padding: 8 }}
-        />
-        <input
-          type="password"
-          placeholder="Contraseña inicial (mín. 8 caracteres)"
-          value={adminClave}
-          onChange={(e) => setAdminClave(e.target.value)}
-          style={{ padding: 8 }}
-        />
-        <button
-          type="submit"
-          disabled={
-            creando ||
-            !nombreEmpresa.trim() ||
-            !nombreSede.trim() ||
-            !adminNombre.trim() ||
-            !adminCorreo.trim() ||
-            adminClave.length < 8
-          }
-        >
-          {creando ? "Creando…" : "Crear empresa"}
-        </button>
-      </form>
+        <Tarjeta>
+          <h2 style={{ marginBottom: 14 }}>Crear empresa nueva</h2>
+          <form onSubmit={crearEmpresa} className="pila" style={{ gap: 12, maxWidth: 480 }}>
+            <Campo etiqueta="Nombre de la empresa">
+              <input
+                placeholder="Ej. Team Polaco Scooter"
+                value={nombreEmpresa}
+                onChange={(e) => setNombreEmpresa(e.target.value)}
+              />
+            </Campo>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+              <Campo etiqueta="NIT" ayuda="Opcional.">
+                <input placeholder="Opcional" value={nit} onChange={(e) => setNit(e.target.value)} className="cifra" />
+              </Campo>
+              <Campo etiqueta="Primera sede">
+                <input placeholder="Ej. Principal" value={nombreSede} onChange={(e) => setNombreSede(e.target.value)} />
+              </Campo>
+            </div>
 
-      {mensaje && <p style={{ color: "#4ade80", marginTop: 12 }}>{mensaje}</p>}
-      {error && <p style={{ color: "#ff8080", marginTop: 12 }}>{error}</p>}
+            <div style={{ height: 1, background: "var(--rule)", margin: "4px 0" }} />
+            <div className="campo-etiqueta" style={{ margin: 0 }}>
+              Primer usuario administrador de la empresa
+            </div>
+
+            <Campo etiqueta="Nombre del admin">
+              <input placeholder="Nombre y apellido" value={adminNombre} onChange={(e) => setAdminNombre(e.target.value)} />
+            </Campo>
+            <Campo etiqueta="Correo del admin">
+              <input
+                type="email"
+                placeholder="admin@empresa.com"
+                value={adminCorreo}
+                onChange={(e) => setAdminCorreo(e.target.value)}
+                autoComplete="off"
+              />
+            </Campo>
+            <Campo
+              etiqueta="Contraseña inicial"
+              ayuda="Mínimo 8 caracteres. Quien la reciba debería cambiarla al entrar."
+              error={adminClave.length > 0 && adminClave.length < 8 ? "Faltan caracteres." : null}
+            >
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={adminClave}
+                onChange={(e) => setAdminClave(e.target.value)}
+                autoComplete="new-password"
+              />
+            </Campo>
+
+            <div>
+              <Boton
+                type="submit"
+                variante="primario"
+                tamano="lg"
+                icono={<Plus size={19} strokeWidth={2.2} />}
+                disabled={
+                  creando ||
+                  !nombreEmpresa.trim() ||
+                  !nombreSede.trim() ||
+                  !adminNombre.trim() ||
+                  !adminCorreo.trim() ||
+                  adminClave.length < 8
+                }
+              >
+                {creando ? "Creando…" : "Crear empresa"}
+              </Boton>
+            </div>
+          </form>
+        </Tarjeta>
+
+        {mensaje && (
+          <Aviso tono="ok" icono={<Check size={17} strokeWidth={2.4} />}>
+            {mensaje}
+          </Aviso>
+        )}
+        {error && <Aviso tono="peligro">{error}</Aviso>}
+      </div>
     </div>
   );
 }

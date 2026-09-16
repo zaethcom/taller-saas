@@ -11,17 +11,23 @@ import {
   ClipboardList,
   PackagePlus,
   Package,
+  Tag,
   Tags,
+  Building2,
   ArrowLeftRight,
   ShoppingBag,
   Users,
+  Contact,
   CreditCard,
   Settings,
   BarChart3,
+  Wrench,
+  HardHat,
 } from "lucide-react";
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
-import { SelectorPuertas } from "@/componentes/ui/selector-puertas";
+import { BarraSuperior } from "@/componentes/ui/barra-superior";
 import { BarraLateral, type ItemNavLateral } from "@/componentes/ui/barra-lateral";
+import { BloqueMarca } from "@/componentes/ui/bloque-marca";
 import { puede, puedeEntrarA } from "@/lib/permisos";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { obtenerConfiguracion } from "@/lib/configuracion";
@@ -36,7 +42,7 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
     return (
       <main style={{ padding: 40 }}>
         <p>Tu rol ({perfil.rol}) no tiene acceso a esta sección.</p>
-        <CerrarSesion />
+        <CerrarSesion oscuro={false} />
       </main>
     );
   }
@@ -47,15 +53,22 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
     { href: "/ordenes", etiqueta: "Órdenes", icono: <ClipboardList size={18} strokeWidth={2} /> },
     { href: "/recepcion-mercancia", etiqueta: "Recibir mercancía", icono: <PackagePlus size={18} strokeWidth={2} /> },
     { href: "/inventario", etiqueta: "Inventario", icono: <Package size={18} strokeWidth={2} /> },
+    { href: "/equipos", etiqueta: "Equipos", icono: <Tag size={18} strokeWidth={2} /> },
     { href: "/categorias", etiqueta: "Categorías", icono: <Tags size={18} strokeWidth={2} /> },
+    { href: "/servicios", etiqueta: "Servicios", icono: <Wrench size={18} strokeWidth={2} /> },
+    { href: "/mano-obra", etiqueta: "Mano de obra", icono: <HardHat size={18} strokeWidth={2} /> },
+    ...(puede(perfil.rol, "gestionar_sedes")
+      ? [{ href: "/sedes", etiqueta: "Sedes", icono: <Building2 size={18} strokeWidth={2} /> }]
+      : []),
     { href: "/traslados", etiqueta: "Traslados", icono: <ArrowLeftRight size={18} strokeWidth={2} /> },
     { href: "/compras", etiqueta: "Compras", icono: <ShoppingBag size={18} strokeWidth={2} /> },
     { href: "/usuarios", etiqueta: "Usuarios", icono: <Users size={18} strokeWidth={2} /> },
     { href: "/metodos-pago", etiqueta: "Métodos de pago", icono: <CreditCard size={18} strokeWidth={2} /> },
+    { href: "/clientes", etiqueta: "Clientes (CRM)", icono: <Contact size={18} strokeWidth={2} /> },
+    { href: "/reportes", etiqueta: "Reportes", icono: <BarChart3 size={18} strokeWidth={2} /> },
     ...(puede(perfil.rol, "personalizar_empresa")
       ? [{ href: "/configuracion", etiqueta: "Configuración", icono: <Settings size={18} strokeWidth={2} /> }]
       : []),
-    { href: "/reportes", etiqueta: "Reportes", icono: <BarChart3 size={18} strokeWidth={2} /> },
   ];
 
   return (
@@ -64,25 +77,12 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
         items={items}
         logoUrl={config.logoUrl}
         nombreEmpresa={perfil.empresaNombre}
-        colorPrincipal={config.colorPrincipal}
         etiquetaPuerta="Admin"
+        pie={<BloqueMarca imagenUrl={config.imagenMarcaUrl} eslogan={config.eslogan} />}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <header
-          style={{
-            padding: "14px 20px",
-            borderBottom: "1px solid #ddd",
-            display: "flex",
-            justifyContent: "flex-end",
-            alignItems: "center",
-            gap: 16,
-          }}
-        >
-          <SelectorPuertas rol={perfil.rol} actual="admin" />
-          <span style={{ opacity: 0.7, fontSize: 14 }}>{perfil.nombre}</span>
-          <CerrarSesion />
-        </header>
-        <div style={{ padding: 20, maxWidth: 960, margin: "0 auto" }}>{children}</div>
+        <BarraSuperior nombre={perfil.nombre} rol={perfil.rol} puerta="admin" />
+        <main style={{ padding: 20, maxWidth: 1180, margin: "0 auto" }}>{children}</main>
       </div>
     </div>
   );

@@ -20,3 +20,4 @@ puente/app/build/
 puente/local.properties
 puente/.idea/
 *.apk
+tsconfig.tsbuildinfo

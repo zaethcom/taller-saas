@@ -1,9 +1,8 @@
 /**
  * El programa que corre en el Android (o PC) de cada sede. Consulta la
- * cola de trabajos pendientes cada dos segundos, los traduce a bytes
- * ESC/POS -- o a ZPL, si la sede tiene una etiquetadora aparte, ver
- * ruteo.ts --, los manda a la impresora que corresponda por red y
- * reporta el resultado.
+ * cola de trabajos pendientes cada dos segundos, los traduce a bytes o
+ * ZPL según el tipo, los manda a la impresora correspondiente por red,
+ * y reporta el resultado.
  *
  * No consulta la base de datos directamente ni calcula nada de negocio:
  * solo habla con las dos rutas de la API descritas en el plano de
@@ -22,11 +21,47 @@ interface Config {
   apiBase: string;
   servicioClave: string;
   intervaloMs: number;
-  impresoras: ConfigImpresoras;
+  // Respaldo local: se usa solo si GET /api/estacion/impresoras no
+  // responde (la sede todavía no tiene nada configurado desde la web,
+  // o no hay red hacia el servidor en este arranque en particular).
+  impresoras?: ConfigImpresoras;
 }
 
 function cargarConfig(ruta: string): Config {
   return JSON.parse(readFileSync(ruta, "utf-8"));
+}
+
+/**
+ * A qué host/puerto/protocolo mandar tickets y etiquetas -- se pide una
+ * vez al arrancar a la API (editable desde /sedes en la web), y si la
+ * sede no tiene nada configurado ahí todavía, o no hay red en este
+ * momento, se cae al `impresoras` de config.json. Si ninguno de los dos
+ * existe, no hay a dónde imprimir y el arranque falla con un mensaje
+ * claro en vez de un error críptico más adelante.
+ */
+async function obtenerImpresoras(config: Config): Promise<ConfigImpresoras> {
+  try {
+    const res = await fetch(
+      `${config.apiBase}/api/estacion/impresoras?sede=${config.sedeId}`,
+      { headers: { Authorization: `Bearer ${config.servicioClave}` } },
+    );
+    if (res.ok) {
+      console.log("[estacion] impresoras: usando la configuración de la web");
+      return res.json();
+    }
+  } catch (err) {
+    const mensaje = err instanceof Error ? err.message : String(err);
+    console.error(`[estacion] no se pudo pedir la configuración de impresoras a la web: ${mensaje}`);
+  }
+
+  if (config.impresoras) {
+    console.log("[estacion] impresoras: usando el respaldo local de config.json");
+    return config.impresoras;
+  }
+
+  throw new Error(
+    "no hay impresoras configuradas: ni la web (GET /api/estacion/impresoras) ni config.json tienen nada",
+  );
 }
 
 async function obtenerPendientes(config: Config): Promise<TrabajoPendiente[]> {
@@ -58,13 +93,11 @@ async function reportarResultado(
 async function procesarUnTrabajo(
   config: Config,
   destinos: ReturnType<typeof crearDestinos>,
+  hayEtiquetadora: boolean,
   trabajo: TrabajoPendiente,
 ): Promise<void> {
   try {
-    const { destino, contenido } = resolverImpresion(
-      trabajo,
-      Boolean(config.impresoras.etiquetas),
-    );
+    const { destino, contenido } = resolverImpresion(trabajo, hayEtiquetadora);
     await destinos[destino].enviar(contenido);
     await reportarResultado(config, trabajo.id, { ok: true });
     console.log(`[estacion] impreso ${trabajo.tipo} (${trabajo.id})`);
@@ -79,14 +112,24 @@ async function procesarUnTrabajo(
 }
 
 async function cicloPrincipal(config: Config): Promise<void> {
-  const destinos = crearDestinos(config.impresoras);
+  const impresoras = await obtenerImpresoras(config);
+  const destinos = crearDestinos(impresoras);
+
+  // Sin impresora de etiquetas configurada, las etiquetas salen por la
+  // de tickets en ESC/POS -- ver resolverImpresion en ruteo.ts.
+  const hayEtiquetadora = Boolean(impresoras.etiquetas);
+  console.log(
+    hayEtiquetadora
+      ? "[estacion] etiquetas: impresora propia, en ZPL"
+      : "[estacion] etiquetas: sin etiquetadora, salen por la de tickets",
+  );
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       const pendientes = await obtenerPendientes(config);
       for (const trabajo of pendientes) {
-        await procesarUnTrabajo(config, destinos, trabajo);
+        await procesarUnTrabajo(config, destinos, hayEtiquetadora, trabajo);
       }
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : String(err);

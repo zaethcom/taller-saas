@@ -14,8 +14,14 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { Camera, Video, PenLine, Check, Eye } from "lucide-react";
 import { clienteNavegador } from "@/lib/supabase/cliente";
 import { subirEvidencia } from "@/lib/subir-evidencia";
+import { Boton } from "@/componentes/ui/boton";
+import { Tarjeta } from "@/componentes/ui/tarjeta";
+import { Etiqueta } from "@/componentes/ui/etiqueta";
+import { Campo, Aviso } from "@/componentes/ui/campo";
+import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
 type Fase = "entrada" | "salida" | "";
 
@@ -29,9 +35,17 @@ interface Evidencia {
 
 const LIMITE_BYTES = 50 * 1024 * 1024;
 
+/** Cada tipo con su ícono, para leer la lista de un vistazo. */
+function IconoTipo({ tipo }: { tipo: Evidencia["tipo"] }) {
+  if (tipo === "video") return <Video size={17} strokeWidth={2} aria-label="Video" />;
+  if (tipo === "firma") return <PenLine size={17} strokeWidth={2} aria-label="Firma" />;
+  return <Camera size={17} strokeWidth={2} aria-label="Foto" />;
+}
+
 export default function PaginaEvidencia() {
   const { id } = useParams<{ id: string }>();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputFotoRef = useRef<HTMLInputElement>(null);
+  const inputVideoRef = useRef<HTMLInputElement>(null);
 
   const [empresaId, setEmpresaId] = useState<string | null>(null);
   const [evidencias, setEvidencias] = useState<Evidencia[]>([]);
@@ -71,7 +85,7 @@ export default function PaginaEvidencia() {
         `El archivo pesa ${(archivo.size / 1024 / 1024).toFixed(1)}MB. El límite es 50MB -- ` +
           `graba un video más corto o toma la foto de nuevo.`,
       );
-      if (inputRef.current) inputRef.current.value = "";
+      e.target.value = "";
       return;
     }
 
@@ -95,76 +109,131 @@ export default function PaginaEvidencia() {
       setError(err instanceof Error ? err.message : "No se pudo subir el archivo");
     } finally {
       setSubiendo(false);
-      if (inputRef.current) inputRef.current.value = "";
+      e.target.value = "";
     }
   }
 
   return (
     <div>
-      <h1>Evidencia</h1>
+      <TituloPantalla
+        icono={<Camera size={24} strokeWidth={2} />}
+        titulo="Evidencia"
+        descripcion="Foto o video del equipo, en cualquier momento de la reparación."
+      />
 
-      <section style={{ marginBottom: 20 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
-          <label>
-            Fase:{" "}
-            <select value={fase} onChange={(e) => setFase(e.target.value as Fase)} style={{ padding: 6 }}>
-              <option value="">General (no mueve el estado)</option>
-              <option value="entrada">Entrada</option>
-              <option value="salida">Salida</option>
-            </select>
-          </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <input
-              type="checkbox"
-              checked={visibleCliente}
-              onChange={(e) => setVisibleCliente(e.target.checked)}
-            />
-            Visible para el cliente en /seguimiento
-          </label>
-        </div>
+      <div className="pila">
+        <Tarjeta>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+            <Campo etiqueta="Fase">
+              <select value={fase} onChange={(e) => setFase(e.target.value as Fase)}>
+                <option value="">General (no mueve el estado)</option>
+                <option value="entrada">Entrada</option>
+                <option value="salida">Salida</option>
+              </select>
+            </Campo>
+            <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 12 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={visibleCliente}
+                  onChange={(e) => setVisibleCliente(e.target.checked)}
+                  style={{ width: 20, height: 20, padding: 0, accentColor: "var(--accent)" }}
+                />
+                <Eye size={16} strokeWidth={2} color="var(--ink-2)" aria-hidden />
+                Visible para el cliente
+              </label>
+            </div>
+          </div>
 
-        <p style={{ opacity: 0.6, fontSize: 13, marginBottom: 10 }}>
-          Foto o video, hasta 50MB. Un video pesa mucho más que una foto en una red mala del
-          taller -- prefiere clips cortos (10-15 segundos alcanzan para mostrar el problema).
-        </p>
+          <p className="campo-ayuda" style={{ marginBottom: 12 }}>
+            Foto o video, hasta 50MB. Un video pesa mucho más que una foto en una red mala del taller --
+            prefiere clips cortos (10-15 segundos alcanzan para mostrar el problema).
+          </p>
 
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*,video/*"
-          capture="environment"
-          onChange={subirArchivo}
-          disabled={subiendo || !empresaId}
-        />
-        {subiendo && <p>Subiendo…</p>}
-        {mensaje && <p style={{ color: "#4ade80" }}>{mensaje}</p>}
-        {error && <p style={{ color: "#ff8080" }}>{error}</p>}
-      </section>
-
-      <section>
-        <h2 style={{ fontSize: 16 }}>Ya subido</h2>
-        {evidencias.length === 0 && <p style={{ opacity: 0.6 }}>Todavía no hay evidencia.</p>}
-        <ul style={{ listStyle: "none", padding: 0 }}>
-          {evidencias.map((ev) => (
-            <li
-              key={ev.id}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                padding: "8px 0",
-                borderBottom: "1px solid #223038",
-                fontSize: 14,
-              }}
+          {/* Dos botones en vez de un solo selector de archivo genérico:
+              con accept="image/*" o accept="video/*" por separado, el
+              celular abre la cámara directo en el modo correcto (foto o
+              video) en vez de una lista donde "grabar video" no siempre
+              es obvio -- Android, sobre todo, la esconde distinto según
+              el fabricante cuando el accept mezcla ambos tipos. */}
+          <div className="fila" style={{ gap: 10 }}>
+            <Boton
+              variante="primario"
+              icono={<Camera size={17} strokeWidth={2.2} />}
+              disabled={subiendo || !empresaId}
+              onClick={() => inputFotoRef.current?.click()}
             >
-              <span>
-                {ev.tipo === "video" ? "🎥" : ev.tipo === "firma" ? "✍️" : "📷"}{" "}
-                {ev.fase ? `· ${ev.fase}` : ""} {ev.visible_cliente ? "· visible al cliente" : ""}
-              </span>
-              <span style={{ opacity: 0.6 }}>{new Date(ev.tomada_en).toLocaleString("es-CO")}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+              Tomar foto
+            </Boton>
+            <Boton
+              variante="contorno"
+              icono={<Video size={17} strokeWidth={2.2} />}
+              disabled={subiendo || !empresaId}
+              onClick={() => inputVideoRef.current?.click()}
+            >
+              Grabar video
+            </Boton>
+          </div>
+          <input
+            ref={inputFotoRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={subirArchivo}
+            hidden
+            aria-label="Tomar foto de evidencia"
+          />
+          <input
+            ref={inputVideoRef}
+            type="file"
+            accept="video/*"
+            capture="environment"
+            onChange={subirArchivo}
+            hidden
+            aria-label="Grabar video de evidencia"
+          />
+          {subiendo && <p style={{ marginTop: 10, fontSize: 13, color: "var(--ink-2)" }}>Subiendo…</p>}
+        </Tarjeta>
+
+        {mensaje && (
+          <Aviso tono="ok" icono={<Check size={17} strokeWidth={2.4} />}>
+            {mensaje}
+          </Aviso>
+        )}
+        {error && <Aviso tono="peligro">{error}</Aviso>}
+
+        <Tarjeta>
+          <h2 style={{ marginBottom: evidencias.length ? 4 : 10 }}>Ya subido</h2>
+          {evidencias.length === 0 ? (
+            <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>Todavía no hay evidencia.</p>
+          ) : (
+            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+              {evidencias.map((ev) => (
+                <li
+                  key={ev.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "11px 0",
+                    borderBottom: "1px solid var(--rule)",
+                    fontSize: 14,
+                  }}
+                >
+                  <span style={{ display: "flex", color: "var(--ink-2)" }}>
+                    <IconoTipo tipo={ev.tipo} />
+                  </span>
+                  {ev.fase && <Etiqueta tono="info">{ev.fase}</Etiqueta>}
+                  {ev.visible_cliente && <Etiqueta tono="ok">Visible al cliente</Etiqueta>}
+                  <span className="cifra" style={{ marginLeft: "auto", fontSize: 12, color: "var(--ink-3)" }}>
+                    {new Date(ev.tomada_en).toLocaleString("es-CO")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Tarjeta>
+      </div>
     </div>
   );
 }
