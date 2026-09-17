@@ -2,16 +2,7 @@ import { describe, expect, it } from "vitest";
 import { etiquetaArticuloPplb, etiquetaQrPplb, etiquetaRepuestoPplb } from "./etiqueta";
 
 describe("etiquetaQrPplb", () => {
-  const base = {
-    nombreEmpresa: "Polaco Scooter",
-    codigoEntrada: "PS000045",
-    serial: "RL-000123",
-    tipo: "patineta",
-    marca: "Xiaomi",
-    modelo: "Pro 2",
-    numeroOrden: 45,
-    contenidoQr: "https://taller.example.com/s/RL-000123",
-  };
+  const base = { codigoEntrada: "PS000045" };
 
   it("empieza con N (limpiar buffer) y termina con P1 (imprimir una copia)", () => {
     const pplb = etiquetaQrPplb(base);
@@ -19,45 +10,20 @@ describe("etiquetaQrPplb", () => {
     expect(pplb.trimEnd().endsWith("P1")).toBe(true);
   });
 
-  it("muestra el nombre de la empresa en un campo de texto", () => {
+  it("dibuja un QR real con el código de entrada, escala 2 (confirmado que entra en la etiqueta real)", () => {
     const pplb = etiquetaQrPplb(base);
-    expect(pplb).toContain(`"${base.nombreEmpresa}"`);
+    expect(pplb).toMatch(/^b\d+,\d+,Q,s2,"PS000045"$/m);
   });
 
-  it("muestra el código de entrada en su propio campo", () => {
+  it("repite el código de entrada en texto grande como respaldo del QR", () => {
     const pplb = etiquetaQrPplb(base);
-    expect(pplb).toContain(`"${base.codigoEntrada}"`);
+    expect(pplb).toMatch(/^A\d+,\d+,2,3,1,1,N,"PS000045"$/m);
   });
 
-  it("muestra el serial en su propio campo de texto", () => {
-    const pplb = etiquetaQrPplb(base);
-    expect(pplb).toContain(`"${base.serial}"`);
-  });
-
-  it("junta marca y modelo cuando ambos existen", () => {
-    const pplb = etiquetaQrPplb(base);
-    expect(pplb).toContain('"Xiaomi Pro 2"');
-  });
-
-  it("cae al tipo de producto si no hay marca ni modelo", () => {
-    const pplb = etiquetaQrPplb({ ...base, marca: null, modelo: null });
-    expect(pplb).toContain('"patineta"');
-  });
-
-  it("muestra solo la marca si no hay modelo", () => {
-    const pplb = etiquetaQrPplb({ ...base, modelo: null });
-    expect(pplb).toContain('"Xiaomi"');
-  });
-
-  it("incluye el número de orden para poder rastrear una etiqueta despegada", () => {
-    const pplb = etiquetaQrPplb(base);
-    expect(pplb).toContain('"Orden #45"');
-  });
-
-  it('escapa comillas dobles en los datos para no romper el campo "..."', () => {
-    const pplb = etiquetaQrPplb({ ...base, serial: 'RL"000123' });
-    expect(pplb).not.toContain('"RL"000123"');
-    expect(pplb).toContain("RL'000123");
+  it('escapa comillas dobles en el código para no romper el campo "..."', () => {
+    const pplb = etiquetaQrPplb({ codigoEntrada: 'PS"000045' });
+    expect(pplb).not.toContain('"PS"000045"');
+    expect(pplb).toContain("PS'000045");
   });
 });
 
@@ -90,9 +56,9 @@ describe("etiquetaArticuloPplb", () => {
     expect(pplb).toContain('"patineta"');
   });
 
-  it("dibuja un código de barras 1D con el código del artículo", () => {
+  it("dibuja un código de barras 1D con el código del artículo, rotado 180° (confirmado en hardware real)", () => {
     const pplb = etiquetaArticuloPplb(base);
-    expect(pplb).toMatch(/^B\d+,\d+,0,2,3,7,60,N,"ART-000123"$/m);
+    expect(pplb).toMatch(/^B\d+,\d+,2,2,3,7,60,N,"ART-000123"$/m);
   });
 });
 
@@ -110,9 +76,9 @@ describe("etiquetaRepuestoPplb", () => {
     expect(pplb.trimEnd().endsWith("P3")).toBe(true);
   });
 
-  it("dibuja un código de barras 1D con el código del repuesto", () => {
+  it("dibuja un código de barras 1D con el código del repuesto, rotado 180° (confirmado en hardware real)", () => {
     const pplb = etiquetaRepuestoPplb(base);
-    expect(pplb).toMatch(/^B\d+,\d+,0,2,3,7,80,N,"F-1023"$/m);
+    expect(pplb).toMatch(/^B\d+,\d+,2,2,3,7,80,N,"F-1023"$/m);
   });
 
   it("muestra el nombre de la empresa y la descripción del repuesto", () => {

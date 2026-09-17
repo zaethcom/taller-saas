@@ -15,7 +15,7 @@
  */
 import { readFileSync } from "node:fs";
 import { crearDestinos, type ConfigImpresoras } from "./destino";
-import { componer, inicializar, abrirCajon as abrirCajonBytes } from "./escpos";
+import { componer, inicializar, abrirCajon as abrirCajonBytes, pitido } from "./escpos";
 import {
   etiquetaArticuloPplb,
   etiquetaQrPplb,
@@ -123,21 +123,33 @@ function resolverImpresion(
 ): { destino: "tickets" | "etiquetas"; contenido: Buffer | string } {
   switch (trabajo.tipo) {
     case "recibo_venta":
-      return { destino: "tickets", contenido: reciboVenta(trabajo.carga as CargaReciboVenta) };
+      return {
+        destino: "tickets",
+        contenido: componer(reciboVenta(trabajo.carga as CargaReciboVenta), pitido()),
+      };
 
     case "comprobante_recepcion":
       return {
         destino: "tickets",
-        contenido: comprobanteRecepcion(trabajo.carga as CargaComprobanteRecepcion),
+        contenido: componer(
+          comprobanteRecepcion(trabajo.carga as CargaComprobanteRecepcion),
+          pitido(),
+        ),
       };
 
     case "cierre_caja":
-      return { destino: "tickets", contenido: cierreCaja(trabajo.carga as CargaCierreCaja) };
+      return {
+        destino: "tickets",
+        contenido: componer(cierreCaja(trabajo.carga as CargaCierreCaja), pitido()),
+      };
 
     case "comprobante_traslado":
       return {
         destino: "tickets",
-        contenido: comprobanteTraslado(trabajo.carga as CargaComprobanteTraslado),
+        contenido: componer(
+          comprobanteTraslado(trabajo.carga as CargaComprobanteTraslado),
+          pitido(),
+        ),
       };
 
     case "abrir_cajon":

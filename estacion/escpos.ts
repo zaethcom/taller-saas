@@ -120,6 +120,26 @@ export function qr(contenido: string): Buffer {
   ]);
 }
 
+/**
+ * Pitido del buzzer integrado al terminar de imprimir, como en las
+ * comanderas de cocina. `ESC 07 n1 n2 n3`: n1 = tiempo encendido, n2 =
+ * tiempo apagado (unidad: 100ms cada uno, 0-255), n3 = cantidad de
+ * pitidos (1-9). NO es un comando ESC/POS estándar de Epson -- la
+ * TM-T20II genuina no trae buzzer de fábrica; este es el comando que
+ * documentan los clones chinos genéricos (Xprinter/Zjiang/Gainscha)
+ * que suele traer esta familia de impresoras económicas. SIN CONFIRMAR
+ * todavía contra el hardware real -- ver estacion/prueba-pitido.ts. Si
+ * la impresora real no tiene buzzer o no entiende este comando, lo más
+ * probable es que lo ignore en silencio (mismo comportamiento que ya
+ * se documentó para otros comandos no soportados en escpos.ts).
+ */
+export function pitido(veces = 1, onMs = 200, offMs = 200): Buffer {
+  const n1 = Math.max(0, Math.min(255, Math.round(onMs / 100)));
+  const n2 = Math.max(0, Math.min(255, Math.round(offMs / 100)));
+  const n3 = Math.max(1, Math.min(9, veces)); // el comando documentado limita 1-9
+  return Buffer.from([ESC, 0x07, n1, n2, n3]);
+}
+
 /** Concatena una secuencia de comandos en un solo buffer para enviar de una vez. */
 export function componer(...partes: Buffer[]): Buffer {
   return Buffer.concat(partes);
