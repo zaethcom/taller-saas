@@ -19,7 +19,6 @@ export function FotoProducto({
   id,
   empresaId,
   imagenUrl,
-  alto = 120,
   editable,
 }: {
   tipo: "repuesto" | "articulo";
@@ -28,7 +27,6 @@ export function FotoProducto({
   // que solo muestra la foto, nunca se usa.
   empresaId?: string;
   imagenUrl: string | null;
-  alto?: number;
   editable: boolean;
 }) {
   const [url, setUrl] = useState(imagenUrl);
@@ -66,13 +64,19 @@ export function FotoProducto({
         <img
           src={url}
           alt=""
-          style={{ width: "100%", height: alto, objectFit: "cover", borderRadius: "var(--r-md)", display: "block" }}
+          style={{
+            width: "100%",
+            aspectRatio: "1 / 1",
+            objectFit: "cover",
+            borderRadius: "var(--r-md)",
+            display: "block",
+          }}
         />
       ) : (
         <div
           style={{
             width: "100%",
-            height: alto,
+            aspectRatio: "1 / 1",
             borderRadius: "var(--r-md)",
             background: "var(--surface-2)",
             color: "var(--ink-3)",
@@ -82,9 +86,9 @@ export function FotoProducto({
           }}
         >
           {tipo === "repuesto" ? (
-            <Wrench size={Math.min(38, alto * 0.4)} strokeWidth={1.6} aria-hidden />
+            <Wrench size={40} strokeWidth={1.6} aria-hidden />
           ) : (
-            <Package size={Math.min(38, alto * 0.4)} strokeWidth={1.6} aria-hidden />
+            <Package size={40} strokeWidth={1.6} aria-hidden />
           )}
         </div>
       )}
