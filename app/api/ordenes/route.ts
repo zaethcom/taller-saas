@@ -126,13 +126,12 @@ export async function POST(req: NextRequest) {
     nota: "Recepción inicial",
   });
 
-  const [{ data: producto }, { data: empresa }, { data: config }] = await Promise.all([
+  const [{ data: producto }, { data: config }] = await Promise.all([
     supabase
       .from("producto")
       .select("serial, tipo, marca, modelo, cliente:cliente_id ( nombre, telefono, correo )")
       .eq("id", productoId)
       .single(),
-    supabase.from("empresa").select("nombre").eq("id", perfil.empresa_id).single(),
     supabase
       .from("empresa_config")
       .select("prefijo_etiqueta")
@@ -176,16 +175,12 @@ export async function POST(req: NextRequest) {
     tipo: "etiqueta_qr",
     creadoPor: user.id,
     ordenId: orden.id,
-    carga: {
-      nombreEmpresa: empresa?.nombre ?? "",
-      codigoEntrada,
-      serial: producto?.serial ?? "",
-      tipo: producto?.tipo ?? "",
-      marca: producto?.marca ?? null,
-      modelo: producto?.modelo ?? null,
-      numeroOrden: orden.numero,
-      contenidoQr: urlSeguimiento,
-    },
+    // La etiqueta física es de 30x25mm -- solo entra el QR (escaneable,
+    // código de entrada) y el mismo código en texto grande como respaldo
+    // si el QR no se puede leer. El resto de los datos (empresa, serial,
+    // marca/modelo, número de orden) ya van en el comprobante impreso
+    // arriba, que sí tiene espacio.
+    carga: { codigoEntrada },
   });
 
   const esCelular = /cel|tel[eé]fono|smartphone/i.test(producto?.tipo ?? "");

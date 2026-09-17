@@ -22,7 +22,7 @@ export async function GET() {
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
-  const { data, error } = await supabase.from("sede").select("id, nombre, tipo").order("nombre");
+  const { data, error } = await supabase.from("sede").select("id, empresa_id, nombre, tipo").order("nombre");
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
