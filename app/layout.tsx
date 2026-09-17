@@ -4,6 +4,7 @@ import "./globals.css";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { obtenerConfiguracion, CONFIG_POR_DEFECTO } from "@/lib/configuracion";
+import { RegistroServiceWorker } from "@/componentes/registro-service-worker";
 
 /**
  * Las dos familias del sistema, autoalojadas por next/font: se
@@ -36,7 +37,8 @@ export const metadata: Metadata = {
   // pantalla de inicio" y abra la app en pantalla completa, sin la
   // barra del navegador -- sin esto, técnicamente es una web que se ve
   // bien en el celular, pero no se "instala" como una app de verdad.
-  manifest: "/manifest.json",
+  // Lo genera app/manifest.ts dinámicamente (Next.js lo sirve solo en
+  // /manifest.webmanifest, sin declarar la ruta acá).
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Taller" },
 };
 
@@ -72,7 +74,10 @@ export default async function RootLayout({
       className={`${archivo.variable} ${saira.variable}`}
       style={{ "--accent": config.colorPrincipal } as React.CSSProperties}
     >
-      <body>{children}</body>
+      <body>
+        <RegistroServiceWorker />
+        {children}
+      </body>
     </html>
   );
 }
