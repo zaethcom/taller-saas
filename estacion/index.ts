@@ -1,8 +1,9 @@
 /**
  * El programa que corre en el Android (o PC) de cada sede. Consulta la
  * cola de trabajos pendientes cada dos segundos, los traduce a bytes o
- * ZPL según el tipo, los manda a la impresora correspondiente por red,
- * y reporta el resultado.
+ * al lenguaje de la impresora de etiquetas (PPLB, ver estacion/etiqueta.ts)
+ * según el tipo, los manda a la impresora correspondiente por red, y
+ * reporta el resultado.
  *
  * No consulta la base de datos directamente ni calcula nada de negocio:
  * solo habla con las dos rutas de la API descritas en el plano de
@@ -14,11 +15,11 @@
  */
 import { readFileSync } from "node:fs";
 import { crearDestinos, type ConfigImpresoras } from "./destino";
-import { componer, inicializar, abrirCajon as abrirCajonBytes } from "./escpos";
+import { componer, inicializar, abrirCajon as abrirCajonBytes, pitido } from "./escpos";
 import {
-  etiquetaArticuloZpl,
-  etiquetaQrZpl,
-  etiquetaRepuestoZpl,
+  etiquetaArticuloPplb,
+  etiquetaQrPplb,
+  etiquetaRepuestoPplb,
   type DatosEtiquetaArticulo,
   type DatosEtiquetaQr,
   type DatosEtiquetaRepuesto,
@@ -122,34 +123,46 @@ function resolverImpresion(
 ): { destino: "tickets" | "etiquetas"; contenido: Buffer | string } {
   switch (trabajo.tipo) {
     case "recibo_venta":
-      return { destino: "tickets", contenido: reciboVenta(trabajo.carga as CargaReciboVenta) };
+      return {
+        destino: "tickets",
+        contenido: componer(reciboVenta(trabajo.carga as CargaReciboVenta), pitido()),
+      };
 
     case "comprobante_recepcion":
       return {
         destino: "tickets",
-        contenido: comprobanteRecepcion(trabajo.carga as CargaComprobanteRecepcion),
+        contenido: componer(
+          comprobanteRecepcion(trabajo.carga as CargaComprobanteRecepcion),
+          pitido(),
+        ),
       };
 
     case "cierre_caja":
-      return { destino: "tickets", contenido: cierreCaja(trabajo.carga as CargaCierreCaja) };
+      return {
+        destino: "tickets",
+        contenido: componer(cierreCaja(trabajo.carga as CargaCierreCaja), pitido()),
+      };
 
     case "comprobante_traslado":
       return {
         destino: "tickets",
-        contenido: comprobanteTraslado(trabajo.carga as CargaComprobanteTraslado),
+        contenido: componer(
+          comprobanteTraslado(trabajo.carga as CargaComprobanteTraslado),
+          pitido(),
+        ),
       };
 
     case "abrir_cajon":
       return { destino: "tickets", contenido: componer(inicializar(), abrirCajonBytes()) };
 
     case "etiqueta_qr":
-      return { destino: "etiquetas", contenido: etiquetaQrZpl(trabajo.carga as DatosEtiquetaQr) };
+      return { destino: "etiquetas", contenido: etiquetaQrPplb(trabajo.carga as DatosEtiquetaQr) };
 
     case "etiqueta_articulo":
-      return { destino: "etiquetas", contenido: etiquetaArticuloZpl(trabajo.carga as DatosEtiquetaArticulo) };
+      return { destino: "etiquetas", contenido: etiquetaArticuloPplb(trabajo.carga as DatosEtiquetaArticulo) };
 
     case "etiqueta_repuesto":
-      return { destino: "etiquetas", contenido: etiquetaRepuestoZpl(trabajo.carga as DatosEtiquetaRepuesto) };
+      return { destino: "etiquetas", contenido: etiquetaRepuestoPplb(trabajo.carga as DatosEtiquetaRepuesto) };
   }
 }
 

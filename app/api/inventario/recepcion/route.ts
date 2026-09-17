@@ -107,13 +107,19 @@ export async function POST(req: Request) {
 
   // Una etiqueta de código de barras por unidad física recibida (punto 1
   // del documento de trazabilidad del taller) -- un solo trabajo con
-  // ^PQ<cantidad> en vez de una fila por unidad.
+  // P<cantidad> para que el puente la imprima tantas veces como
+  // unidades entraron, en vez de una fila por unidad.
   await encolarImpresion(supabase, {
     empresaId: perfil.empresaId,
     sedeId: body.sedeId,
     tipo: "etiqueta_repuesto",
     creadoPor: perfil.id,
-    carga: { nombreEmpresa: perfil.empresaNombre, codigo, descripcion, cantidadCopias: body.cantidad },
+    carga: {
+      nombreEmpresa: perfil.empresaNombre,
+      codigo,
+      descripcion,
+      cantidadCopias: body.cantidad,
+    },
   });
 
   return NextResponse.json({ ok: true, repuestoId, cantidad: nuevaCantidad });

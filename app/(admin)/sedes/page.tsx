@@ -15,9 +15,11 @@ import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { ConfigImpresoras } from "@/componentes/sedes/config-impresoras";
+import { ConfigMarca } from "@/componentes/sedes/config-marca";
 
 interface Sede {
   id: string;
+  empresa_id: string;
   nombre: string;
   tipo: "tienda" | "taller";
 }
@@ -87,6 +89,7 @@ export default function PaginaSedes() {
                 </div>
               </div>
               <ConfigImpresoras sedeId={s.id} />
+              <ConfigMarca sedeId={s.id} empresaId={s.empresa_id} />
             </Tarjeta>
           ))
         )}

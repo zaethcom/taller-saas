@@ -126,14 +126,17 @@ export async function POST(req: NextRequest) {
     nota: "Recepción inicial",
   });
 
-  const [{ data: producto }, { data: empresa }, { data: config }] = await Promise.all([
+  const [{ data: producto }, { data: config }] = await Promise.all([
     supabase
       .from("producto")
       .select("serial, tipo, marca, modelo, cliente:cliente_id ( nombre, telefono, correo )")
       .eq("id", productoId)
       .single(),
-    supabase.from("empresa").select("nombre").eq("id", perfil.empresa_id).single(),
-    supabase.from("empresa_config").select("prefijo_etiqueta").eq("empresa_id", perfil.empresa_id).maybeSingle(),
+    supabase
+      .from("empresa_config")
+      .select("prefijo_etiqueta")
+      .eq("empresa_id", perfil.empresa_id)
+      .maybeSingle(),
   ]);
 
   const urlSeguimiento = `${process.env.NEXT_PUBLIC_APP_URL}/seguimiento/${orden.token_publico}`;
@@ -142,6 +145,11 @@ export async function POST(req: NextRequest) {
   // empresa configuró (ej. "PS") + el número de orden, siempre
   // recalculable desde ahí -- nunca se guarda en `orden`.
   const codigoEntrada = `${config?.prefijo_etiqueta ?? "OR"}${String(orden.numero).padStart(6, "0")}`;
+  // El join de Supabase infiere `cliente` como arreglo aunque la relación
+  // sea 1:1.
+  const cliente = producto?.cliente as unknown as
+    | { nombre: string; telefono: string | null; correo: string | null }
+    | undefined;
 
   await encolarImpresion(supabase, {
     empresaId: perfil.empresa_id,
@@ -150,9 +158,11 @@ export async function POST(req: NextRequest) {
     creadoPor: user.id,
     carga: {
       numeroOrden: orden.numero,
-      // @ts-expect-error -- join inferido como array por el tipado genérico
-      clienteNombre: producto?.cliente?.nombre ?? "",
+      codigoEntrada,
+      clienteNombre: cliente?.nombre ?? "",
+      clienteTelefono: cliente?.telefono ?? null,
       producto: nombreProducto,
+      serial: producto?.serial ?? "",
       motivo: body.motivo.trim(),
       fecha: new Date().toLocaleDateString("es-CO"),
       urlSeguimiento,
@@ -165,23 +175,14 @@ export async function POST(req: NextRequest) {
     tipo: "etiqueta_qr",
     creadoPor: user.id,
     ordenId: orden.id,
-    carga: {
-      nombreEmpresa: empresa?.nombre ?? "",
-      codigoEntrada,
-      serial: producto?.serial ?? "",
-      tipo: producto?.tipo ?? "",
-      marca: producto?.marca ?? null,
-      modelo: producto?.modelo ?? null,
-      numeroOrden: orden.numero,
-      contenidoQr: urlSeguimiento,
-    },
+    // La etiqueta física es de 30x25mm -- solo entra el QR (escaneable,
+    // código de entrada) y el mismo código en texto grande como respaldo
+    // si el QR no se puede leer. El resto de los datos (empresa, serial,
+    // marca/modelo, número de orden) ya van en el comprobante impreso
+    // arriba, que sí tiene espacio.
+    carga: { codigoEntrada },
   });
 
-  // El join de Supabase infiere `cliente` como arreglo aunque la relación
-  // sea 1:1 -- mismo caso que en el bloque de arriba.
-  const cliente = producto?.cliente as unknown as
-    | { nombre: string; telefono: string | null; correo: string | null }
-    | undefined;
   const esCelular = /cel|tel[eé]fono|smartphone/i.test(producto?.tipo ?? "");
   await notificarCliente({
     clienteNombre: cliente?.nombre ?? "",
