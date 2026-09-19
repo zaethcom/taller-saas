@@ -28,34 +28,50 @@
  *   otros valores de <tipo>.
  * - QR nativo (2D) -- CONFIRMADO: comando `b<x>,<y>,Q,s<escala>,"<datos>"`.
  *   Con el código de entrada (corto, ~8 caracteres) a escala 2 entra
- *   completo y decodifica bien. Una URL completa (~65 caracteres) a
- *   escala 3 NO entra -- se corta contra el borde físico y decodifica
- *   corrupto (ver estacion/prueba-qr-etiqueta.ts) -- por eso el QR
- *   codifica el código de entrada, no la URL de seguimiento: esta
- *   etiqueta es de 30x25mm, no hay margen para un QR de ese tamaño de
- *   contenido. El logo de la empresa tampoco entra -- se probó como
- *   bitmap PPLB (`GW`) y el resultado es una mancha ilegible a este
- *   tamaño; queda solo en el comprobante/recibo, que sí tiene espacio.
+ *   completo y decodifica bien. El logo de la empresa NO entra como
+ *   bitmap PPLB (`GW`) a este tamaño -- se probó y el resultado es una
+ *   mancha ilegible; queda solo en el comprobante/recibo.
  *
  * No se manda ningún comando de tamaño de etiqueta (Q/q): la prueba
  * confirmada funcionó sin declarar nada, apoyada en la calibración que
  * ya tiene la impresora -- agregar Q/q sin saber si son mm, pulgadas o
  * puntos arriesga romper esa calibración sin necesidad.
  *
- * Rotación confirmada en 2 (180°), no 0 -- ver estacion/prueba-trazabilidad.ts.
- * Con rotación 0 el texto salió al revés en el papel real (confirmado
- * con dos etiquetas una junto a la otra en la misma tira: la de
- * rotación 0 ilegible, la de rotación 2 derecha). Es del rollo/cómo
- * queda montado en esta impresora, no de las coordenadas X/Y -- si se
- * reemplaza el rollo o la impresora, volver a confirmar con ese script
- * antes de asumir que sigue valiendo 2. El QR (comando `b`) no lleva
- * este parámetro y no lo necesita: un QR se escanea igual al derecho o
- * al revés.
+ * Rotación confirmada en 2 (180°), no 0, PARA COMANDOS DE TEXTO/QR
+ * NATIVOS (`A`/`b`) -- ver estacion/prueba-trazabilidad.ts.
+ *
+ * ETIQUETA_QR YA NO USA ESOS COMANDOS NATIVOS. Se cambió a renderizar
+ * todo (QR + código + marco) como una sola imagen en el servidor
+ * (lib/etiqueta-bitmap.ts, mismo principio que
+ * com.smartfoodlabel.app...DulganiLabelRenderer: dibujar el diseño
+ * completo como bitmap, la impresora solo reproduce píxeles) y mandarla
+ * con el comando de gráfico PPLB `GW` -- confirmado que el comando
+ * funciona en esta impresora (se probó con el logo, que salió mancha
+ * por resolución, no porque `GW` fallara), pero el combo QR+código+marco
+ * concreto de etiquetaQrPplb() todavía NO se probó en papel real -- ver
+ * estacion/prueba-trazabilidad.ts para la próxima ronda. `GW` no tiene
+ * parámetro de rotación (a diferencia de `A`/`b`): si sale al revés,
+ * hay que rotar la imagen 180° en lib/etiqueta-bitmap.ts (sharp lo hace
+ * con .rotate(180), trivial) en vez de tocar nada acá.
+ *
+ * etiquetaArticuloPplb/etiquetaRepuestoPplb siguen con los comandos
+ * nativos `A`/`B` (rotación 2) -- no se tocaron, ya confirmados en
+ * hardware real.
  */
 const ROTACION = 2;
 
+/** Mismo shape que lib/logo-bitmap.ts::LogoRaster -- duplicado a propósito,
+ *  igual que ya hace estacion/marca.ts::LogoRaster: estacion/ nunca importa
+ *  de lib/ (esa carpeta usa `sharp`, con binarios nativos que no queremos
+ *  arrastrar a Android/Termux). */
+export interface EtiquetaRaster {
+  anchoDots: number;
+  altoDots: number;
+  datosBase64: string;
+}
+
 export interface DatosEtiquetaQr {
-  codigoEntrada: string; // ej. "PS000123" -- prefijo de la empresa + número de orden
+  etiquetaRaster: EtiquetaRaster; // QR + código + marco, ya renderizados -- ver lib/etiqueta-bitmap.ts
 }
 
 /** PPLB usa comillas dobles como delimitador del campo de texto -- hay que escaparlas. */
@@ -64,24 +80,30 @@ function escapar(s: string): string {
 }
 
 /**
- * Arma el PPLB completo de una etiqueta. Se manda tal cual, como texto
- * plano, al puente -- PPLB no necesita más que eso.
- *
- * Solo dos campos: el QR (lo que se escanea para rastrear la orden) y
- * el mismo código de entrada en texto grande debajo, como respaldo si
- * el QR no se puede leer o hay que escribirlo a mano en /seguimiento.
- * El resto de los datos de la orden (empresa, serial, marca/modelo,
- * número de orden) ya van en el comprobante de recepción impreso al
- * mismo tiempo, que sí tiene espacio -- ver comentario de cabecera
- * sobre por qué no entran acá.
+ * `GW<x>,<y>,<ancho en BYTES>,<alto en dots>,<datos binarios>` -- a
+ * diferencia de los campos de texto, esto va como bytes crudos, no
+ * como texto ASCII, por eso el resultado es un Buffer y no un string.
  */
-export function etiquetaQrPplb(d: DatosEtiquetaQr): string {
-  return [
-    "N",
-    `b5,5,Q,s2,"${escapar(d.codigoEntrada)}"`,
-    `A5,120,${ROTACION},3,1,1,N,"${escapar(d.codigoEntrada)}"`,
-    "P1",
-  ].join("\r\n");
+function imagenGw(x: number, y: number, raster: EtiquetaRaster): Buffer {
+  const anchoBytes = Math.ceil(raster.anchoDots / 8);
+  const datos = Buffer.from(raster.datosBase64, "base64");
+  const encabezado = Buffer.from(`GW${x},${y},${anchoBytes},${raster.altoDots},`, "ascii");
+  return Buffer.concat([encabezado, datos]);
+}
+
+/**
+ * La etiqueta de una orden: una sola imagen (QR + código + marco, ya
+ * renderizada en el servidor) embebida con el comando de gráfico PPLB
+ * `GW` -- ver el comentario de cabecera sobre por qué se dejaron de
+ * usar los comandos de texto/QR nativos para esta etiqueta en
+ * particular.
+ */
+export function etiquetaQrPplb(d: DatosEtiquetaQr): Buffer {
+  return Buffer.concat([
+    Buffer.from("N\r\n", "ascii"),
+    imagenGw(0, 0, d.etiquetaRaster),
+    Buffer.from("\r\nP1\r\n", "ascii"),
+  ]);
 }
 
 export interface DatosEtiquetaArticulo {
