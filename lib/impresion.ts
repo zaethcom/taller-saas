@@ -8,6 +8,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generarLogoRaster, type LogoRaster } from "./logo-bitmap";
+import { generarEtiquetaQrRaster } from "./etiqueta-bitmap";
+import { generarQrRaster } from "./qr-bitmap";
 
 export type TipoTrabajo =
   | "etiqueta_qr"
@@ -65,6 +67,7 @@ interface CargaComprobanteRecepcion extends CargaMarcaEmpresa {
   motivo: string;
   fecha: string;
   urlSeguimiento: string;
+  qrRaster?: LogoRaster;
 }
 
 interface CargaCierreCaja extends CargaMarcaEmpresa {
@@ -172,6 +175,25 @@ export async function encolarImpresion<T extends TipoTrabajo>(
       logoRaster: await generarLogoRaster(sedeConfig?.logo_url ?? config?.logo_url),
     };
     carga = { ...params.carga, ...marca };
+  }
+
+  // La etiqueta_qr no manda comandos de texto/QR nativos -- todo el
+  // diseño (QR + código + marco) se renderiza acá como una sola imagen
+  // (ver lib/etiqueta-bitmap.ts) y estacion/ solo la embebe en el
+  // comando PPLB `GW`. Quien encola solo pide el código de entrada
+  // (`{ codigoEntrada }`), igual que antes -- este archivo se encarga
+  // de convertirlo en la imagen.
+  if (params.tipo === "etiqueta_qr") {
+    const { codigoEntrada } = params.carga as unknown as { codigoEntrada: string };
+    carga = { etiquetaRaster: await generarEtiquetaQrRaster(codigoEntrada) };
+  }
+
+  // El QR del comprobante de recepción se manda como bitmap, no como
+  // comando nativo -- ver lib/qr-bitmap.ts sobre por qué (no lo
+  // interpreta el hardware real de alguna sedes).
+  if (params.tipo === "comprobante_recepcion") {
+    const { urlSeguimiento } = params.carga as unknown as { urlSeguimiento: string };
+    carga = { ...carga, qrRaster: await generarQrRaster(urlSeguimiento) };
   }
 
   const { data, error } = await supabase

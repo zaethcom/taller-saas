@@ -2,28 +2,23 @@ import { describe, expect, it } from "vitest";
 import { etiquetaArticuloPplb, etiquetaQrPplb, etiquetaRepuestoPplb } from "./etiqueta";
 
 describe("etiquetaQrPplb", () => {
-  const base = { codigoEntrada: "PS000045" };
+  // Raster mínimo válido (1x8 dots, un solo byte) -- alcanza para probar
+  // que el comando GW se arma bien, sin necesitar una imagen real.
+  const raster = { anchoDots: 8, altoDots: 1, datosBase64: Buffer.from([0xff]).toString("base64") };
+  const base = { etiquetaRaster: raster };
 
   it("empieza con N (limpiar buffer) y termina con P1 (imprimir una copia)", () => {
     const pplb = etiquetaQrPplb(base);
-    expect(pplb.startsWith("N\r\n")).toBe(true);
-    expect(pplb.trimEnd().endsWith("P1")).toBe(true);
+    expect(pplb.subarray(0, 3).toString("ascii")).toBe("N\r\n");
+    expect(pplb.subarray(-6).toString("ascii")).toBe("\r\nP1\r\n");
   });
 
-  it("dibuja un QR real con el código de entrada, escala 2 (confirmado que entra en la etiqueta real)", () => {
+  it("embebe el bitmap con el comando de gráfico GW (ancho en bytes, alto en dots, datos crudos)", () => {
     const pplb = etiquetaQrPplb(base);
-    expect(pplb).toMatch(/^b\d+,\d+,Q,s2,"PS000045"$/m);
-  });
-
-  it("repite el código de entrada en texto grande como respaldo del QR", () => {
-    const pplb = etiquetaQrPplb(base);
-    expect(pplb).toMatch(/^A\d+,\d+,2,3,1,1,N,"PS000045"$/m);
-  });
-
-  it('escapa comillas dobles en el código para no romper el campo "..."', () => {
-    const pplb = etiquetaQrPplb({ codigoEntrada: 'PS"000045' });
-    expect(pplb).not.toContain('"PS"000045"');
-    expect(pplb).toContain("PS'000045");
+    const encabezado = `GW0,0,${Math.ceil(raster.anchoDots / 8)},${raster.altoDots},`;
+    const idx = pplb.indexOf(Buffer.from(encabezado, "ascii"));
+    expect(idx).toBeGreaterThanOrEqual(0);
+    expect(pplb[idx + encabezado.length]).toBe(0xff);
   });
 });
 

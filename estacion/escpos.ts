@@ -105,6 +105,14 @@ export function imagenRaster(anchoDots: number, altoDots: number, datos: Buffer)
  * Secuencia estándar GS ( k para módulo QR (Epson y compatibles):
  * modelo 2, tamaño de módulo 8, corrección de errores M, cargar los
  * datos, e imprimir el símbolo almacenado.
+ *
+ * SIN USO en producción -- confirmado en hardware real (Perto/PERTO
+ * Printer TEC) que ese modelo no interpreta este comando: los bytes de
+ * control se pierden y los bytes imprimibles de la secuencia salen
+ * como texto literal en el papel. El comprobante de recepción usa
+ * lib/qr-bitmap.ts (imagen, como el logo) en vez de esto -- se deja
+ * esta función y su prueba porque el comando es correcto según el
+ * estándar y puede servir en otra impresora que sí lo soporte.
  */
 export function qr(contenido: string): Buffer {
   const datos = Buffer.from(contenido, "ascii");
