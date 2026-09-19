@@ -9,6 +9,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generarLogoRaster, type LogoRaster } from "./logo-bitmap";
 import { generarEtiquetaQrRaster } from "./etiqueta-bitmap";
+import { generarQrRaster } from "./qr-bitmap";
 
 export type TipoTrabajo =
   | "etiqueta_qr"
@@ -66,6 +67,7 @@ interface CargaComprobanteRecepcion extends CargaMarcaEmpresa {
   motivo: string;
   fecha: string;
   urlSeguimiento: string;
+  qrRaster?: LogoRaster;
 }
 
 interface CargaCierreCaja extends CargaMarcaEmpresa {
@@ -184,6 +186,14 @@ export async function encolarImpresion<T extends TipoTrabajo>(
   if (params.tipo === "etiqueta_qr") {
     const { codigoEntrada } = params.carga as unknown as { codigoEntrada: string };
     carga = { etiquetaRaster: await generarEtiquetaQrRaster(codigoEntrada) };
+  }
+
+  // El QR del comprobante de recepción se manda como bitmap, no como
+  // comando nativo -- ver lib/qr-bitmap.ts sobre por qué (no lo
+  // interpreta el hardware real de alguna sedes).
+  if (params.tipo === "comprobante_recepcion") {
+    const { urlSeguimiento } = params.carga as unknown as { urlSeguimiento: string };
+    carga = { ...carga, qrRaster: await generarQrRaster(urlSeguimiento) };
   }
 
   const { data, error } = await supabase

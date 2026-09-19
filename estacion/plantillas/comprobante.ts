@@ -1,5 +1,5 @@
-import { alinear, componer, cortar, inicializar, negrita, qr, salto, tamano, texto } from "../escpos";
-import { encabezadoEmpresa, piePersonalizado, type CargaMarcaEmpresa } from "../marca";
+import { alinear, componer, cortar, imagenRaster, inicializar, negrita, salto, tamano, texto } from "../escpos";
+import { encabezadoEmpresa, piePersonalizado, type CargaMarcaEmpresa, type LogoRaster } from "../marca";
 
 export interface CargaComprobanteRecepcion extends CargaMarcaEmpresa {
   numeroOrden: number;
@@ -11,6 +11,11 @@ export interface CargaComprobanteRecepcion extends CargaMarcaEmpresa {
   motivo: string;
   fecha: string;
   urlSeguimiento: string;
+  // Bitmap, no comando nativo -- ver lib/qr-bitmap.ts: confirmado en
+  // hardware real que la impresora Perto/PERTO Printer TEC no
+  // interpreta el GS ( k de escpos.ts::qr() y lo imprime como texto
+  // literal.
+  qrRaster?: LogoRaster;
 }
 
 /**
@@ -62,8 +67,9 @@ export function comprobanteRecepcion(c: CargaComprobanteRecepcion): Buffer {
     salto(2),
 
     alinear("centro"),
-    qr(c.urlSeguimiento),
-    salto(),
+    ...(c.qrRaster
+      ? [imagenRaster(c.qrRaster.anchoDots, c.qrRaster.altoDots, Buffer.from(c.qrRaster.datosBase64, "base64")), salto()]
+      : []),
     negrita(true),
     texto("ESCANEA PARA CONSULTAR TU ORDEN"),
     negrita(false),
