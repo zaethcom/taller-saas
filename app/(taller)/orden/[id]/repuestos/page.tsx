@@ -18,6 +18,7 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { CabeceraOrden } from "@/componentes/taller/cabecera-orden";
 
 interface Solicitud {
   id: string;
@@ -121,6 +122,8 @@ export default function PaginaRepuestos() {
 
   return (
     <div>
+      <CabeceraOrden ordenId={id} anterior={{ href: `/orden/${id}/cotizacion`, etiqueta: "Cotización" }} />
+
       <TituloPantalla
         icono={<Package size={24} strokeWidth={2} />}
         titulo="Repuestos"

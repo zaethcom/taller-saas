@@ -9,10 +9,6 @@ dist/
 coverage/
 .supabase/
 
-# La config de cada estación de impresión lleva su servicioClave en
-# claro -- vive solo en la máquina de la sede, nunca en el repositorio.
-estacion/config.json
-
 # Android (puente/)
 puente/.gradle/
 puente/build/
@@ -21,3 +17,6 @@ puente/local.properties
 puente/.idea/
 *.apk
 tsconfig.tsbuildinfo
+estacion/config.json
+estacion/salida-*.raw
+estacion/salida-*.txt

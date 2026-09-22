@@ -370,7 +370,7 @@ export default function PaginaVender() {
                         borderColor: estaEnCarrito("repuesto", r.id) ? "var(--accent)" : undefined,
                       }}
                     >
-                      <FotoProducto tipo="repuesto" id={r.id} imagenUrl={r.imagenUrl} alto={88} editable={false} />
+                      <FotoProducto tipo="repuesto" id={r.id} imagenUrl={r.imagenUrl} editable={false} />
                       <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.25 }}>{r.descripcion}</div>
                       <div className="cifra" style={{ fontSize: 11, color: "var(--ink-3)", marginTop: -4 }}>
                         {r.codigo}
@@ -438,7 +438,7 @@ export default function PaginaVender() {
                         borderColor: enCarrito ? "var(--accent)" : undefined,
                       }}
                     >
-                      <FotoProducto tipo="articulo" id={a.id} imagenUrl={a.imagen_url} alto={88} editable={false} />
+                      <FotoProducto tipo="articulo" id={a.id} imagenUrl={a.imagen_url} editable={false} />
                       <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.25 }}>
                         {[a.marca, a.modelo].filter(Boolean).join(" ") || a.tipo}
                       </div>

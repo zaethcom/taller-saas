@@ -1,8 +1,9 @@
 /**
  * El programa que corre en el Android (o PC) de cada sede. Consulta la
  * cola de trabajos pendientes cada dos segundos, los traduce a bytes o
- * ZPL según el tipo, los manda a la impresora correspondiente por red,
- * y reporta el resultado.
+ * al lenguaje de la impresora de etiquetas (PPLB, ver estacion/etiqueta.ts)
+ * según el tipo, los manda a la impresora correspondiente por red, y
+ * reporta el resultado.
  *
  * No consulta la base de datos directamente ni calcula nada de negocio:
  * solo habla con las dos rutas de la API descritas en el plano de
@@ -93,11 +94,10 @@ async function reportarResultado(
 async function procesarUnTrabajo(
   config: Config,
   destinos: ReturnType<typeof crearDestinos>,
-  hayEtiquetadora: boolean,
   trabajo: TrabajoPendiente,
 ): Promise<void> {
   try {
-    const { destino, contenido } = resolverImpresion(trabajo, hayEtiquetadora);
+    const { destino, contenido } = resolverImpresion(trabajo);
     await destinos[destino].enviar(contenido);
     await reportarResultado(config, trabajo.id, { ok: true });
     console.log(`[estacion] impreso ${trabajo.tipo} (${trabajo.id})`);
@@ -115,21 +115,12 @@ async function cicloPrincipal(config: Config): Promise<void> {
   const impresoras = await obtenerImpresoras(config);
   const destinos = crearDestinos(impresoras);
 
-  // Sin impresora de etiquetas configurada, las etiquetas salen por la
-  // de tickets en ESC/POS -- ver resolverImpresion en ruteo.ts.
-  const hayEtiquetadora = Boolean(impresoras.etiquetas);
-  console.log(
-    hayEtiquetadora
-      ? "[estacion] etiquetas: impresora propia, en ZPL"
-      : "[estacion] etiquetas: sin etiquetadora, salen por la de tickets",
-  );
-
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       const pendientes = await obtenerPendientes(config);
       for (const trabajo of pendientes) {
-        await procesarUnTrabajo(config, destinos, hayEtiquetadora, trabajo);
+        await procesarUnTrabajo(config, destinos, trabajo);
       }
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : String(err);

@@ -21,13 +21,27 @@ export function inicializar(): Buffer {
 }
 
 /**
- * Codifica texto plano. CP437 cubre acentos y ñ en la mayoría de
- * impresoras térmicas de 80mm configuradas de fábrica; si una impresora
- * concreta usa otra página de códigos, ajustar aquí -- es la única
- * función que necesita saberlo.
+ * Quita tildes/ñ y cualquier otro carácter fuera de ASCII imprimible.
+ * Probado en la T20II real: la suposición original (CP437 cubre
+ * acentos "en la mayoría de impresoras de fábrica") resultó falsa para
+ * este modelo -- toda tilde, la ñ, y hasta el separador "·" salieron
+ * como símbolos ilegibles ("RECEPCIÓN" -> "RECEPCI[?]N"). En vez de
+ * apostarle a adivinar qué página de códigos concreta necesita esta
+ * impresora (varía por clon/firmware y es un problema real y conocido
+ * de las térmicas genéricas chinas), se normaliza a ASCII plano antes
+ * de imprimir: garantiza texto legible en cualquier impresora ESC/POS,
+ * al precio de que "Recepción" salga sin la tilde.
  */
+function aAscii(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // separa "ó" en "o" + tilde combinada, y quita la tilde
+    .replace(/[^\x00-\x7f]/g, "-"); // cualquier otro no-ASCII (ej. "·") -> guion, nunca basura
+}
+
+/** Codifica texto plano, ya normalizado a ASCII -- ver aAscii(). */
 export function texto(s: string): Buffer {
-  return Buffer.from(s, "latin1");
+  return Buffer.from(aAscii(s), "ascii");
 }
 
 export function salto(lineas = 1): Buffer {
@@ -63,10 +77,42 @@ export function cortar(): Buffer {
 }
 
 /**
+ * El logo, como bitmap monocromático -- a diferencia del QR, esto sí es
+ * una imagen de verdad. GS v 0 (raster bit image, modo normal): ancho
+ * en BYTES (8 puntos por byte, MSB primero) y alto en puntos, seguido
+ * del bitmap ya empacado a 1 bit por punto. La conversión (bajar el
+ * logo, reducirlo, pasarlo a blanco y negro) pasa en el servidor
+ * (lib/logo-bitmap.ts) -- la estación solo imprime bytes ya listos,
+ * igual que con el resto de la carga.
+ */
+export function imagenRaster(anchoDots: number, altoDots: number, datos: Buffer): Buffer {
+  const anchoBytes = Math.ceil(anchoDots / 8);
+  const cabecera = Buffer.from([
+    GS,
+    0x76,
+    0x30,
+    0x00,
+    anchoBytes & 0xff,
+    (anchoBytes >> 8) & 0xff,
+    altoDots & 0xff,
+    (altoDots >> 8) & 0xff,
+  ]);
+  return Buffer.concat([cabecera, datos]);
+}
+
+/**
  * La impresora dibuja el QR sola: nunca se le manda una imagen.
  * Secuencia estándar GS ( k para módulo QR (Epson y compatibles):
  * modelo 2, tamaño de módulo 8, corrección de errores M, cargar los
  * datos, e imprimir el símbolo almacenado.
+ *
+ * SIN USO en producción -- confirmado en hardware real (Perto/PERTO
+ * Printer TEC) que ese modelo no interpreta este comando: los bytes de
+ * control se pierden y los bytes imprimibles de la secuencia salen
+ * como texto literal en el papel. El comprobante de recepción usa
+ * lib/qr-bitmap.ts (imagen, como el logo) en vez de esto -- se deja
+ * esta función y su prueba porque el comando es correcto según el
+ * estándar y puede servir en otra impresora que sí lo soporte.
  */
 export function qr(contenido: string): Buffer {
   const datos = Buffer.from(contenido, "ascii");
@@ -82,29 +128,27 @@ export function qr(contenido: string): Buffer {
   ]);
 }
 
+/**
+ * Pitido del buzzer integrado al terminar de imprimir, como en las
+ * comanderas de cocina. `ESC 07 n1 n2 n3`: n1 = tiempo encendido, n2 =
+ * tiempo apagado (unidad: 100ms cada uno, 0-255), n3 = cantidad de
+ * pitidos (1-9). NO es un comando ESC/POS estándar de Epson -- la
+ * TM-T20II genuina no trae buzzer de fábrica; este es el comando que
+ * documentan los clones chinos genéricos (Xprinter/Zjiang/Gainscha)
+ * que suele traer esta familia de impresoras económicas. SIN CONFIRMAR
+ * todavía contra el hardware real -- ver estacion/prueba-pitido.ts. Si
+ * la impresora real no tiene buzzer o no entiende este comando, lo más
+ * probable es que lo ignore en silencio (mismo comportamiento que ya
+ * se documentó para otros comandos no soportados en escpos.ts).
+ */
+export function pitido(veces = 1, onMs = 200, offMs = 200): Buffer {
+  const n1 = Math.max(0, Math.min(255, Math.round(onMs / 100)));
+  const n2 = Math.max(0, Math.min(255, Math.round(offMs / 100)));
+  const n3 = Math.max(1, Math.min(9, veces)); // el comando documentado limita 1-9
+  return Buffer.from([ESC, 0x07, n1, n2, n3]);
+}
+
 /** Concatena una secuencia de comandos en un solo buffer para enviar de una vez. */
 export function componer(...partes: Buffer[]): Buffer {
   return Buffer.concat(partes);
-}
-
-/**
- * Un código de barras Code128 que dibuja la propia impresora, igual que
- * el QR: nunca se le manda una imagen.
- *
- * GS h fija la altura en puntos, GS w el ancho de módulo, GS H 2 pone
- * el número legible debajo de las barras -- sin eso, un código que no
- * escanea no se puede teclear a mano. El "{B" delante de los datos
- * selecciona el juego de caracteres B (alfanumérico), que es lo que
- * usan los códigos de repuesto.
- */
-export function codigoBarras(contenido: string, altura = 80): Buffer {
-  const datos = Buffer.from(`{B${contenido}`, "ascii");
-
-  return Buffer.concat([
-    Buffer.from([GS, 0x68, altura]), // GS h -- altura
-    Buffer.from([GS, 0x77, 0x02]), // GS w -- ancho de módulo
-    Buffer.from([GS, 0x48, 0x02]), // GS H -- número legible debajo
-    Buffer.from([GS, 0x6b, 0x49, datos.length]), // GS k 73 n -- Code128
-    datos,
-  ]);
 }

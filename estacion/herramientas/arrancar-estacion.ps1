@@ -68,8 +68,9 @@ if (Test-Path $apk) {
 
 # --- 4. Configuración ------------------------------------------------
 # host es la IP de Sion, no 127.0.0.1: la estación corre en este PC y el
-# puente está en el otro equipo. Y no lleva impresora 'etiquetas': las
-# etiquetas salen por la de tickets (ver estacion/etiqueta.ts).
+# puente está en el otro equipo. Las dos impresoras están conectadas al
+# mismo Sion, así que comparten IP y se distinguen por el puerto: el
+# puente atiende tickets en el 9100 y etiquetas en el 9101.
 Paso 4 "Escribiendo la configuracion"
 $rutaConfig = Join-Path $repo "estacion\config.json"
 if (Test-Path $rutaConfig) {
@@ -87,7 +88,8 @@ if (Test-Path $rutaConfig) {
   "servicioClave": "$clave",
   "intervaloMs": 2000,
   "impresoras": {
-    "tickets": { "host": "$Ip", "puerto": 9100, "protocolo": "puente_android" }
+    "tickets": { "host": "$Ip", "puerto": 9100, "protocolo": "puente_android" },
+    "etiquetas": { "host": "$Ip", "puerto": 9101, "protocolo": "puente_android" }
   }
 }
 "@

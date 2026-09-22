@@ -133,14 +133,9 @@ export interface ConfigImpresora {
   protocolo?: "crudo" | "puente_android";
 }
 
-/**
- * `etiquetas` es opcional a propósito: la sede tiene una sola impresora
- * y las etiquetas salen por la de tickets (ver estacion/etiqueta.ts).
- * Solo hay que ponerla si de verdad hay una etiquetadora aparte.
- */
 export interface ConfigImpresoras {
   tickets: ConfigImpresora;
-  etiquetas?: ConfigImpresora;
+  etiquetas: ConfigImpresora;
 }
 
 function crearDestino(config: ConfigImpresora): Destino {
@@ -153,13 +148,8 @@ export function crearDestinos(config: ConfigImpresoras): {
   tickets: Destino;
   etiquetas: Destino;
 } {
-  const tickets = crearDestino(config.tickets);
-
-  // Sin etiquetadora configurada las dos salidas son la misma impresora.
-  // Que el destino exista igual evita que un trabajo mal ruteado se caiga
-  // con "undefined": imprime en la de tickets, que es lo correcto hoy.
   return {
-    tickets,
-    etiquetas: config.etiquetas ? crearDestino(config.etiquetas) : tickets,
+    tickets: crearDestino(config.tickets),
+    etiquetas: crearDestino(config.etiquetas),
   };
 }

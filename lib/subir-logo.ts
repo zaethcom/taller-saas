@@ -42,3 +42,25 @@ export function subirImagenMarca(empresaId: string, archivo: File): Promise<stri
 export function subirFondoLogin(empresaId: string, archivo: File): Promise<string> {
   return subirImagenDeMarca(empresaId, archivo, "fondo-login");
 }
+
+/**
+ * El logo propio de una sede (si difiere del de la empresa) --
+ * subcarpeta bajo el mismo primer segmento de ruta que ya exigen las
+ * políticas del bucket, así que no necesitan ningún cambio.
+ */
+export async function subirLogoSede(empresaId: string, sedeId: string, archivo: File): Promise<string> {
+  const supabase = clienteNavegador();
+  const extension = archivo.name.split(".").pop() ?? "png";
+  const ruta = `${empresaId}/sedes/${sedeId}/logo.${extension}`;
+
+  const { error } = await supabase.storage.from("logos").upload(ruta, archivo, { upsert: true });
+  if (error) {
+    throw new Error(`No se pudo subir la imagen: ${error.message}`);
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("logos").getPublicUrl(ruta);
+
+  return `${publicUrl}?v=${Date.now()}`;
+}

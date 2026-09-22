@@ -1,6 +1,7 @@
 /**
  * POST /api/ordenes/<id>/cotizacion
- * Body: { items: {descripcion, cantidad, precioUnit}[], manoObra: number, nota?: string }
+ * Body: { items: {descripcion, cantidad, precioUnit, repuestoId?, servicioId?, manoObraId?}[],
+ *          manoObra?: number, nota?: string }
  *
  * El técnico termina el diagnóstico y envía la cotización en un solo
  * paso: crea la cotización con sus líneas, y transiciona la orden a
@@ -8,6 +9,13 @@
  * lib/estados.ts que usa /api/aprobacion -- no hay una segunda
  * llamada por separado porque "enviar cotización" y "mover la orden"
  * son, en la práctica, el mismo evento de negocio.
+ *
+ * Cada ítem puede venir del catálogo (repuestoId, servicioId o
+ * manoObraId -- nunca más de uno) o ser una línea libre sin ninguno,
+ * para un cargo puntual que no amerita catálogo. `descripcion` siempre
+ * se guarda como snapshot legible, sin importar el origen, porque
+ * /seguimiento la muestra tal cual y no debe depender de que el
+ * catálogo no cambie después.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { RequisitoFaltanteError, TransicionInvalidaError, transicionar, type Estado } from "@/lib/estados";
@@ -17,6 +25,9 @@ interface ItemCotizacion {
   descripcion: string;
   cantidad: number;
   precioUnit: number;
+  repuestoId?: string;
+  servicioId?: string;
+  manoObraId?: string;
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -72,6 +83,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       descripcion: i.descripcion,
       cantidad: i.cantidad,
       precio_unit: i.precioUnit,
+      repuesto_id: i.repuestoId ?? null,
+      servicio_id: i.servicioId ?? null,
+      mano_obra_id: i.manoObraId ?? null,
     })),
   );
 
