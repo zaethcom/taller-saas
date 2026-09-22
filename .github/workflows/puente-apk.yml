@@ -1,0 +1,109 @@
+name: APK del puente de impresión
+
+# Solo cuando cambia puente/. El resto del repositorio es la aplicación web y no
+# tiene nada que ver con esta compilación.
+on:
+  # En push solo para main: en una rama con PR abierto, el disparador de
+  # pull_request ya cubre cada commit y si no se duplicaría cada ejecución.
+  push:
+    branches: [main]
+    paths:
+      - 'puente/**'
+      - '.github/workflows/puente-apk.yml'
+  pull_request:
+    paths:
+      - 'puente/**'
+      - '.github/workflows/puente-apk.yml'
+  workflow_dispatch:
+
+# El paso de publicación necesita escribir en Releases.
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: puente
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Caché de Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('puente/**/*.gradle.kts', 'puente/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Compilar APK de depuración
+        env:
+          # Quedan dentro del APK: la versión se ve en la cabecera de la app,
+          # que es como se comprueba que la instalación de verdad reemplazó a
+          # la anterior. El versionCode sube en cada ejecución para que Android
+          # trate el APK nuevo como una actualización y no como "ya existe".
+          PUENTE_REVISION: ${{ github.sha }}
+          PUENTE_VERSION_CODE: ${{ github.run_number }}
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Pruebas unitarias
+        run: ./gradlew --no-daemon testDebugUnitTest
+
+      # El APK queda descargable desde la pestaña de Actions: es la forma de
+      # instalarlo en el equipo de la sede sin montar Android Studio ahí.
+      - name: Publicar el APK como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: puente-debug-apk
+          path: puente/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      # Un artefacto de Actions es un ZIP que exige iniciar sesión en GitHub. Para
+      # instalarlo en el equipo de una sede eso estorba: hay que bajarlo en otra
+      # máquina, descomprimirlo y pasarlo. Una publicación da un enlace directo al
+      # .apk que se abre en el navegador del propio equipo, sin sesión y sin ZIP.
+      #
+      # Solo a mano (workflow_dispatch): no tiene sentido republicar en cada commit.
+      # Nombre FIJO a propósito. Antes llevaba el commit, y cada compilación
+      # subía un archivo distinto en vez de reemplazar al anterior: la
+      # publicación acabó con tres APK y en la sede se instaló el más viejo.
+      # Con un solo nombre no hay dónde equivocarse.
+      - name: Preparar el APK para publicar
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          mkdir -p publicar
+          cp app/build/outputs/apk/debug/*.apk publicar/puente.apk
+          ls -l publicar/
+
+      - name: Publicar como release
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: puente-dev
+          name: Puente de impresión (última compilación)
+          body: |
+            APK de depuración del puente de impresión, compilado desde
+            `${{ github.ref_name }}` en el commit `${{ github.sha }}`.
+
+            Se instala en el equipo que tiene las impresoras conectadas por USB.
+            Descargar **`puente.apk`** de aquí abajo directamente desde el navegador de
+            ese equipo — no hace falta Android Studio ni pasar por otra máquina.
+
+            La app muestra en su cabecera la compilación instalada, con los primeros
+            siete caracteres del commit de arriba. Si después de instalar sigue
+            diciendo otra, la instalación no reemplazó a la anterior:
+            `adb install -r puente.apk`.
+
+            Esta publicación se sobrescribe en cada compilación manual: es siempre la
+            última, no un histórico de versiones.
+          prerelease: true
+          files: puente/publicar/*.apk

@@ -4,7 +4,7 @@
   "servicioClave": "REEMPLAZAR_CON_LA_CLAVE_DE_ESTA_ESTACION",
   "intervaloMs": 2000,
   "impresoras": {
-    "tickets": { "host": "192.168.1.50", "puerto": 9100, "protocolo": "crudo" },
-    "etiquetas": { "host": "192.168.1.51", "puerto": 9100, "protocolo": "crudo" }
+    "tickets": { "host": "127.0.0.1", "puerto": 9100, "protocolo": "puente_android" },
+    "etiquetas": { "host": "127.0.0.1", "puerto": 9101, "protocolo": "puente_android" }
   }
 }

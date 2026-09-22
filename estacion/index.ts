@@ -15,19 +15,7 @@
  */
 import { readFileSync } from "node:fs";
 import { crearDestinos, type ConfigImpresoras } from "./destino";
-import { componer, inicializar, abrirCajon as abrirCajonBytes, pitido } from "./escpos";
-import {
-  etiquetaArticuloPplb,
-  etiquetaQrPplb,
-  etiquetaRepuestoPplb,
-  type DatosEtiquetaArticulo,
-  type DatosEtiquetaQr,
-  type DatosEtiquetaRepuesto,
-} from "./etiqueta";
-import { reciboVenta, type CargaReciboVenta } from "./plantillas/recibo";
-import { comprobanteRecepcion, type CargaComprobanteRecepcion } from "./plantillas/comprobante";
-import { cierreCaja, type CargaCierreCaja } from "./plantillas/cierre";
-import { comprobanteTraslado, type CargaComprobanteTraslado } from "./plantillas/traslado";
+import { resolverImpresion, type TrabajoPendiente } from "./ruteo";
 
 interface Config {
   sedeId: string;
@@ -38,20 +26,6 @@ interface Config {
   // responde (la sede todavía no tiene nada configurado desde la web,
   // o no hay red hacia el servidor en este arranque en particular).
   impresoras?: ConfigImpresoras;
-}
-
-interface TrabajoPendiente {
-  id: string;
-  tipo:
-    | "etiqueta_qr"
-    | "recibo_venta"
-    | "comprobante_recepcion"
-    | "cierre_caja"
-    | "abrir_cajon"
-    | "comprobante_traslado"
-    | "etiqueta_articulo"
-    | "etiqueta_repuesto";
-  carga: unknown;
 }
 
 function cargarConfig(ruta: string): Config {
@@ -117,55 +91,6 @@ async function reportarResultado(
   });
 }
 
-/** Traduce un trabajo pendiente a lo que hay que enviarle a cuál impresora. */
-function resolverImpresion(
-  trabajo: TrabajoPendiente,
-): { destino: "tickets" | "etiquetas"; contenido: Buffer | string } {
-  switch (trabajo.tipo) {
-    case "recibo_venta":
-      return {
-        destino: "tickets",
-        contenido: componer(reciboVenta(trabajo.carga as CargaReciboVenta), pitido()),
-      };
-
-    case "comprobante_recepcion":
-      return {
-        destino: "tickets",
-        contenido: componer(
-          comprobanteRecepcion(trabajo.carga as CargaComprobanteRecepcion),
-          pitido(),
-        ),
-      };
-
-    case "cierre_caja":
-      return {
-        destino: "tickets",
-        contenido: componer(cierreCaja(trabajo.carga as CargaCierreCaja), pitido()),
-      };
-
-    case "comprobante_traslado":
-      return {
-        destino: "tickets",
-        contenido: componer(
-          comprobanteTraslado(trabajo.carga as CargaComprobanteTraslado),
-          pitido(),
-        ),
-      };
-
-    case "abrir_cajon":
-      return { destino: "tickets", contenido: componer(inicializar(), abrirCajonBytes()) };
-
-    case "etiqueta_qr":
-      return { destino: "etiquetas", contenido: etiquetaQrPplb(trabajo.carga as DatosEtiquetaQr) };
-
-    case "etiqueta_articulo":
-      return { destino: "etiquetas", contenido: etiquetaArticuloPplb(trabajo.carga as DatosEtiquetaArticulo) };
-
-    case "etiqueta_repuesto":
-      return { destino: "etiquetas", contenido: etiquetaRepuestoPplb(trabajo.carga as DatosEtiquetaRepuesto) };
-  }
-}
-
 async function procesarUnTrabajo(
   config: Config,
   destinos: ReturnType<typeof crearDestinos>,
@@ -187,7 +112,8 @@ async function procesarUnTrabajo(
 }
 
 async function cicloPrincipal(config: Config): Promise<void> {
-  const destinos = crearDestinos(await obtenerImpresoras(config));
+  const impresoras = await obtenerImpresoras(config);
+  const destinos = crearDestinos(impresoras);
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
