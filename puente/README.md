@@ -35,9 +35,31 @@ afuera.
 ## Instalar
 
 El APK se compila solo en GitHub Actions (`.github/workflows/puente-apk.yml`) cada
-vez que cambia algo de `puente/`. Se descarga desde la pestaña **Actions** del
-repositorio, en los artefactos de la ejecución — no hace falta Android Studio en el
-equipo de la sede.
+vez que cambia algo de `puente/`, y se publica en la release **`puente-dev`** con
+nombre fijo: `puente.apk`. Se baja desde el navegador del propio equipo de la sede,
+sin Android Studio y sin pasar por otra máquina:
+
+```
+https://github.com/zaethcom/taller-saas/releases/download/puente-dev/puente.apk
+```
+
+Hay APK viejos en esa release con el hash del commit en el nombre
+(`puente-a480149.apk` y compañía). **No son el último.** Se descargó el equivocado
+una vez y se perdió media hora buscando el problema en el sitio equivocado; por eso
+el nombre del actual es fijo.
+
+Con el equipo conectado por USB y la depuración activada, el script lo hace todo:
+
+```
+.\herramientas\instalar-usb.ps1
+```
+
+Baja el APK correcto, instala, y **resuelve los fallos de instalación que Android
+reporta pero no explica** — que son cinco y cada uno se arregla distinto: equipo sin
+autorizar, `versionCode` instalado más alto que el del APK, verificación de Play
+Protect, falta de espacio, y una versión previa firmada con otra clave (el único que
+obliga a desinstalar, con `-Desinstalar`). Al final lee la versión que quedó
+instalada, porque un `Success` de `adb` no garantiza que reemplazara a la anterior.
 
 1. Instalar el APK y abrirlo.
 2. Conectar las dos impresoras por USB. Si tienen fuente propia, mejor: un hub sin
