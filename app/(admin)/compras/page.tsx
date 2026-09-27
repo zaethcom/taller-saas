@@ -12,9 +12,16 @@
  * El botón de WhatsApp arma un enlace wa.me con la lista de faltantes
  * actuales -- sin backend, sin cuenta de negocio de Meta -- al número
  * que el admin configuró en /configuracion.
+ *
+ * Arriba de esa lista hay una segunda bandeja: lo que el otro local me
+ * está pidiendo del almacén. Se despacha como traslado si lo hay, o se
+ * pasa a faltante si no -- y entonces cae en la lista de abajo, que es el
+ * flujo que ya existía. Esa bifurcación la decide una persona mirando el
+ * estante, no la existencia registrada: un inventario desactualizado
+ * mandaría a comprar algo que sí está.
  */
 import { Fragment, useEffect, useState } from "react";
-import { ShoppingBag, PackageCheck, MessageCircle, X } from "lucide-react";
+import { ShoppingBag, PackageCheck, MessageCircle, Truck, X } from "lucide-react";
 import { clienteNavegador } from "@/lib/supabase/cliente";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
@@ -32,6 +39,21 @@ interface Faltante {
   orden: { numero: number } | { numero: number }[] | null;
 }
 
+/** Lo que otra sede me pide del almacén. Trae más campos que un faltante:
+ *  quién lo pide y contra qué repuesto del catálogo, que en un faltante
+ *  (descripción libre del técnico) todavía no se sabe. */
+interface Solicitud {
+  id: string;
+  descripcion: string;
+  cantidad: number;
+  prioridad: string;
+  estado: string;
+  creada_en: string;
+  orden: { numero: number } | null;
+  solicitante: { id: string; nombre: string } | null;
+  repuesto: { id: string; codigo: string } | null;
+}
+
 interface RepuestoResultado {
   id: string;
   codigo: string;
@@ -43,6 +65,11 @@ interface Sede {
   nombre: string;
 }
 
+/** Los estados que vive un pedido entre sedes, y que por eso NO van en la
+ *  lista de faltantes de abajo: se atienden en la bandeja de arriba. Sin
+ *  esto la misma fila aparecería en las dos tablas. */
+const ESTADOS_PEDIDO = ["pedido_a_sede", "en_traslado"];
+
 /** Urgente grita, normal no: si todo se ve igual, nada se atiende primero. */
 const TONO_PRIORIDAD: Record<string, TonoEtiqueta> = {
   urgente: "peligro",
@@ -52,8 +79,10 @@ const TONO_PRIORIDAD: Record<string, TonoEtiqueta> = {
 
 export default function PaginaCompras() {
   const [faltantes, setFaltantes] = useState<Faltante[]>([]);
+  const [pedidos, setPedidos] = useState<Solicitud[]>([]);
   const [cargando, setCargando] = useState(true);
   const [procesando, setProcesando] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [sedeIdDefault, setSedeIdDefault] = useState<string | null>(null);
@@ -69,11 +98,19 @@ export default function PaginaCompras() {
 
   async function cargar() {
     setCargando(true);
+    // La bandeja de pedidos va por la API y no por el cliente del
+    // navegador: filtra por la sede del usuario, que el servidor conoce.
+    fetch("/api/repuesto-solicitud?bandeja=recibidas")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setPedidos(Array.isArray(d) ? d : []))
+      .catch(() => setPedidos([]));
+
     const supabase = clienteNavegador();
     const { data } = await supabase
       .from("repuesto_solicitud")
       .select("id, descripcion, cantidad, prioridad, estado, creada_en, orden:orden_id ( numero )")
       .neq("estado", "consumido")
+      .not("estado", "in", `(${ESTADOS_PEDIDO.join(",")})`)
       .order("creada_en", { ascending: true });
     setFaltantes((data as Faltante[]) ?? []);
     setCargando(false);
@@ -162,6 +199,26 @@ export default function PaginaCompras() {
     }
   }
 
+  async function accionSobrePedido(id: string, accion: "despachar" | "sin-existencia") {
+    setProcesando(id);
+    setAviso(null);
+    try {
+      const res = await fetch(`/api/repuesto-solicitud/${id}/${accion}`, { method: "POST" });
+      const cuerpo = await res.json();
+      if (!res.ok) throw new Error(cuerpo.error);
+      setAviso(
+        accion === "despachar"
+          ? `Despachado como traslado #${cuerpo.traslado?.numero}. Falta que lo reciban allá.`
+          : "Marcado sin existencia. Pasa a la lista de compras.",
+      );
+      await cargar();
+    } catch (e) {
+      setAviso(e instanceof Error ? e.message : "No se pudo procesar el pedido");
+    } finally {
+      setProcesando(null);
+    }
+  }
+
   function numeroOrden(orden: Faltante["orden"]) {
     if (!orden) return "—";
     return Array.isArray(orden) ? orden[0]?.numero : orden.numero;
@@ -201,6 +258,80 @@ export default function PaginaCompras() {
           ) : undefined
         }
       />
+
+      {aviso && (
+        <div style={{ marginBottom: 14 }}>
+          <Aviso tono="info">
+            <span style={{ fontSize: 13 }}>{aviso}</span>
+          </Aviso>
+        </div>
+      )}
+
+      {pedidos.length > 0 && (
+        <section style={{ marginBottom: 26 }}>
+          <h2 style={{ fontSize: 15, margin: "0 0 10px" }}>Te piden del almacén</h2>
+          <TarjetaTabla>
+            <table>
+              <thead>
+                <tr>
+                  <th>Repuesto</th>
+                  <th>Lo pide</th>
+                  <th>Cantidad</th>
+                  <th>Estado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {pedidos.map((p) => (
+                  <tr key={p.id}>
+                    <td style={{ fontWeight: 600 }}>
+                      {p.descripcion}
+                      {p.repuesto && (
+                        <span className="cifra" style={{ color: "var(--ink-3)", fontWeight: 400 }}>
+                          {" "}
+                          · {p.repuesto.codigo}
+                        </span>
+                      )}
+                    </td>
+                    <td>{p.solicitante?.nombre ?? "—"}</td>
+                    <td className="cifra">{p.cantidad}</td>
+                    <td>
+                      <Etiqueta tono={p.estado === "pedido_a_sede" ? "aviso" : "info"}>
+                        <span style={{ textTransform: "capitalize" }}>
+                          {p.estado === "pedido_a_sede" ? "te lo piden" : "en camino"}
+                        </span>
+                      </Etiqueta>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      {p.estado === "pedido_a_sede" && (
+                        <span style={{ display: "inline-flex", gap: 8 }}>
+                          <Boton
+                            variante="primario"
+                            tamano="sm"
+                            icono={<Truck size={15} strokeWidth={2} />}
+                            onClick={() => accionSobrePedido(p.id, "despachar")}
+                            disabled={procesando === p.id}
+                          >
+                            Despachar
+                          </Boton>
+                          <Boton
+                            variante="contorno"
+                            tamano="sm"
+                            onClick={() => accionSobrePedido(p.id, "sin-existencia")}
+                            disabled={procesando === p.id}
+                          >
+                            No tengo
+                          </Boton>
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TarjetaTabla>
+        </section>
+      )}
 
       {faltantes.length === 0 ? (
         <Tarjeta style={{ textAlign: "center", padding: 36, borderStyle: "dashed" }}>
