@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Clase 7 = impresora. Cubre la mayoría; las que se presentan como HID se
+         eligen igual a mano desde la app, esto solo controla el aviso automático. -->
+    <usb-device class="7" />
+</resources>

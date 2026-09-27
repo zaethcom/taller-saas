@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Hereda del tema del sistema para no arrastrar la librería de Material
+         Components: toda la apariencia real la pone Compose. -->
+    <style name="Theme.Puente" parent="android:Theme.Material.NoActionBar" />
+</resources>
