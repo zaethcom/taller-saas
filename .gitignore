@@ -11,3 +11,6 @@ coverage/
 
 # Artefacto incremental de tsc
 tsconfig.tsbuildinfo
+estacion/config.json
+estacion/salida-*.raw
+estacion/salida-*.txt

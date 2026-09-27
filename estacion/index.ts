@@ -1,8 +1,9 @@
 /**
  * El programa que corre en el Android (o PC) de cada sede. Consulta la
  * cola de trabajos pendientes cada dos segundos, los traduce a bytes o
- * ZPL según el tipo, los manda a la impresora correspondiente por red,
- * y reporta el resultado.
+ * al lenguaje de la impresora de etiquetas (PPLB, ver estacion/etiqueta.ts)
+ * según el tipo, los manda a la impresora correspondiente por red, y
+ * reporta el resultado.
  *
  * No consulta la base de datos directamente ni calcula nada de negocio:
  * solo habla con las dos rutas de la API descritas en el plano de
@@ -14,8 +15,15 @@
  */
 import { readFileSync } from "node:fs";
 import { crearDestinos, type ConfigImpresoras } from "./destino";
-import { componer, inicializar, abrirCajon as abrirCajonBytes } from "./escpos";
-import { etiquetaArticuloZpl, etiquetaQrZpl, type DatosEtiquetaArticulo, type DatosEtiquetaQr } from "./etiqueta";
+import { componer, inicializar, abrirCajon as abrirCajonBytes, pitido } from "./escpos";
+import {
+  etiquetaArticuloPplb,
+  etiquetaQrPplb,
+  etiquetaRepuestoPplb,
+  type DatosEtiquetaArticulo,
+  type DatosEtiquetaQr,
+  type DatosEtiquetaRepuesto,
+} from "./etiqueta";
 import { reciboVenta, type CargaReciboVenta } from "./plantillas/recibo";
 import { comprobanteRecepcion, type CargaComprobanteRecepcion } from "./plantillas/comprobante";
 import { cierreCaja, type CargaCierreCaja } from "./plantillas/cierre";
@@ -26,7 +34,10 @@ interface Config {
   apiBase: string;
   servicioClave: string;
   intervaloMs: number;
-  impresoras: ConfigImpresoras;
+  // Respaldo local: se usa solo si GET /api/estacion/impresoras no
+  // responde (la sede todavía no tiene nada configurado desde la web,
+  // o no hay red hacia el servidor en este arranque en particular).
+  impresoras?: ConfigImpresoras;
 }
 
 interface TrabajoPendiente {
@@ -38,12 +49,46 @@ interface TrabajoPendiente {
     | "cierre_caja"
     | "abrir_cajon"
     | "comprobante_traslado"
-    | "etiqueta_articulo";
+    | "etiqueta_articulo"
+    | "etiqueta_repuesto";
   carga: unknown;
 }
 
 function cargarConfig(ruta: string): Config {
   return JSON.parse(readFileSync(ruta, "utf-8"));
+}
+
+/**
+ * A qué host/puerto/protocolo mandar tickets y etiquetas -- se pide una
+ * vez al arrancar a la API (editable desde /sedes en la web), y si la
+ * sede no tiene nada configurado ahí todavía, o no hay red en este
+ * momento, se cae al `impresoras` de config.json. Si ninguno de los dos
+ * existe, no hay a dónde imprimir y el arranque falla con un mensaje
+ * claro en vez de un error críptico más adelante.
+ */
+async function obtenerImpresoras(config: Config): Promise<ConfigImpresoras> {
+  try {
+    const res = await fetch(
+      `${config.apiBase}/api/estacion/impresoras?sede=${config.sedeId}`,
+      { headers: { Authorization: `Bearer ${config.servicioClave}` } },
+    );
+    if (res.ok) {
+      console.log("[estacion] impresoras: usando la configuración de la web");
+      return res.json();
+    }
+  } catch (err) {
+    const mensaje = err instanceof Error ? err.message : String(err);
+    console.error(`[estacion] no se pudo pedir la configuración de impresoras a la web: ${mensaje}`);
+  }
+
+  if (config.impresoras) {
+    console.log("[estacion] impresoras: usando el respaldo local de config.json");
+    return config.impresoras;
+  }
+
+  throw new Error(
+    "no hay impresoras configuradas: ni la web (GET /api/estacion/impresoras) ni config.json tienen nada",
+  );
 }
 
 async function obtenerPendientes(config: Config): Promise<TrabajoPendiente[]> {
@@ -78,31 +123,46 @@ function resolverImpresion(
 ): { destino: "tickets" | "etiquetas"; contenido: Buffer | string } {
   switch (trabajo.tipo) {
     case "recibo_venta":
-      return { destino: "tickets", contenido: reciboVenta(trabajo.carga as CargaReciboVenta) };
+      return {
+        destino: "tickets",
+        contenido: componer(reciboVenta(trabajo.carga as CargaReciboVenta), pitido()),
+      };
 
     case "comprobante_recepcion":
       return {
         destino: "tickets",
-        contenido: comprobanteRecepcion(trabajo.carga as CargaComprobanteRecepcion),
+        contenido: componer(
+          comprobanteRecepcion(trabajo.carga as CargaComprobanteRecepcion),
+          pitido(),
+        ),
       };
 
     case "cierre_caja":
-      return { destino: "tickets", contenido: cierreCaja(trabajo.carga as CargaCierreCaja) };
+      return {
+        destino: "tickets",
+        contenido: componer(cierreCaja(trabajo.carga as CargaCierreCaja), pitido()),
+      };
 
     case "comprobante_traslado":
       return {
         destino: "tickets",
-        contenido: comprobanteTraslado(trabajo.carga as CargaComprobanteTraslado),
+        contenido: componer(
+          comprobanteTraslado(trabajo.carga as CargaComprobanteTraslado),
+          pitido(),
+        ),
       };
 
     case "abrir_cajon":
       return { destino: "tickets", contenido: componer(inicializar(), abrirCajonBytes()) };
 
     case "etiqueta_qr":
-      return { destino: "etiquetas", contenido: etiquetaQrZpl(trabajo.carga as DatosEtiquetaQr) };
+      return { destino: "etiquetas", contenido: etiquetaQrPplb(trabajo.carga as DatosEtiquetaQr) };
 
     case "etiqueta_articulo":
-      return { destino: "etiquetas", contenido: etiquetaArticuloZpl(trabajo.carga as DatosEtiquetaArticulo) };
+      return { destino: "etiquetas", contenido: etiquetaArticuloPplb(trabajo.carga as DatosEtiquetaArticulo) };
+
+    case "etiqueta_repuesto":
+      return { destino: "etiquetas", contenido: etiquetaRepuestoPplb(trabajo.carga as DatosEtiquetaRepuesto) };
   }
 }
 
@@ -127,7 +187,7 @@ async function procesarUnTrabajo(
 }
 
 async function cicloPrincipal(config: Config): Promise<void> {
-  const destinos = crearDestinos(config.impresoras);
+  const destinos = crearDestinos(await obtenerImpresoras(config));
 
   // eslint-disable-next-line no-constant-condition
   while (true) {

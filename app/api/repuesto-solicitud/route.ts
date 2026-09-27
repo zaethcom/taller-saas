@@ -7,7 +7,7 @@
  * a marcar faltante, que significa comprar algo que la empresa ya tiene
  * en el otro local.
  *
- * ordenId es opcional a propósito (0023): en el mostrador se acaba algo y
+ * ordenId es opcional a propósito (0035): en el mostrador se acaba algo y
  * hay que poder pedirlo sin una reparación detrás.
  *
  * GET /api/repuesto-solicitud?bandeja=recibidas|enviadas

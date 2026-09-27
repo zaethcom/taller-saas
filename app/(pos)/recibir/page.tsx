@@ -7,10 +7,17 @@
  *
  * El requisito de la Fase 3 del plano es que esto tome menos de tres
  * minutos -- por eso busca cliente y equipo por un solo campo (documento,
- * serial) antes de pedir llenar nada más.
+ * serial) antes de pedir llenar nada más, y por eso los tres pasos son
+ * tres tarjetas numeradas en una sola pantalla, sin asistente ni
+ * pestañas: quien recibe ve de un vistazo lo que le falta.
  */
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Inbox, Search, Check, User, Wrench, FileText, Printer, ClipboardList } from "lucide-react";
+import { Boton } from "@/componentes/ui/boton";
+import { Tarjeta } from "@/componentes/ui/tarjeta";
+import { Campo, Aviso } from "@/componentes/ui/campo";
+import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
 interface Cliente {
   id: string;
@@ -26,6 +33,39 @@ interface Producto {
   tipo: string;
   marca: string | null;
   modelo: string | null;
+}
+
+/** El número del paso, para que las tres tarjetas se lean como una secuencia. */
+function Paso({ n, titulo, icono, children }: { n: number; titulo: string; icono: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Tarjeta>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <span
+          className="cifra"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 26,
+            height: 26,
+            borderRadius: "var(--r-sm)",
+            background: "var(--accent)",
+            color: "var(--accent-texto)",
+            fontSize: 13,
+            fontWeight: 800,
+            flexShrink: 0,
+          }}
+        >
+          {n}
+        </span>
+        <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {icono}
+          {titulo}
+        </h2>
+      </div>
+      {children}
+    </Tarjeta>
+  );
 }
 
 export default function PaginaRecibir() {
@@ -111,123 +151,194 @@ export default function PaginaRecibir() {
 
   if (resultado) {
     return (
-      <div>
-        <h1>Orden #{resultado.numero} creada</h1>
-        <p>El comprobante y la etiqueta se están imprimiendo en la estación de esta sede.</p>
-        <div style={{ display: "flex", gap: 12 }}>
-          <button onClick={nuevaRecepcion}>Recibir otro equipo</button>
-          <button onClick={() => router.push("/ordenes")}>Ver tablero de órdenes</button>
+      <Tarjeta style={{ textAlign: "center", padding: 36 }}>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 58,
+            height: 58,
+            borderRadius: "var(--r-lg)",
+            background: "var(--ok-fondo)",
+            color: "var(--ok)",
+            marginBottom: 14,
+          }}
+        >
+          <Check size={30} strokeWidth={2.4} />
+        </span>
+        <h1>
+          Orden <span className="cifra">#{resultado.numero}</span> creada
+        </h1>
+        <p style={{ margin: "8px 0 20px", color: "var(--ink-2)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <Printer size={17} strokeWidth={2} aria-hidden />
+          El comprobante y la etiqueta se están imprimiendo en la estación de esta sede.
+        </p>
+        <div className="fila" style={{ justifyContent: "center" }}>
+          <Boton variante="primario" icono={<Inbox size={18} strokeWidth={2} />} onClick={nuevaRecepcion}>
+            Recibir otro equipo
+          </Boton>
+          <Boton
+            variante="contorno"
+            icono={<ClipboardList size={18} strokeWidth={2} />}
+            onClick={() => router.push("/ordenes")}
+          >
+            Ver tablero de órdenes
+          </Boton>
         </div>
-      </div>
+      </Tarjeta>
     );
   }
 
   return (
     <div>
-      <h1>Recibir equipo</h1>
+      <TituloPantalla
+        icono={<Inbox size={24} strokeWidth={2} />}
+        titulo="Recibir equipo"
+        descripcion="Cliente, equipo y motivo. Al guardar se imprime el comprobante y la etiqueta."
+      />
 
-      <section style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 16 }}>1. Cliente</h2>
-        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-          <input
-            placeholder="Documento"
-            value={documento}
-            onChange={(e) => {
-              setDocumento(e.target.value);
-              setCliente(null);
+      <div className="pila">
+        <Paso n={1} titulo="Cliente" icono={<User size={18} strokeWidth={2} color="var(--ink-2)" />}>
+          <form
+            className="fila"
+            style={{ gap: 8, flexWrap: "nowrap", marginBottom: cliente ? 12 : 14 }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              buscarCliente();
             }}
-            style={{ padding: 8, flex: 1 }}
-          />
-          <button onClick={buscarCliente} disabled={buscandoCliente}>
-            Buscar
-          </button>
-        </div>
-
-        {cliente ? (
-          <p>
-            ✓ {cliente.nombre} {cliente.telefono ? `· ${cliente.telefono}` : ""}
-          </p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          >
             <input
-              placeholder="Nombre del cliente"
-              value={clienteNuevo.nombre}
-              onChange={(e) => setClienteNuevo((c) => ({ ...c, nombre: e.target.value }))}
-              style={{ padding: 8 }}
+              placeholder="Documento"
+              value={documento}
+              onChange={(e) => {
+                setDocumento(e.target.value);
+                setCliente(null);
+              }}
+              aria-label="Documento del cliente"
             />
-            <input
-              placeholder="Teléfono"
-              value={clienteNuevo.telefono}
-              onChange={(e) => setClienteNuevo((c) => ({ ...c, telefono: e.target.value }))}
-              style={{ padding: 8 }}
-            />
-          </div>
-        )}
-      </section>
+            <Boton type="submit" variante="contorno" icono={<Search size={17} strokeWidth={2} />} disabled={buscandoCliente}>
+              Buscar
+            </Boton>
+          </form>
 
-      <section style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 16 }}>2. Equipo</h2>
-        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-          <input
-            placeholder="Serial (vacío = equipo nuevo, se genera al guardar)"
-            value={serial}
-            onChange={(e) => {
-              setSerial(e.target.value);
-              setProducto(null);
+          {cliente ? (
+            <Aviso tono="ok" icono={<Check size={17} strokeWidth={2.4} />}>
+              <strong>{cliente.nombre}</strong>
+              {cliente.telefono ? <span className="cifra"> · {cliente.telefono}</span> : ""}
+            </Aviso>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+              <Campo etiqueta="Nombre del cliente">
+                <input
+                  placeholder="Nombre y apellido"
+                  value={clienteNuevo.nombre}
+                  onChange={(e) => setClienteNuevo((c) => ({ ...c, nombre: e.target.value }))}
+                />
+              </Campo>
+              <Campo etiqueta="Teléfono" ayuda="Por ahí se le avisa cuando el equipo esté listo.">
+                <input
+                  placeholder="300 000 0000"
+                  value={clienteNuevo.telefono}
+                  onChange={(e) => setClienteNuevo((c) => ({ ...c, telefono: e.target.value }))}
+                />
+              </Campo>
+            </div>
+          )}
+        </Paso>
+
+        <Paso n={2} titulo="Equipo" icono={<Wrench size={18} strokeWidth={2} color="var(--ink-2)" />}>
+          <form
+            className="fila"
+            style={{ gap: 8, flexWrap: "nowrap", marginBottom: 14 }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              buscarProducto();
             }}
-            style={{ padding: 8, flex: 1 }}
-          />
-          <button onClick={buscarProducto} disabled={buscandoProducto || !serial.trim()}>
-            Buscar
-          </button>
-        </div>
-
-        {producto ? (
-          <p>
-            ✓ {producto.marca} {producto.modelo} ({producto.tipo})
-          </p>
-        ) : (
-          <div style={{ display: "flex", gap: 8 }}>
-            <select
-              value={productoNuevo.tipo}
-              onChange={(e) => setProductoNuevo((p) => ({ ...p, tipo: e.target.value }))}
-              style={{ padding: 8 }}
+          >
+            <input
+              placeholder="Serial (vacío = equipo nuevo, se genera al guardar)"
+              value={serial}
+              onChange={(e) => {
+                setSerial(e.target.value);
+                setProducto(null);
+              }}
+              aria-label="Serial del equipo"
+            />
+            <Boton
+              type="submit"
+              variante="contorno"
+              icono={<Search size={17} strokeWidth={2} />}
+              disabled={buscandoProducto || !serial.trim()}
             >
-              <option value="patineta">Patineta</option>
-              <option value="celular">Celular</option>
-              <option value="computador">Computador</option>
-            </select>
-            <input
-              placeholder="Marca"
-              value={productoNuevo.marca}
-              onChange={(e) => setProductoNuevo((p) => ({ ...p, marca: e.target.value }))}
-              style={{ padding: 8, flex: 1 }}
-            />
-            <input
-              placeholder="Modelo"
-              value={productoNuevo.modelo}
-              onChange={(e) => setProductoNuevo((p) => ({ ...p, modelo: e.target.value }))}
-              style={{ padding: 8, flex: 1 }}
-            />
-          </div>
-        )}
-      </section>
+              Buscar
+            </Boton>
+          </form>
 
-      <section style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 16 }}>3. Motivo</h2>
-        <textarea
-          value={motivo}
-          onChange={(e) => setMotivo(e.target.value)}
-          placeholder="Por qué deja el equipo…"
-          rows={3}
-          style={{ width: "100%", padding: 8 }}
-        />
-      </section>
+          {producto ? (
+            <Aviso tono="ok" icono={<Check size={17} strokeWidth={2.4} />}>
+              <strong>
+                {producto.marca} {producto.modelo}
+              </strong>{" "}
+              ({producto.tipo})
+            </Aviso>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "160px repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+              <Campo etiqueta="Tipo">
+                <select
+                  value={productoNuevo.tipo}
+                  onChange={(e) => setProductoNuevo((p) => ({ ...p, tipo: e.target.value }))}
+                >
+                  <option value="patineta">Patineta</option>
+                  <option value="celular">Celular</option>
+                  <option value="computador">Computador</option>
+                </select>
+              </Campo>
+              <Campo etiqueta="Marca">
+                <input
+                  placeholder="Marca"
+                  value={productoNuevo.marca}
+                  onChange={(e) => setProductoNuevo((p) => ({ ...p, marca: e.target.value }))}
+                />
+              </Campo>
+              <Campo etiqueta="Modelo">
+                <input
+                  placeholder="Modelo"
+                  value={productoNuevo.modelo}
+                  onChange={(e) => setProductoNuevo((p) => ({ ...p, modelo: e.target.value }))}
+                />
+              </Campo>
+            </div>
+          )}
+        </Paso>
 
-      <button disabled={guardando || !motivo.trim()} onClick={guardar} style={{ padding: "10px 20px" }}>
-        {guardando ? "Guardando…" : "Recibir e imprimir"}
-      </button>
-      {error && <p style={{ color: "#c0392b" }}>{error}</p>}
+        <Paso n={3} titulo="Motivo" icono={<FileText size={18} strokeWidth={2} color="var(--ink-2)" />}>
+          <Campo ayuda="Lo que el cliente reporta, con sus palabras. Es lo que lee el técnico al abrir la orden.">
+            <textarea
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              placeholder="Por qué deja el equipo…"
+              rows={3}
+              aria-label="Motivo de la recepción"
+            />
+          </Campo>
+        </Paso>
+
+        <div className="fila">
+          <Boton
+            variante="primario"
+            tamano="lg"
+            icono={<Printer size={19} strokeWidth={2} />}
+            disabled={guardando || !motivo.trim()}
+            onClick={guardar}
+          >
+            {guardando ? "Guardando…" : "Recibir e imprimir"}
+          </Boton>
+          {!motivo.trim() && <span style={{ fontSize: 12, color: "var(--ink-3)" }}>Falta el motivo para poder guardar.</span>}
+        </div>
+
+        {error && <Aviso tono="peligro">{error}</Aviso>}
+      </div>
     </div>
   );
 }

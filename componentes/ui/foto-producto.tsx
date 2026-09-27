@@ -11,6 +11,7 @@
  * /vender (donde solo se busca y se agrega al carrito).
  */
 import { useState } from "react";
+import { Wrench, Package, ImagePlus } from "lucide-react";
 import { subirImagenProducto } from "@/lib/subir-imagen-producto";
 
 export function FotoProducto({
@@ -18,7 +19,6 @@ export function FotoProducto({
   id,
   empresaId,
   imagenUrl,
-  alto = 120,
   editable,
 }: {
   tipo: "repuesto" | "articulo";
@@ -27,7 +27,6 @@ export function FotoProducto({
   // que solo muestra la foto, nunca se usa.
   empresaId?: string;
   imagenUrl: string | null;
-  alto?: number;
   editable: boolean;
 }) {
   const [url, setUrl] = useState(imagenUrl);
@@ -65,26 +64,50 @@ export function FotoProducto({
         <img
           src={url}
           alt=""
-          style={{ width: "100%", height: alto, objectFit: "cover", borderRadius: 8, display: "block" }}
+          style={{
+            width: "100%",
+            aspectRatio: "1 / 1",
+            objectFit: "cover",
+            borderRadius: "var(--r-md)",
+            display: "block",
+          }}
         />
       ) : (
         <div
           style={{
             width: "100%",
-            height: alto,
-            borderRadius: 8,
-            background: "rgba(127,127,127,0.15)",
+            aspectRatio: "1 / 1",
+            borderRadius: "var(--r-md)",
+            background: "var(--surface-2)",
+            color: "var(--ink-3)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 32,
           }}
         >
-          {tipo === "repuesto" ? "🔧" : "📦"}
+          {tipo === "repuesto" ? (
+            <Wrench size={40} strokeWidth={1.6} aria-hidden />
+          ) : (
+            <Package size={40} strokeWidth={1.6} aria-hidden />
+          )}
         </div>
       )}
       {editable && (
-        <label style={{ display: "block", fontSize: 11, textAlign: "center", marginTop: 4, cursor: "pointer", opacity: subiendo ? 0.5 : 0.7 }}>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 5,
+            marginTop: 6,
+            fontSize: 11,
+            fontWeight: 600,
+            color: "var(--ink-2)",
+            cursor: subiendo ? "progress" : "pointer",
+            opacity: subiendo ? 0.5 : 1,
+          }}
+        >
+          <ImagePlus size={13} strokeWidth={2} aria-hidden />
           {subiendo ? "Subiendo…" : url ? "Cambiar foto" : "Agregar foto"}
           <input
             type="file"
@@ -95,7 +118,7 @@ export function FotoProducto({
           />
         </label>
       )}
-      {error && <div style={{ fontSize: 10, color: "#c0392b", textAlign: "center", marginTop: 2 }}>{error}</div>}
+      {error && <div style={{ fontSize: 10, color: "var(--peligro)", textAlign: "center", marginTop: 2 }}>{error}</div>}
     </div>
   );
 }

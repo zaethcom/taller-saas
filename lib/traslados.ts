@@ -5,8 +5,13 @@
  * Vive aquí y no dentro de la ruta porque ahora hay dos formas de originar
  * un traslado -- armarlo a mano en /traslados, o despacharlo desde una
  * solicitud del taller -- y las dos mueven inventario. Dos copias de un
- * `consumir_repuesto` es la clase de duplicación que acaba en existencias
- * que no cuadran cuando alguien arregla una y olvida la otra.
+ * movimiento de existencia es la clase de duplicación que acaba en
+ * existencias que no cuadran cuando alguien arregla una y olvida la otra.
+ *
+ * El cuerpo es el que tenía la ruta /api/traslados, con `mover_existencia`
+ * (0026_auditoria_inventario) -- no `consumir_repuesto`, que esa migración
+ * reemplazó: la nueva deja auditoría en la misma transacción y se niega a
+ * dejar la cantidad en negativo, que la vieja sí permitía.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { encolarImpresion } from "./impresion";
@@ -48,13 +53,17 @@ export async function crearTraslado(
 
   // Descontar en origen ANTES de crear la fila: si algún repuesto no
   // alcanza, o algún artículo ya no está disponible, el traslado no debe
-  // quedar registrado a medias.
+  // quedar registrado a medias. Por eso el movimiento de artículo (a
+  // diferencia del de mover_existencia, que audita desde dentro de la
+  // función) no puede llevar referencia_id al traslado todavía -- ese id
+  // nace después, en el insert de más abajo.
   for (const item of items) {
     if (item.repuestoId) {
-      const { error } = await supabase.rpc("consumir_repuesto", {
+      const { error } = await supabase.rpc("mover_existencia", {
         p_repuesto_id: item.repuestoId,
         p_sede_id: sedeOrigenId,
-        p_cantidad: item.cantidad,
+        p_delta: -item.cantidad,
+        p_tipo: "traslado_envio",
       });
       if (error) {
         return {
@@ -75,6 +84,15 @@ export async function crearTraslado(
       if (!articulo) {
         return { ok: false, estado: 409, error: `"${item.descripcion}" ya no está disponible en esta sede` };
       }
+      await supabase.from("movimiento_inventario").insert({
+        empresa_id: empresaId,
+        sede_id: sedeOrigenId,
+        articulo_id: item.articuloId,
+        tipo: "traslado_envio",
+        estado_anterior: "en_stock",
+        estado_nuevo: "trasladado",
+        autor_id: enviadoPor,
+      });
     }
   }
 

@@ -4,8 +4,15 @@
  * filtra por empresa_actual() sin que esta página tenga que acordarse
  * de agregar un .eq("empresa_id", ...) en ningún lado.
  */
-import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
+import Link from "next/link";
+import { ClipboardList, Inbox } from "lucide-react";
+import { type Estado } from "@/lib/estados";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
+import { EstadoOrden } from "@/componentes/ui/estado-orden";
+import { Aviso } from "@/componentes/ui/campo";
+import { BotonEnlace } from "@/componentes/ui/boton";
+import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
 export default async function PaginaOrdenes() {
   const supabase = await clienteServidor();
@@ -23,41 +30,74 @@ export default async function PaginaOrdenes() {
     .limit(50);
 
   if (error) {
-    return <p>No se pudo cargar el tablero: {error.message}</p>;
+    return <Aviso tono="peligro">No se pudo cargar el tablero: {error.message}</Aviso>;
   }
+
+  const filas = ordenes ?? [];
 
   return (
     <div>
-      <h1>Órdenes</h1>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
-            <th>#</th>
-            <th>Equipo</th>
-            <th>Sede</th>
-            <th>Estado</th>
-            <th>Motivo</th>
-            <th>Abierta</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(ordenes ?? []).map((o) => (
-            <tr key={o.id} style={{ borderBottom: "1px solid #eee" }}>
-              <td>
-                <a href={`/orden/${o.id}`}>#{o.numero}</a>
-              </td>
-              {/* @ts-expect-error -- join inferido como array por el tipado genérico de supabase-js */}
-              <td>{o.producto?.marca} {o.producto?.modelo} · {o.producto?.serial}</td>
-              {/* @ts-expect-error -- idem */}
-              <td>{o.sede?.nombre}</td>
-              <td>{ETIQUETA_ESTADO[o.estado as Estado]}</td>
-              <td>{o.motivo}</td>
-              <td>{new Date(o.abierta_en).toLocaleDateString("es-CO")}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {(ordenes ?? []).length === 0 && <p>No hay órdenes todavía.</p>}
+      <TituloPantalla
+        icono={<ClipboardList size={24} strokeWidth={2} />}
+        titulo="Órdenes"
+        descripcion="Las últimas 50 órdenes de las dos sedes."
+        acciones={
+          <BotonEnlace href="/recibir" variante="primario" icono={<Inbox size={18} strokeWidth={2} />}>
+            Recibir equipo
+          </BotonEnlace>
+        }
+      />
+
+      {filas.length === 0 ? (
+        <Tarjeta style={{ textAlign: "center", padding: 36, borderStyle: "dashed" }}>
+          <ClipboardList size={30} strokeWidth={1.6} color="var(--ink-3)" aria-hidden />
+          <p style={{ margin: "10px 0 0", fontWeight: 700 }}>No hay órdenes todavía</p>
+          <p style={{ margin: "5px 0 0", fontSize: 13, color: "var(--ink-2)" }}>
+            La primera nace al recibir un equipo en caja.
+          </p>
+        </Tarjeta>
+      ) : (
+        <TarjetaTabla>
+          <table>
+            <thead>
+              <tr>
+                <th>Orden</th>
+                <th>Equipo</th>
+                <th>Sede</th>
+                <th>Estado</th>
+                <th>Motivo</th>
+                <th>Abierta</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filas.map((o) => (
+                <tr key={o.id}>
+                  <td>
+                    <Link href={`/orden/${o.id}`} className="cifra" style={{ fontWeight: 800 }}>
+                      #{o.numero}
+                    </Link>
+                  </td>
+                  <td>
+                    {/* @ts-expect-error -- join inferido como array por el tipado genérico de supabase-js */}
+                    <div style={{ fontWeight: 600 }}>{o.producto?.marca} {o.producto?.modelo}</div>
+                    {/* @ts-expect-error -- idem */}
+                    <div className="cifra" style={{ fontSize: 12, color: "var(--ink-3)" }}>{o.producto?.serial}</div>
+                  </td>
+                  {/* @ts-expect-error -- idem */}
+                  <td>{o.sede?.nombre}</td>
+                  <td>
+                    <EstadoOrden estado={o.estado as Estado} />
+                  </td>
+                  <td style={{ color: "var(--ink-2)" }}>{o.motivo}</td>
+                  <td className="cifra" style={{ whiteSpace: "nowrap", color: "var(--ink-2)" }}>
+                    {new Date(o.abierta_en).toLocaleDateString("es-CO")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TarjetaTabla>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@
  * Body: { sedeDestinoId: string, items: {repuestoId?, articuloId?, descripcion, cantidad}[], nota?: string }
  *
  * Un traslado sale de la sede del usuario hacia sedeDestinoId. Un item
- * de repuesto descuenta cantidad de inmediato (consumir_repuesto, igual
+ * de repuesto descuenta cantidad de inmediato (mover_existencia, igual
  * que una venta de mostrador); un item de artículo individualizado
  * pasa esa unidad a 'trasladado' -- en tránsito, ya no vendible ni
  * volvible a trasladar hasta que alguien la reciba. Ninguno de los dos

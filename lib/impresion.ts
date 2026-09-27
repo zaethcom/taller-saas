@@ -7,6 +7,9 @@
  * Ver supabase/migrations/0005_impresion.sql para el porqué de este diseño.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { generarLogoRaster, type LogoRaster } from "./logo-bitmap";
+import { generarEtiquetaQrRaster } from "./etiqueta-bitmap";
+import { generarQrRaster } from "./qr-bitmap";
 
 export type TipoTrabajo =
   | "etiqueta_qr"
@@ -15,20 +18,22 @@ export type TipoTrabajo =
   | "cierre_caja"
   | "abrir_cajon"
   | "comprobante_traslado"
-  | "etiqueta_articulo";
+  | "etiqueta_articulo"
+  | "etiqueta_repuesto";
 
+/**
+ * La etiqueta física es de 30x25mm -- solo entra el QR (escaneable, el
+ * código de entrada) y el mismo código en texto grande como respaldo.
+ * El resto de los datos de la orden ya va en el comprobante impreso,
+ * que sí tiene espacio.
+ */
 interface CargaEtiquetaQr {
-  serial: string;
-  tipo: string;
-  marca: string | null;
-  modelo: string | null;
-  numeroOrden: number;
-  contenidoQr: string;
+  codigoEntrada: string;
 }
 
 /**
- * Los cuatro campos que identifican a la empresa en el papel -- nunca
- * los llena quien encola el trabajo (/api/ventas, /api/ordenes, etc.):
+ * Los campos que identifican a la empresa en el papel -- nunca los
+ * llena quien encola el trabajo (/api/ventas, /api/ordenes, etc.):
  * encolarImpresion() los agrega solos, leyendo empresa + empresa_config,
  * para los tipos que de verdad son un recibo y no una etiqueta pequeña
  * sin espacio para esto.
@@ -38,6 +43,7 @@ interface CargaMarcaEmpresa {
   empresaDireccion: string | null;
   empresaTelefono: string | null;
   reciboPie: string;
+  logoRaster?: LogoRaster | null;
 }
 
 interface CargaReciboVenta extends CargaMarcaEmpresa {
@@ -53,11 +59,15 @@ interface CargaReciboVenta extends CargaMarcaEmpresa {
 
 interface CargaComprobanteRecepcion extends CargaMarcaEmpresa {
   numeroOrden: number;
+  codigoEntrada: string;
   clienteNombre: string;
+  clienteTelefono: string | null;
   producto: string;
+  serial: string;
   motivo: string;
   fecha: string;
   urlSeguimiento: string;
+  qrRaster?: LogoRaster;
 }
 
 interface CargaCierreCaja extends CargaMarcaEmpresa {
@@ -90,6 +100,13 @@ interface CargaEtiquetaArticulo {
   modelo: string | null;
 }
 
+interface CargaEtiquetaRepuesto {
+  nombreEmpresa: string;
+  codigo: string;
+  descripcion: string;
+  cantidadCopias: number;
+}
+
 type CargaPorTipo = {
   etiqueta_qr: CargaEtiquetaQr;
   recibo_venta: CargaReciboVenta;
@@ -98,6 +115,7 @@ type CargaPorTipo = {
   abrir_cajon: CargaAbrirCajon;
   comprobante_traslado: CargaComprobanteTraslado;
   etiqueta_articulo: CargaEtiquetaArticulo;
+  etiqueta_repuesto: CargaEtiquetaRepuesto;
 };
 
 const TIPOS_CON_MARCA = new Set<TipoTrabajo>([
@@ -132,22 +150,50 @@ export async function encolarImpresion<T extends TipoTrabajo>(
   // verdad lo reciben aquí, una sola vez, en vez de que cada ruta que
   // llama a encolarImpresion tenga que acordarse de pedirlo.
   if (TIPOS_CON_MARCA.has(params.tipo)) {
-    const [{ data: empresa }, { data: config }] = await Promise.all([
+    const [{ data: empresa }, { data: config }, { data: sedeConfig }] = await Promise.all([
       supabase.from("empresa").select("nombre").eq("id", params.empresaId).single(),
       supabase
         .from("empresa_config")
-        .select("recibo_direccion, recibo_telefono, recibo_pie")
+        .select("recibo_direccion, recibo_telefono, recibo_pie, logo_url")
         .eq("empresa_id", params.empresaId)
+        .maybeSingle(),
+      // Lo que esta sede sobrescribe (dirección/teléfono/pie/logo propios,
+      // por si son dos locales físicos distintos) -- lo que no sobrescribe
+      // cae al de empresa_config, campo por campo.
+      supabase
+        .from("sede_config")
+        .select("recibo_direccion, recibo_telefono, recibo_pie, logo_url")
+        .eq("sede_id", params.sedeId)
         .maybeSingle(),
     ]);
 
     const marca: CargaMarcaEmpresa = {
       empresaNombre: empresa?.nombre ?? "",
-      empresaDireccion: config?.recibo_direccion ?? null,
-      empresaTelefono: config?.recibo_telefono ?? null,
-      reciboPie: config?.recibo_pie ?? "Gracias por su preferencia",
+      empresaDireccion: sedeConfig?.recibo_direccion ?? config?.recibo_direccion ?? null,
+      empresaTelefono: sedeConfig?.recibo_telefono ?? config?.recibo_telefono ?? null,
+      reciboPie: sedeConfig?.recibo_pie ?? config?.recibo_pie ?? "Gracias por su preferencia",
+      logoRaster: await generarLogoRaster(sedeConfig?.logo_url ?? config?.logo_url),
     };
     carga = { ...params.carga, ...marca };
+  }
+
+  // La etiqueta_qr no manda comandos de texto/QR nativos -- todo el
+  // diseño (QR + código + marco) se renderiza acá como una sola imagen
+  // (ver lib/etiqueta-bitmap.ts) y estacion/ solo la embebe en el
+  // comando PPLB `GW`. Quien encola solo pide el código de entrada
+  // (`{ codigoEntrada }`), igual que antes -- este archivo se encarga
+  // de convertirlo en la imagen.
+  if (params.tipo === "etiqueta_qr") {
+    const { codigoEntrada } = params.carga as unknown as { codigoEntrada: string };
+    carga = { etiquetaRaster: await generarEtiquetaQrRaster(codigoEntrada) };
+  }
+
+  // El QR del comprobante de recepción se manda como bitmap, no como
+  // comando nativo -- ver lib/qr-bitmap.ts sobre por qué (no lo
+  // interpreta el hardware real de alguna sedes).
+  if (params.tipo === "comprobante_recepcion") {
+    const { urlSeguimiento } = params.carga as unknown as { urlSeguimiento: string };
+    carga = { ...carga, qrRaster: await generarQrRaster(urlSeguimiento) };
   }
 
   const { data, error } = await supabase

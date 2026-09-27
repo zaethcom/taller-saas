@@ -7,8 +7,9 @@
 import { redirect } from "next/navigation";
 import { ScanLine } from "lucide-react";
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
-import { SelectorPuertas } from "@/componentes/ui/selector-puertas";
+import { BarraSuperior } from "@/componentes/ui/barra-superior";
 import { BarraLateral, type ItemNavLateral } from "@/componentes/ui/barra-lateral";
+import { BloqueMarca } from "@/componentes/ui/bloque-marca";
 import { puedeEntrarA } from "@/lib/permisos";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { obtenerConfiguracion } from "@/lib/configuracion";
@@ -21,9 +22,10 @@ export default async function LayoutTaller({ children }: { children: React.React
   if (!perfil) redirect("/login");
   if (!puedeEntrarA(perfil.rol, "taller")) {
     return (
-      <main style={{ padding: 40, background: "#0b1418", color: "white", minHeight: "100vh" }}>
+      <main className="puerta-oscura"
+        style={{ padding: 40, minHeight: "100vh" }}>
         <p>Tu rol ({perfil.rol}) no tiene acceso a la app del taller.</p>
-        <CerrarSesion />
+        <CerrarSesion oscuro={false} />
       </main>
     );
   }
@@ -39,30 +41,17 @@ export default async function LayoutTaller({ children }: { children: React.React
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0b1418", color: "white", display: "flex" }}>
+    <div className="puerta-oscura" style={{ minHeight: "100vh", display: "flex" }}>
       <BarraLateral
         items={items}
         logoUrl={config.logoUrl}
         nombreEmpresa={perfil.empresaNombre}
-        colorPrincipal={config.colorPrincipal}
         etiquetaPuerta="Taller"
+        pie={<BloqueMarca imagenUrl={config.imagenMarcaUrl} eslogan={config.eslogan} />}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <header
-          style={{
-            padding: "14px 20px",
-            borderBottom: "1px solid #223038",
-            display: "flex",
-            justifyContent: "flex-end",
-            alignItems: "center",
-            gap: 16,
-          }}
-        >
-          <SelectorPuertas rol={perfil.rol} actual="taller" />
-          <span style={{ opacity: 0.7, fontSize: 14 }}>{perfil.nombre}</span>
-          <CerrarSesion />
-        </header>
-        <div style={{ padding: 20, maxWidth: 480, margin: "0 auto" }}>{children}</div>
+        <BarraSuperior nombre={perfil.nombre} rol={perfil.rol} puerta="taller" />
+        <main style={{ padding: 20, maxWidth: 520, margin: "0 auto" }}>{children}</main>
       </div>
     </div>
   );

@@ -7,12 +7,21 @@
  * La transición a "entregada" la valida el servidor
  * (/api/ordenes/[id]/transicion) contra saldo_en_cero, tiene_firma y
  * tiene_foto_salida reales -- esta pantalla no duplica esa lógica,
- * solo intenta la transición y muestra el error si algo falta.
+ * solo intenta la transición y muestra el error si algo falta. Lo que
+ * sí hace la pantalla es mostrar cuáles de esos tres requisitos ya
+ * están cumplidos, para que quien entrega no descubra lo que falta al
+ * final, cuando el cliente ya está esperando en el mostrador.
  */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { PackageCheck, Search, Check, Camera, PenLine, Eraser, Lock, Printer } from "lucide-react";
 import { FirmaCanvas, type FirmaCanvasHandle } from "@/componentes/evidencia/firma-canvas";
 import { subirEvidencia } from "@/lib/subir-evidencia";
+import { Boton } from "@/componentes/ui/boton";
+import { Tarjeta } from "@/componentes/ui/tarjeta";
+import { Etiqueta } from "@/componentes/ui/etiqueta";
+import { Aviso } from "@/componentes/ui/campo";
+import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
 interface OrdenEncontrada {
   id: string;
@@ -141,85 +150,169 @@ export default function PaginaEntregar() {
 
   if (listo) {
     return (
-      <div>
-        <h1>Orden #{orden!.numero} entregada</h1>
-        <p>El comprobante se está imprimiendo en la estación de esta sede.</p>
-        <button onClick={() => router.push("/vender")}>Volver</button>
-      </div>
+      <Tarjeta style={{ textAlign: "center", padding: 36 }}>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 58,
+            height: 58,
+            borderRadius: "var(--r-lg)",
+            background: "var(--ok-fondo)",
+            color: "var(--ok)",
+            marginBottom: 14,
+          }}
+        >
+          <Check size={30} strokeWidth={2.4} />
+        </span>
+        <h1>
+          Orden <span className="cifra">#{orden!.numero}</span> entregada
+        </h1>
+        <p style={{ margin: "8px 0 20px", color: "var(--ink-2)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <Printer size={17} strokeWidth={2} aria-hidden />
+          El comprobante se está imprimiendo en la estación de esta sede.
+        </p>
+        <Boton variante="primario" onClick={() => router.push("/vender")}>
+          Volver a caja
+        </Boton>
+      </Tarjeta>
     );
   }
 
   return (
     <div>
-      <h1>Entregar</h1>
+      <TituloPantalla
+        icono={<PackageCheck size={24} strokeWidth={2} />}
+        titulo="Entregar"
+        descripcion="Cobra el saldo, toma la foto de salida y la firma de quien recibe."
+      />
 
       {!orden ? (
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            placeholder="Número de orden"
-            value={numero}
-            onChange={(e) => setNumero(e.target.value)}
-            style={{ padding: 8, flex: 1 }}
-          />
-          <button onClick={buscar} disabled={!numero.trim()}>
-            Buscar
-          </button>
-        </div>
-      ) : (
-        <>
-          <p>
-            {orden.producto.marca} {orden.producto.modelo} ({orden.producto.tipo}) ·{" "}
-            {orden.producto.serial}
-          </p>
-
-          {orden.saldoPendiente > 0 ? (
-            <section style={{ marginBottom: 20 }}>
-              <p style={{ fontWeight: 700 }}>Saldo pendiente: {fmt(orden.saldoPendiente)}</p>
-              <div style={{ display: "flex", gap: 8 }}>
-                {metodos.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => setMetodoPagoId(m.id)}
-                    style={{ fontWeight: metodoPagoId === m.id ? 700 : 400 }}
-                  >
-                    {m.nombre}
-                  </button>
-                ))}
-              </div>
-            </section>
-          ) : (
-            <p style={{ color: "#2e7d32" }}>Sin saldo pendiente.</p>
+        <Tarjeta>
+          <form
+            className="fila"
+            style={{ gap: 8, flexWrap: "nowrap" }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              buscar();
+            }}
+          >
+            <input
+              placeholder="Número de orden"
+              value={numero}
+              onChange={(e) => setNumero(e.target.value)}
+              aria-label="Número de orden"
+              className="cifra"
+            />
+            <Boton type="submit" variante="primario" icono={<Search size={17} strokeWidth={2} />} disabled={!numero.trim()}>
+              Buscar
+            </Boton>
+          </form>
+          {error && (
+            <div style={{ marginTop: 14 }}>
+              <Aviso tono="peligro">{error}</Aviso>
+            </div>
           )}
+        </Tarjeta>
+      ) : (
+        <div className="pila">
+          <Tarjeta>
+            <div className="fila" style={{ justifyContent: "space-between" }}>
+              <div>
+                <h2>
+                  {orden.producto.marca} {orden.producto.modelo}
+                </h2>
+                <p className="cifra" style={{ margin: "4px 0 0", fontSize: 13, color: "var(--ink-2)" }}>
+                  {orden.producto.tipo} · {orden.producto.serial} · orden #{orden.numero}
+                </p>
+              </div>
+              {orden.saldoPendiente > 0 ? (
+                <Etiqueta tono="aviso" punto>
+                  <span className="cifra">Saldo {fmt(orden.saldoPendiente)}</span>
+                </Etiqueta>
+              ) : (
+                <Etiqueta tono="ok" punto>
+                  Sin saldo pendiente
+                </Etiqueta>
+              )}
+            </div>
 
-          <section style={{ marginBottom: 20 }}>
-            <h2 style={{ fontSize: 16 }}>Foto de salida</h2>
+            {orden.saldoPendiente > 0 && metodos.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <div className="campo-etiqueta">Forma de pago del saldo</div>
+                <div className="fila" style={{ gap: 8 }}>
+                  {metodos.map((m) => (
+                    <Boton
+                      key={m.id}
+                      variante={metodoPagoId === m.id ? "primario" : "contorno"}
+                      onClick={() => setMetodoPagoId(m.id)}
+                      aria-pressed={metodoPagoId === m.id}
+                    >
+                      {m.nombre}
+                    </Boton>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Tarjeta>
+
+          <Tarjeta>
+            <h2 style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
+              <Camera size={19} strokeWidth={2} color="var(--ink-2)" aria-hidden />
+              Foto de salida
+              {foto && <Etiqueta tono="ok" punto>Lista</Etiqueta>}
+            </h2>
             <input
               ref={fotoInputRef}
               type="file"
               accept="image/*"
               capture="environment"
               onChange={(e) => setFoto(e.target.files?.[0] ?? null)}
+              aria-label="Foto de salida del equipo"
+              style={{ height: "auto", padding: 10 }}
             />
-          </section>
+            <p className="campo-ayuda">Queda visible para el cliente en su enlace de seguimiento.</p>
+          </Tarjeta>
 
-          <section style={{ marginBottom: 20 }}>
-            <h2 style={{ fontSize: 16 }}>Firma de quien recibe</h2>
+          <Tarjeta>
+            <h2 style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
+              <PenLine size={19} strokeWidth={2} color="var(--ink-2)" aria-hidden />
+              Firma de quien recibe
+            </h2>
             <FirmaCanvas ref={firmaRef} />
-            <button onClick={() => firmaRef.current?.limpiar()} style={{ marginTop: 8 }}>
-              Borrar firma
-            </button>
-          </section>
+            <div style={{ marginTop: 10 }}>
+              <Boton
+                variante="fantasma"
+                tamano="sm"
+                icono={<Eraser size={15} strokeWidth={2} />}
+                onClick={() => firmaRef.current?.limpiar()}
+              >
+                Borrar firma
+              </Boton>
+            </div>
+          </Tarjeta>
 
-          <button
+          <Boton
+            variante="primario"
+            tamano="xl"
+            ancho
+            icono={<Lock size={19} strokeWidth={2} />}
             onClick={entregar}
             disabled={procesando || (orden.saldoPendiente > 0 && !metodoPagoId)}
-            style={{ padding: "10px 20px" }}
           >
-            {procesando ? "Procesando…" : orden.saldoPendiente > 0 ? `Cobrar y entregar ${fmt(orden.saldoPendiente)}` : "Entregar"}
-          </button>
-        </>
+            <span className="cifra">
+              {procesando
+                ? "Procesando…"
+                : orden.saldoPendiente > 0
+                  ? `Cobrar y entregar ${fmt(orden.saldoPendiente)}`
+                  : "Entregar"}
+            </span>
+          </Boton>
+
+          {error && <Aviso tono="peligro">{error}</Aviso>}
+        </div>
       )}
-      {error && <p style={{ color: "#c0392b" }}>{error}</p>}
     </div>
   );
 }
