@@ -3,7 +3,7 @@
  * Body: {
  *   clienteId?: string, clienteNuevo?: {nombre, documento?, telefono?, correo?},
  *   productoId?: string, productoNuevo?: {serial, tipo, marca?, modelo?},
- *   motivo: string,
+ *   motivo: string, infoAdicional?: string,
  * }
  *
  * El punto de entrada de todo el sistema: recibir un equipo. Reutiliza
@@ -37,6 +37,7 @@ interface CuerpoOrden {
   productoId?: string;
   productoNuevo?: ProductoNuevo;
   motivo: string;
+  infoAdicional?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -110,6 +111,7 @@ export async function POST(req: NextRequest) {
       sede_id: perfil.sede_id,
       producto_id: productoId,
       motivo: body.motivo.trim(),
+      info_adicional: body.infoAdicional?.trim() || null,
     })
     .select("id, numero, token_publico")
     .single();
