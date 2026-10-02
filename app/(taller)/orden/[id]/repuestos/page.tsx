@@ -11,7 +11,7 @@
  */
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Package, Search, Minus, AlertTriangle, Check, PackageCheck } from "lucide-react";
+import { Package, Search, Minus, AlertTriangle, Check, PackageCheck, Wrench, Hammer, Plus } from "lucide-react";
 import { clienteNavegador } from "@/lib/supabase/cliente";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
@@ -33,6 +33,122 @@ interface Repuesto {
   codigo: string;
   descripcion: string;
   existenciaAqui: number;
+}
+
+interface ItemCatalogo {
+  id: string;
+  nombre: string;
+  precio: number;
+}
+
+const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
+
+/**
+ * "Agregar servicio realizado" y "Agregar mano de obra" son el mismo
+ * patrón de buscar-y-agregar que "Consumir del inventario" arriba,
+ * contra un catálogo distinto (servicio | mano_obra) y sin tocar
+ * inventario -- un solo componente para las dos, en vez de repetir el
+ * bloque de búsqueda dos veces.
+ */
+function BloqueItemCatalogo({
+  titulo,
+  icono,
+  endpoint,
+  tipo,
+  ordenId,
+  procesando,
+  onAgregado,
+  onError,
+}: {
+  titulo: string;
+  icono: React.ReactNode;
+  endpoint: string;
+  tipo: "servicio" | "mano_obra";
+  ordenId: string;
+  procesando: boolean;
+  onAgregado: (mensaje: string) => void;
+  onError: (mensaje: string) => void;
+}) {
+  const [buscar, setBuscar] = useState("");
+  const [resultados, setResultados] = useState<ItemCatalogo[]>([]);
+  const [buscando, setBuscando] = useState(false);
+  const [agregando, setAgregando] = useState(false);
+
+  async function buscarItems() {
+    setBuscando(true);
+    const res = await fetch(`${endpoint}?buscar=${encodeURIComponent(buscar)}`);
+    setResultados(await res.json());
+    setBuscando(false);
+  }
+
+  async function agregar(itemId: string) {
+    setAgregando(true);
+    try {
+      const res = await fetch(`/api/ordenes/${ordenId}/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo, id: itemId, cantidad: 1 }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      onAgregado(tipo === "servicio" ? "Servicio agregado a la orden." : "Mano de obra agregada a la orden.");
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "No se pudo agregar");
+    } finally {
+      setAgregando(false);
+    }
+  }
+
+  return (
+    <Tarjeta>
+      <h2 style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
+        {icono}
+        {titulo}
+      </h2>
+      <form
+        className="fila"
+        style={{ gap: 8, flexWrap: "nowrap", marginBottom: resultados.length ? 14 : 0 }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          buscarItems();
+        }}
+      >
+        <input
+          placeholder="Buscar por nombre"
+          value={buscar}
+          onChange={(e) => setBuscar(e.target.value)}
+          aria-label={`Buscar ${titulo.toLowerCase()}`}
+        />
+        <Boton type="submit" variante="contorno" icono={<Search size={17} strokeWidth={2} />} disabled={buscando} />
+      </form>
+
+      {resultados.map((r) => (
+        <div
+          key={r.id}
+          style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: "1px solid var(--rule)" }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>{r.nombre}</div>
+          </div>
+          <span className="cifra" style={{ fontSize: 13, color: "var(--ink-2)" }}>
+            {fmt(r.precio)}
+          </span>
+          <Boton
+            variante="primario"
+            tamano="sm"
+            icono={<Plus size={15} strokeWidth={2.2} />}
+            onClick={() => agregar(r.id)}
+            disabled={procesando || agregando}
+          >
+            Agregar
+          </Boton>
+        </div>
+      ))}
+
+      {resultados.length === 0 && buscar && !buscando && (
+        <p style={{ margin: "12px 0 0", fontSize: 13, color: "var(--ink-3)" }}>Sin resultados.</p>
+      )}
+    </Tarjeta>
+  );
 }
 
 export default function PaginaRepuestos() {
@@ -188,6 +304,40 @@ export default function PaginaRepuestos() {
             </p>
           )}
         </Tarjeta>
+
+        <BloqueItemCatalogo
+          titulo="Agregar servicio realizado"
+          icono={<Wrench size={19} strokeWidth={2} color="var(--ink-2)" aria-hidden />}
+          endpoint="/api/servicios"
+          tipo="servicio"
+          ordenId={id}
+          procesando={procesando}
+          onAgregado={(m) => {
+            setMensaje(m);
+            setError(null);
+          }}
+          onError={(m) => {
+            setError(m);
+            setMensaje(null);
+          }}
+        />
+
+        <BloqueItemCatalogo
+          titulo="Agregar mano de obra"
+          icono={<Hammer size={19} strokeWidth={2} color="var(--ink-2)" aria-hidden />}
+          endpoint="/api/mano-obra"
+          tipo="mano_obra"
+          ordenId={id}
+          procesando={procesando}
+          onAgregado={(m) => {
+            setMensaje(m);
+            setError(null);
+          }}
+          onError={(m) => {
+            setError(m);
+            setMensaje(null);
+          }}
+        />
 
         <Tarjeta>
           <h2 style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>

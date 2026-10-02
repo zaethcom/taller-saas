@@ -14,8 +14,9 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PackageCheck, Search, Check, Camera, PenLine, Eraser, Lock, Printer } from "lucide-react";
+import { PackageCheck, Search, Check, Camera, PenLine, Eraser, Lock, Printer, QrCode } from "lucide-react";
 import { FirmaCanvas, type FirmaCanvasHandle } from "@/componentes/evidencia/firma-canvas";
+import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
 import { subirEvidencia } from "@/lib/subir-evidencia";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
@@ -23,12 +24,34 @@ import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
+interface ItemOrden {
+  descripcion: string;
+  cantidad: number;
+  precioUnit: number;
+  repuestoId: string | null;
+}
+
 interface OrdenEncontrada {
   id: string;
   numero: number;
   estado: string;
   saldoPendiente: number;
+  items: ItemOrden[];
   producto: { marca: string | null; modelo: string | null; tipo: string; serial: string };
+}
+
+/** El QR de la etiqueta trae la URL completa de seguimiento (ver
+ *  app/api/ordenes/route.ts) -- se extrae el token igual que en
+ *  /escanear, no el número de orden en sí. */
+function extraerTokenDeSeguimiento(valor: string): string | null {
+  try {
+    const url = new URL(valor);
+    const partes = url.pathname.split("/").filter(Boolean);
+    const i = partes.indexOf("seguimiento");
+    return i >= 0 ? (partes[i + 1] ?? null) : null;
+  } catch {
+    return null;
+  }
 }
 
 interface Metodo {
@@ -45,6 +68,7 @@ export default function PaginaEntregar() {
 
   const [numero, setNumero] = useState("");
   const [orden, setOrden] = useState<OrdenEncontrada | null>(null);
+  const [escaneando, setEscaneando] = useState(false);
   const [foto, setFoto] = useState<File | null>(null);
   const [metodos, setMetodos] = useState<Metodo[]>([]);
   const [metodoPagoId, setMetodoPagoId] = useState("");
@@ -64,12 +88,15 @@ export default function PaginaEntregar() {
       .catch(() => {});
   }, []);
 
-  async function buscar() {
+  async function buscar(query?: { numero?: string; token?: string }) {
     setError(null);
     setOrden(null);
+    const parametro = query?.token
+      ? `token=${encodeURIComponent(query.token)}`
+      : `numero=${encodeURIComponent((query?.numero ?? numero).trim())}`;
     try {
       const [resOrden, resPerfil] = await Promise.all([
-        fetch(`/api/ordenes/buscar?numero=${encodeURIComponent(numero.trim())}`),
+        fetch(`/api/ordenes/buscar?${parametro}`),
         fetch("/api/perfil"),
       ]);
       if (!resOrden.ok) throw new Error((await resOrden.json()).error);
@@ -80,6 +107,17 @@ export default function PaginaEntregar() {
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo buscar la orden");
+    }
+  }
+
+  function procesarQr(valor: string) {
+    setEscaneando(false);
+    const token = extraerTokenDeSeguimiento(valor);
+    if (token) {
+      buscar({ token });
+    } else {
+      setNumero(valor.trim());
+      buscar({ numero: valor.trim() });
     }
   }
 
@@ -97,7 +135,12 @@ export default function PaginaEntregar() {
     setProcesando(true);
     setError(null);
     try {
-      // 1. Cobrar el saldo pendiente, si lo hay.
+      // 1. Cobrar el saldo pendiente, si lo hay -- un venta_item por
+      // cada orden_item real (Fase 7 del Plan 1), no un único cargo
+      // "Saldo orden #N": el cliente ve y el cajero cobra exactamente
+      // lo que se usó. /api/ventas no vuelve a descontar inventario
+      // para estos items porque manda ordenId -- ya se descontó al
+      // consumirlos durante la reparación.
       if (orden.saldoPendiente > 0) {
         const resVenta = await fetch("/api/ventas", {
           method: "POST",
@@ -105,7 +148,12 @@ export default function PaginaEntregar() {
           body: JSON.stringify({
             ordenId: orden.id,
             metodoPagoId,
-            items: [{ descripcion: `Saldo orden #${orden.numero}`, cantidad: 1, precioUnit: orden.saldoPendiente }],
+            items: orden.items.map((it) => ({
+              descripcion: it.descripcion,
+              cantidad: it.cantidad,
+              precioUnit: it.precioUnit,
+              repuestoId: it.repuestoId ?? undefined,
+            })),
           }),
         });
         if (!resVenta.ok) throw new Error((await resVenta.json()).error);
@@ -208,7 +256,27 @@ export default function PaginaEntregar() {
             <Boton type="submit" variante="primario" icono={<Search size={17} strokeWidth={2} />} disabled={!numero.trim()}>
               Buscar
             </Boton>
+            <Boton
+              type="button"
+              variante="contorno"
+              icono={<QrCode size={17} strokeWidth={2} />}
+              onClick={() => setEscaneando(true)}
+            >
+              Escanear QR
+            </Boton>
           </form>
+
+          {escaneando && (
+            <div style={{ marginTop: 14 }}>
+              <LectorCodigoBarras
+                formats={["qr_code"]}
+                etiqueta="Ubica el QR de la etiqueta"
+                onDetectado={procesarQr}
+                onCerrar={() => setEscaneando(false)}
+              />
+            </div>
+          )}
+
           {error && (
             <div style={{ marginTop: 14 }}>
               <Aviso tono="peligro">{error}</Aviso>
@@ -237,6 +305,21 @@ export default function PaginaEntregar() {
                 </Etiqueta>
               )}
             </div>
+
+            {orden.items.length > 0 && (
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--rule)" }}>
+                <div className="campo-etiqueta">Qué se usó</div>
+                {orden.items.map((it, i) => (
+                  <div key={i} className="fila" style={{ justifyContent: "space-between", fontSize: 13, padding: "4px 0" }}>
+                    <span>
+                      {it.cantidad > 1 ? `${it.cantidad}× ` : ""}
+                      {it.descripcion}
+                    </span>
+                    <span className="cifra">{fmt(it.cantidad * it.precioUnit)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {orden.saldoPendiente > 0 && metodos.length > 0 && (
               <div style={{ marginTop: 16 }}>
