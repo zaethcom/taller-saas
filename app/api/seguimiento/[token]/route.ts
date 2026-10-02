@@ -36,7 +36,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     return NextResponse.json({ error: "enlace no válido o vencido" }, { status: 404 });
   }
 
-  const [{ data: eventos }, { data: cotizacion }, { data: evidencias }] = await Promise.all([
+  const [{ data: eventos }, { data: cotizacion }, { data: evidencias }, { data: itemsPendientes }] = await Promise.all([
     admin
       .from("orden_evento")
       .select("a_estado, ocurrio_en")
@@ -54,6 +54,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       .select("ruta, tipo, tomada_en")
       .eq("orden_id", orden.id)
       .eq("visible_cliente", true),
+    // Ítems agregados DESPUÉS de aprobada la cotización original --
+    // Fase F2 del Plan 3 -- que el cliente también tiene que decidir.
+    admin
+      .from("orden_item")
+      .select("id, descripcion, cantidad, precio_unit, decision")
+      .eq("orden_id", orden.id)
+      .eq("requiere_aprobacion", true)
+      .order("creado_en", { ascending: true }),
   ]);
 
   // Se firman aquí, con service role, porque el visitante público no
@@ -83,5 +91,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     })),
     cotizacion,
     evidencias: evidenciasFirmadas,
+    itemsPendientes: (itemsPendientes ?? []).map((it) => ({
+      id: it.id,
+      descripcion: it.descripcion,
+      cantidad: it.cantidad,
+      precioUnit: Number(it.precio_unit),
+      decision: it.decision,
+    })),
   });
 }

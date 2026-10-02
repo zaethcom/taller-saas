@@ -33,6 +33,7 @@ interface Seguimiento {
     cotizacion_item: { descripcion: string; cantidad: number; precio_unit: number }[];
   } | null;
   evidencias: { tipo: "foto" | "video"; tomadaEn: string; url: string | null }[];
+  itemsPendientes: { id: string; descripcion: string; cantidad: number; precioUnit: number; decision: string | null }[];
 }
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
@@ -42,6 +43,7 @@ export default function PaginaSeguimiento() {
   const [datos, setDatos] = useState<Seguimiento | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [decidiendoItem, setDecidiendoItem] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/seguimiento/${token}`)
@@ -69,6 +71,24 @@ export default function PaginaSeguimiento() {
       setError(e instanceof Error ? e.message : "No se pudo enviar la decisión");
     } finally {
       setEnviando(false);
+    }
+  }
+
+  async function decidirItem(itemId: string, decision: "aprobada" | "rechazada") {
+    setDecidiendoItem(itemId);
+    try {
+      const res = await fetch(`/api/seguimiento/${token}/items/aprobar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, itemId, decision }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      const actualizado = await fetch(`/api/seguimiento/${token}`).then((r) => r.json());
+      setDatos(actualizado);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo enviar la decisión");
+    } finally {
+      setDecidiendoItem(null);
     }
   }
 
@@ -213,6 +233,58 @@ export default function PaginaSeguimiento() {
                 </div>
               )}
             </Tarjeta>
+          </section>
+        )}
+
+        {datos.itemsPendientes.length > 0 && (
+          <section>
+            <h2 style={{ marginBottom: 12 }}>Costos adicionales</h2>
+            <Tarjeta relleno={false}>
+              {datos.itemsPendientes.map((it) => (
+                <div key={it.id} style={{ padding: "14px 16px", borderBottom: "1px solid var(--rule)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 14, marginBottom: 10 }}>
+                    <span>
+                      <span className="cifra" style={{ color: "var(--ink-3)" }}>
+                        {it.cantidad}×
+                      </span>{" "}
+                      {it.descripcion}
+                    </span>
+                    <span className="cifra" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>
+                      {fmt(it.cantidad * it.precioUnit)}
+                    </span>
+                  </div>
+                  {it.decision ? (
+                    <Etiqueta tono={it.decision === "aprobada" ? "ok" : "neutro"} punto>
+                      {it.decision === "aprobada" ? "Aprobado por ti" : "Rechazado por ti"}
+                    </Etiqueta>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      <Boton
+                        variante="primario"
+                        tamano="sm"
+                        icono={<Check size={15} strokeWidth={2.4} />}
+                        disabled={decidiendoItem === it.id}
+                        onClick={() => decidirItem(it.id, "aprobada")}
+                      >
+                        Aprobar
+                      </Boton>
+                      <Boton
+                        variante="contorno"
+                        tamano="sm"
+                        icono={<X size={15} strokeWidth={2.4} />}
+                        disabled={decidiendoItem === it.id}
+                        onClick={() => decidirItem(it.id, "rechazada")}
+                      >
+                        Rechazar
+                      </Boton>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </Tarjeta>
+            <p className="campo-ayuda" style={{ marginTop: 8 }}>
+              Se agregaron después de que aprobaste la cotización original -- por eso se piden aparte.
+            </p>
           </section>
         )}
 

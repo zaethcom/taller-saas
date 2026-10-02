@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { recalcularTotalOrden } from "@/lib/orden-total";
+import { requiereNuevaAprobacion } from "@/lib/orden-aprobacion";
 
 interface Cuerpo {
   tipo: "servicio" | "mano_obra";
@@ -57,6 +58,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     precio_unit: precioUnit,
     subtotal: precioUnit * cantidad,
     creado_por: user.id,
+    requiere_aprobacion: await requiereNuevaAprobacion(supabase, id),
   });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
