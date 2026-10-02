@@ -35,6 +35,13 @@ interface Categoria {
   nombre: string;
 }
 
+const CONDICIONES: { valor: string; etiqueta: string }[] = [
+  { valor: "nuevo_original", etiqueta: "Nuevo / Original" },
+  { valor: "nuevo_generico", etiqueta: "Nuevo / Genérico" },
+  { valor: "usado_segunda", etiqueta: "Segunda mano / Usado" },
+  { valor: "desmontado_recuperado", etiqueta: "Desmontado / Recuperado" },
+];
+
 export default function PaginaRecepcionMercancia() {
   const [tipo, setTipo] = useState("");
   const [marca, setMarca] = useState("");
@@ -44,6 +51,8 @@ export default function PaginaRecepcionMercancia() {
   const [precioVenta, setPrecioVenta] = useState("");
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [categoriaId, setCategoriaId] = useState("");
+  const [cantidad, setCantidad] = useState("1");
+  const [condicion, setCondicion] = useState("");
 
   const [sesion, setSesion] = useState<ArticuloRegistrado[]>([]);
   const [enviando, setEnviando] = useState(false);
@@ -65,6 +74,7 @@ export default function PaginaRecepcionMercancia() {
     setEnviando(true);
     setError(null);
     try {
+      const cantidadNum = Math.max(1, Number(cantidad) || 1);
       const res = await fetch("/api/inventario/articulos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -76,12 +86,21 @@ export default function PaginaRecepcionMercancia() {
           costo: costo ? Number(costo) : undefined,
           precioVenta: precioVenta ? Number(precioVenta) : undefined,
           categoriaId: categoriaId || undefined,
+          cantidad: cantidadNum,
+          condicion: condicion || undefined,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
-      const { articulo } = await res.json();
+      const { articulos } = await res.json();
 
-      setSesion((s) => [{ codigo: articulo.codigo, tipo: tipo.trim(), marca: marca.trim(), modelo: modelo.trim() }, ...s]);
+      // Una fila por unidad -- cantidad > 1 trae varios códigos en un
+      // solo registro, cada uno queda identificado individualmente.
+      setSesion((s) => [
+        ...(articulos as { codigo: string }[])
+          .map((a) => ({ codigo: a.codigo, tipo: tipo.trim(), marca: marca.trim(), modelo: modelo.trim() }))
+          .reverse(),
+        ...s,
+      ]);
 
       // Limpiar y volver el foco al primer campo -- listo para el
       // siguiente artículo de la caja sin tocar el mouse.
@@ -91,6 +110,8 @@ export default function PaginaRecepcionMercancia() {
       setNumeroSerie("");
       setCosto("");
       setPrecioVenta("");
+      setCantidad("1");
+      setCondicion("");
       inputTipoRef.current?.focus();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo registrar el artículo");
@@ -134,25 +155,56 @@ export default function PaginaRecepcionMercancia() {
               </Campo>
             </div>
 
-            <Campo etiqueta="Número de serie / IMEI" ayuda="Opcional. Si viene, queda impreso en la etiqueta.">
-              <input
-                placeholder="Opcional"
-                value={numeroSerie}
-                onChange={(e) => setNumeroSerie(e.target.value)}
-                className="cifra"
-              />
-            </Campo>
+            <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 12 }}>
+              <Campo etiqueta="Cantidad" ayuda="N unidades -> N etiquetas.">
+                <input
+                  type="number"
+                  min={1}
+                  value={cantidad}
+                  onChange={(e) => setCantidad(e.target.value)}
+                  className="cifra"
+                />
+              </Campo>
+              <Campo
+                etiqueta="Número de serie / IMEI"
+                ayuda={
+                  Number(cantidad) > 1
+                    ? "No aplica con más de una unidad -- cada una ya queda identificada por su código."
+                    : "Opcional. Si viene, queda impreso en la etiqueta."
+                }
+              >
+                <input
+                  placeholder="Opcional"
+                  value={numeroSerie}
+                  onChange={(e) => setNumeroSerie(e.target.value)}
+                  className="cifra"
+                  disabled={Number(cantidad) > 1}
+                />
+              </Campo>
+            </div>
 
-            <Campo etiqueta="Categoría">
-              <select value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)}>
-                <option value="">Sin categoría</option>
-                {categorias.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
-            </Campo>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+              <Campo etiqueta="Categoría">
+                <select value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)}>
+                  <option value="">Sin categoría</option>
+                  {categorias.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+              <Campo etiqueta="Condición">
+                <select value={condicion} onChange={(e) => setCondicion(e.target.value)}>
+                  <option value="">Sin especificar</option>
+                  {CONDICIONES.map((c) => (
+                    <option key={c.valor} value={c.valor}>
+                      {c.etiqueta}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+            </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
               <Campo etiqueta="Costo">
@@ -183,7 +235,11 @@ export default function PaginaRecepcionMercancia() {
                 icono={<Printer size={19} strokeWidth={2} />}
                 disabled={enviando || !tipo.trim()}
               >
-                {enviando ? "Registrando…" : "Registrar e imprimir etiqueta"}
+                {enviando
+                  ? "Registrando…"
+                  : Number(cantidad) > 1
+                    ? `Registrar e imprimir ${Math.max(1, Number(cantidad) || 1)} etiquetas`
+                    : "Registrar e imprimir etiqueta"}
               </Boton>
             </div>
 
