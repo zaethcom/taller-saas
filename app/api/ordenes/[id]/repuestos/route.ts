@@ -20,6 +20,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { recalcularTotalOrden } from "@/lib/orden-total";
+import { requiereNuevaAprobacion } from "@/lib/orden-aprobacion";
 
 type Cuerpo =
   | { accion: "consumir"; repuestoId: string; cantidad: number }
@@ -94,6 +95,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       precio_unit: precioUnit,
       subtotal: precioUnit * body.cantidad,
       creado_por: user.id,
+      requiere_aprobacion: await requiereNuevaAprobacion(supabase, id),
     });
     await recalcularTotalOrden(supabase, id);
 
