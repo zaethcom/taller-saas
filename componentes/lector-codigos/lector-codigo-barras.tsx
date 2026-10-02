@@ -1,0 +1,90 @@
+"use client";
+
+/**
+ * Panel de cámara para leer un código con useLectorCodigos() -- a
+ * diferencia de app/(taller)/escanear/page.tsx (pantalla completa,
+ * cámara siempre activa), esto se monta solo mientras se necesita: la
+ * cámara no debe pedirse ni encenderse hasta que alguien toque
+ * "Escanear" en la pantalla que lo use.
+ */
+import { useLectorCodigos } from "./use-lector-codigos";
+import { Tarjeta } from "@/componentes/ui/tarjeta";
+import { Boton } from "@/componentes/ui/boton";
+
+export function LectorCodigoBarras({
+  formats,
+  etiqueta = "Ubica el código dentro del recuadro",
+  onDetectado,
+  onCerrar,
+}: {
+  formats: string[];
+  etiqueta?: string;
+  onDetectado: (valor: string) => void;
+  onCerrar: () => void;
+}) {
+  const { videoRef, camaraDisponible, camaraActiva } = useLectorCodigos(formats, onDetectado);
+
+  return (
+    <Tarjeta>
+      <div
+        style={{
+          position: "relative",
+          aspectRatio: "16 / 9",
+          background: "var(--surface)",
+          borderRadius: "var(--r-md)",
+          overflow: "hidden",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {camaraDisponible ? (
+          <video ref={videoRef} playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          <span style={{ padding: 24, textAlign: "center", color: "var(--ink-3)", fontSize: 14 }}>
+            Este navegador no lee códigos con la cámara. Escríbelo a mano.
+          </span>
+        )}
+
+        {camaraActiva && (
+          <>
+            <div
+              style={{
+                position: "absolute",
+                left: 24,
+                right: 24,
+                top: "50%",
+                height: 2,
+                background: "var(--accent)",
+                boxShadow: "0 0 16px 2px var(--accent-aro)",
+                pointerEvents: "none",
+              }}
+            />
+            <span
+              style={{
+                position: "absolute",
+                bottom: 12,
+                padding: "0 14px",
+                height: 28,
+                display: "inline-flex",
+                alignItems: "center",
+                borderRadius: "var(--r-pill)",
+                background: "rgba(0,0,0,0.72)",
+                color: "#fff",
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              {etiqueta}
+            </span>
+          </>
+        )}
+      </div>
+      <div style={{ marginTop: 10 }}>
+        <Boton variante="fantasma" tamano="sm" onClick={onCerrar}>
+          Cancelar
+        </Boton>
+      </div>
+    </Tarjeta>
+  );
+}

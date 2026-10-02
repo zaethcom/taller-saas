@@ -7,6 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type Tema = "claro" | "oscuro" | "alto_contraste";
+export type TipoNegocio = "celular" | "computador" | "patineta" | "otro";
 
 export interface ConfiguracionEmpresa {
   logoUrl: string | null;
@@ -20,6 +21,7 @@ export interface ConfiguracionEmpresa {
   whatsappProveedor: string | null;
   prefijoEtiqueta: string;
   fondoLoginUrl: string | null;
+  tipoNegocio: TipoNegocio | null;
 }
 
 export const CONFIG_POR_DEFECTO: ConfiguracionEmpresa = {
@@ -34,6 +36,7 @@ export const CONFIG_POR_DEFECTO: ConfiguracionEmpresa = {
   whatsappProveedor: null,
   prefijoEtiqueta: "OR",
   fondoLoginUrl: null,
+  tipoNegocio: null,
 };
 
 export async function obtenerConfiguracion(
@@ -43,7 +46,7 @@ export async function obtenerConfiguracion(
   const { data } = await supabase
     .from("empresa_config")
     .select(
-      "logo_url, color_principal, tema, recibo_direccion, recibo_telefono, recibo_pie, imagen_marca_url, eslogan, whatsapp_proveedor, prefijo_etiqueta, fondo_login_url",
+      "logo_url, color_principal, tema, recibo_direccion, recibo_telefono, recibo_pie, imagen_marca_url, eslogan, whatsapp_proveedor, prefijo_etiqueta, fondo_login_url, tipo_negocio",
     )
     .eq("empresa_id", empresaId)
     .maybeSingle();
@@ -62,5 +65,6 @@ export async function obtenerConfiguracion(
     whatsappProveedor: data.whatsapp_proveedor,
     prefijoEtiqueta: data.prefijo_etiqueta,
     fondoLoginUrl: data.fondo_login_url,
+    tipoNegocio: data.tipo_negocio as TipoNegocio | null,
   };
 }

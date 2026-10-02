@@ -7,7 +7,10 @@
  * Usa BarcodeDetector, nativo de Chrome/Android -- sin librería
  * externa, sin peso extra en el bundle. Donde no existe (Safari/iOS
  * todavía no lo soporta ampliamente) el campo de serial manual sigue
- * siempre visible, no es un respaldo oculto.
+ * siempre visible, no es un respaldo oculto. El ciclo de vida de la
+ * cámara vive en componentes/lector-codigos/usar-lector-codigos.ts --
+ * compartido con /recibir (código de barras del serial) y con
+ * /entregar (QR de la etiqueta), no se repite acá.
  *
  * El QR impreso codifica la URL de seguimiento completa, no el serial
  * (ver app/api/ordenes/route.ts) -- así que decodificar el QR extrae
@@ -19,25 +22,14 @@
  * marcan dónde hay que poner el código en una pantalla que por lo
  * demás es una imagen de cámara en movimiento.
  */
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ScanLine, Search, Barcode } from "lucide-react";
+import { useLectorCodigos } from "@/componentes/lector-codigos/use-lector-codigos";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
-
-interface DetectedBarcode {
-  rawValue: string;
-}
-interface BarcodeDetectorLike {
-  detect(source: CanvasImageSource): Promise<DetectedBarcode[]>;
-}
-declare global {
-  interface Window {
-    BarcodeDetector?: new (options?: { formats: string[] }) => BarcodeDetectorLike;
-  }
-}
 
 function extraerTokenDeSeguimiento(valor: string): string | null {
   try {
@@ -73,74 +65,13 @@ function Esquina({ arriba, izquierda }: { arriba: boolean; izquierda: boolean })
 
 export default function PaginaEscanear() {
   const router = useRouter();
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-
   const [serial, setSerial] = useState("");
   const [buscando, setBuscando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [camaraDisponible, setCamaraDisponible] = useState(true);
-  const [camaraActiva, setCamaraActiva] = useState(false);
 
-  useEffect(() => {
-    let cancelado = false;
-    let intervalo: ReturnType<typeof setInterval>;
-
-    async function iniciar() {
-      if (typeof window === "undefined" || !window.BarcodeDetector) {
-        setCamaraDisponible(false);
-        return;
-      }
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
-        });
-        if (cancelado) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-        }
-        setCamaraActiva(true);
-
-        const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
-        intervalo = setInterval(async () => {
-          if (!videoRef.current || videoRef.current.readyState < 2) return;
-          try {
-            const resultados = await detector.detect(videoRef.current);
-            if (resultados[0]) {
-              clearInterval(intervalo);
-              procesarCodigo(resultados[0].rawValue);
-            }
-          } catch {
-            // un frame ilegible no es un error -- se reintenta en el siguiente
-          }
-        }, 350);
-      } catch {
-        setCamaraDisponible(false);
-      }
-    }
-
-    iniciar();
-
-    return () => {
-      cancelado = true;
-      clearInterval(intervalo);
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function detener() {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    setCamaraActiva(false);
-  }
+  const { videoRef, camaraDisponible, camaraActiva } = useLectorCodigos(["qr_code"], procesarCodigo);
 
   async function procesarCodigo(valor: string) {
-    detener();
     const token = extraerTokenDeSeguimiento(valor);
     if (token) {
       buscarPorToken(token);

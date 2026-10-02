@@ -32,12 +32,20 @@ interface Config {
   prefijoEtiqueta: string;
   fondoLoginUrl: string | null;
   codigo: string | null;
+  tipoNegocio: "celular" | "computador" | "patineta" | "otro" | null;
 }
 
 const TEMAS: { valor: Config["tema"]; etiqueta: string }[] = [
   { valor: "claro", etiqueta: "Claro" },
   { valor: "oscuro", etiqueta: "Oscuro" },
   { valor: "alto_contraste", etiqueta: "Alto contraste" },
+];
+
+const TIPOS_NEGOCIO: { valor: NonNullable<Config["tipoNegocio"]>; etiqueta: string }[] = [
+  { valor: "celular", etiqueta: "Celulares" },
+  { valor: "computador", etiqueta: "Computadores" },
+  { valor: "patineta", etiqueta: "Patinetas" },
+  { valor: "otro", etiqueta: "Otro" },
 ];
 
 export default function PaginaConfiguracion() {
@@ -365,6 +373,26 @@ export default function PaginaConfiguracion() {
               />
             </Campo>
           </div>
+        </Tarjeta>
+
+        <Tarjeta>
+          <h2 style={{ marginBottom: 12 }}>Tipo de negocio</h2>
+          <div className="fila" style={{ gap: 8 }}>
+            {TIPOS_NEGOCIO.map((t) => (
+              <Boton
+                key={t.valor}
+                variante={config.tipoNegocio === t.valor ? "primario" : "contorno"}
+                onClick={() => guardar({ tipoNegocio: t.valor })}
+                disabled={guardando}
+                aria-pressed={config.tipoNegocio === t.valor}
+              >
+                {t.etiqueta}
+              </Boton>
+            ))}
+          </div>
+          <p className="campo-ayuda">
+            Define qué tipo de equipo propone Recibir equipo por defecto, en vez de tener que elegirlo cada vez.
+          </p>
         </Tarjeta>
 
         <Tarjeta>
