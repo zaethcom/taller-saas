@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0038_orden_item_aprobacion.sql
+-- 0040_orden_item_aprobacion.sql
 -- Fase F2 del Plan 3: si se agrega un repuesto/servicio/mano de obra
 -- DESPUÉS de que el cliente ya aprobó la cotización original, ese ítem
 -- queda marcado para que el cliente lo apruebe también -- siempre,
