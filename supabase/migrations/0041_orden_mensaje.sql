@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0036_orden_mensaje.sql
+-- 0041_orden_mensaje.sql
 -- Fase F3 del Plan 3: mensajería cliente <-> taller en el enlace de
 -- seguimiento (punto 8 del documento del cliente). Async, "pull" --
 -- cada lado revisa al entrar, sin notificaciones push (decisión
