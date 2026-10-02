@@ -29,7 +29,10 @@ interface OrdenTecnico {
   marca: string | null;
   modelo: string | null;
   cliente_nombre: string;
+  total: number;
 }
+
+const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
 function Acceso({ href, icono, titulo, descripcion }: { href: string; icono: React.ReactNode; titulo: string; descripcion: string }) {
   return (
@@ -128,6 +131,12 @@ export default function PaginaOrdenTecnico() {
             <span style={{ color: "var(--ink-3)" }}>Motivo · </span>
             {orden.motivo}
           </div>
+          {Number(orden.total) > 0 && (
+            <div>
+              <span style={{ color: "var(--ink-3)" }}>Total · </span>
+              <strong className="cifra">{fmt(Number(orden.total))}</strong>
+            </div>
+          )}
         </div>
       </Tarjeta>
 

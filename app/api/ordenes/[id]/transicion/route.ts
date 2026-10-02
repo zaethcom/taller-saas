@@ -36,7 +36,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: orden, error: errOrden } = await supabase
     .from("orden")
-    .select("id, empresa_id, estado, tecnico_id")
+    .select("id, empresa_id, estado, tecnico_id, total")
     .eq("id", id)
     .maybeSingle();
 
@@ -97,15 +97,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (cotizacion) cumplidos.add("tiene_cotizacion");
   if (cotizacion?.decision === "aprobada") cumplidos.add("cotizacion_aprobada");
 
-  if (cotizacion) {
-    const { data: ventas } = await supabase
-      .from("venta")
-      .select("total")
-      .eq("orden_id", id)
-      .eq("anulada", false);
-    const totalPagado = (ventas ?? []).reduce((s, v) => s + Number(v.total), 0);
-    if (saldoEnCero(Number(cotizacion.total), totalPagado)) cumplidos.add("saldo_en_cero");
-  }
+  // orden.total (Fase 5 del Plan 1, lo que de verdad se usó/hizo) es la
+  // base del saldo, no cotizacion.total (la propuesta original) -- si
+  // se agregó un repuesto después de aprobar, el saldo real lo refleja.
+  const { data: ventas } = await supabase.from("venta").select("total").eq("orden_id", id).eq("anulada", false);
+  const totalPagado = (ventas ?? []).reduce((s, v) => s + Number(v.total), 0);
+  if (saldoEnCero(Number(orden.total), totalPagado)) cumplidos.add("saldo_en_cero");
 
   try {
     transicionar(orden.estado as Estado, body.aEstado, cumplidos);

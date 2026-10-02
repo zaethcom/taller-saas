@@ -151,8 +151,14 @@ export async function POST(req: NextRequest) {
   // en esta sede, mover_existencia lanza -- se deja que falle: es
   // preferible una venta con un item sin descontar visible en logs a
   // fingir que el inventario cuadra cuando no cuadra.
+  //
+  // Cuando la venta trae ordenId, los items son orden_item (Fase 5 del
+  // Plan 1): ya se descontaron del inventario en el momento en que el
+  // técnico los consumió (POST /api/ordenes/[id]/repuestos, acción
+  // "consumir") -- esto solo cobra lo que ya se usó, no debe volver a
+  // mover existencia o se descuenta dos veces.
   for (const item of body.items) {
-    if (item.repuestoId) {
+    if (item.repuestoId && !body.ordenId) {
       await supabase.rpc("mover_existencia", {
         p_repuesto_id: item.repuestoId,
         p_sede_id: perfil.sede_id,
