@@ -17,13 +17,15 @@
  * rejilla obligaría a explicar esa diferencia en cada tarjeta.
  */
 import { useEffect, useState } from "react";
-import { Trash2, Plus, Minus, Search, ShoppingCart, Lock, Check, Banknote, RotateCcw, ChevronDown, Tags } from "lucide-react";
+import { Trash2, Plus, Minus, Search, ShoppingCart, Lock, Check, ChevronDown, Tags, Printer, PlusCircle } from "lucide-react";
 import { FotoProducto } from "@/componentes/ui/foto-producto";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { PanelCobro } from "@/componentes/cobro/panel-cobro";
+import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-turno";
 
 interface LineaRepuesto {
   kind: "repuesto";
@@ -73,8 +75,6 @@ interface Categoria {
   nombre: string;
 }
 
-const DENOMINACIONES = [2000, 5000, 10000, 20000, 50000, 100000];
-
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
 export default function PaginaVender() {
@@ -82,9 +82,12 @@ export default function PaginaVender() {
   const [metodos, setMetodos] = useState<Metodo[]>([]);
   const [metodoPagoId, setMetodoPagoId] = useState("");
   const [montoRecibido, setMontoRecibido] = useState(0);
+  const [imprimir, setImprimir] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [fallo, setFallo] = useState(false);
+  const [ventaResultado, setVentaResultado] = useState<{ id: string; numero: number } | null>(null);
+  const turnoAbierto = useTurnoAbierto();
 
   const [buscarRepuesto, setBuscarRepuesto] = useState("");
   const [resultadosRepuesto, setResultadosRepuesto] = useState<Repuesto[]>([]);
@@ -203,12 +206,14 @@ export default function PaginaVender() {
           ),
           metodoPagoId,
           montoRecibido: metodo?.es_efectivo ? montoRecibido : undefined,
+          imprimir,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
+      const data = await res.json();
       setCarrito([]);
       setMontoRecibido(0);
-      setMensaje("Venta registrada. Imprimiendo recibo…");
+      setVentaResultado({ id: data.ventaId, numero: data.numero });
       // Un artículo vendido deja de estar disponible: la rejilla que
       // quedó en pantalla ya no dice la verdad hasta volver a pedirla.
       buscarArticulos();
@@ -219,6 +224,24 @@ export default function PaginaVender() {
     } finally {
       setEnviando(false);
     }
+  }
+
+  async function reimprimirRecibo() {
+    if (!ventaResultado) return;
+    try {
+      await fetch(`/api/ventas/${ventaResultado.id}/reimprimir`, { method: "POST" });
+      setMensaje("Reimprimiendo recibo…");
+      setFallo(false);
+    } catch {
+      setMensaje("No se pudo reimprimir");
+      setFallo(true);
+    }
+  }
+
+  function nuevaVenta() {
+    setVentaResultado(null);
+    setMensaje(null);
+    setFallo(false);
   }
 
   return (
@@ -585,79 +608,77 @@ export default function PaginaVender() {
             )}
 
             <div style={{ padding: "14px 16px", borderTop: "1px solid var(--rule)", display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 13, color: "var(--ink-2)" }}>
-                  <span className="cifra">{unidades}</span> {unidades === 1 ? "unidad" : "unidades"}
-                </span>
-                <span className="cifra" style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em" }}>
-                  {fmt(total)}
-                </span>
-              </div>
-
-              {metodos.length > 0 && (
-                <div>
-                  <div className="campo-etiqueta">Forma de pago</div>
-                  <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(metodos.length, 3)}, minmax(0, 1fr))`, gap: 8 }}>
-                    {metodos.map((m) => (
-                      <Boton
-                        key={m.id}
-                        variante={metodoPagoId === m.id ? "primario" : "contorno"}
-                        onClick={() => setMetodoPagoId(m.id)}
-                        aria-pressed={metodoPagoId === m.id}
-                      >
-                        {m.nombre}
-                      </Boton>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {metodo?.es_efectivo && (
-                <div>
-                  <div className="campo-etiqueta">
-                    <Banknote size={14} strokeWidth={2} style={{ verticalAlign: "-2px", marginRight: 5 }} aria-hidden />
-                    Toca las denominaciones recibidas
-                  </div>
-                  <div className="fila" style={{ gap: 7, marginBottom: 10 }}>
-                    {DENOMINACIONES.map((d) => (
-                      <Boton key={d} variante="contorno" tamano="sm" onClick={() => setMontoRecibido((m) => m + d)}>
-                        <span className="cifra">{fmt(d)}</span>
-                      </Boton>
-                    ))}
-                    <Boton
-                      variante="fantasma"
-                      tamano="sm"
-                      icono={<RotateCcw size={14} strokeWidth={2} />}
-                      onClick={() => setMontoRecibido(0)}
-                    >
-                      Reiniciar
+              {ventaResultado ? (
+                <div style={{ textAlign: "center", padding: "8px 0" }}>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 44,
+                      height: 44,
+                      borderRadius: "var(--r-lg)",
+                      background: "var(--ok-fondo)",
+                      color: "var(--ok)",
+                      marginBottom: 10,
+                    }}
+                  >
+                    <Check size={22} strokeWidth={2.4} />
+                  </span>
+                  <p className="cifra" style={{ margin: "0 0 14px", fontWeight: 800, fontSize: 15 }}>
+                    Venta #{ventaResultado.numero} registrada
+                  </p>
+                  <div className="fila" style={{ justifyContent: "center", gap: 8 }}>
+                    <Boton variante="contorno" icono={<Printer size={16} strokeWidth={2} />} onClick={reimprimirRecibo}>
+                      Imprimir recibo
+                    </Boton>
+                    <Boton variante="primario" icono={<PlusCircle size={16} strokeWidth={2} />} onClick={nuevaVenta}>
+                      Nueva venta
                     </Boton>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-                    <span style={{ color: "var(--ink-2)" }}>Recibido</span>
-                    <span className="cifra" style={{ fontWeight: 700 }}>{fmt(montoRecibido)}</span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 800 }}>
-                    <span style={{ color: cambio < 0 ? "var(--peligro)" : "var(--ok)" }}>
-                      {cambio < 0 ? "Falta" : "Cambio"}
-                    </span>
-                    <span className="cifra" style={{ color: cambio < 0 ? "var(--peligro)" : "var(--ok)" }}>
-                      {fmt(Math.abs(cambio))}
-                    </span>
-                  </div>
                 </div>
-              )}
+              ) : (
+                <>
+                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 13, color: "var(--ink-2)" }}>
+                      <span className="cifra">{unidades}</span> {unidades === 1 ? "unidad" : "unidades"}
+                    </span>
+                    <span className="cifra" style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em" }}>
+                      {fmt(total)}
+                    </span>
+                  </div>
 
-              <Boton
-                variante="primario"
-                tamano="xl"
-                ancho
-                icono={<Lock size={19} strokeWidth={2} />}
-                disabled={carrito.length === 0 || enviando || !metodoPagoId || (metodo?.es_efectivo && cambio < 0)}
-                onClick={confirmarVenta}
-              >
-                <span className="cifra">{enviando ? "Cobrando…" : `Cobrar ${fmt(total)}`}</span>
-              </Boton>
+                  {turnoAbierto === false && <AvisoTurnoCerrado />}
+
+                  <PanelCobro
+                    total={total}
+                    metodos={metodos}
+                    metodoPagoId={metodoPagoId}
+                    onCambiarMetodo={setMetodoPagoId}
+                    montoRecibido={montoRecibido}
+                    onCambiarMontoRecibido={setMontoRecibido}
+                    imprimir={imprimir}
+                    onCambiarImprimir={setImprimir}
+                  />
+
+                  <Boton
+                    variante="primario"
+                    tamano="xl"
+                    ancho
+                    icono={<Lock size={19} strokeWidth={2} />}
+                    disabled={
+                      carrito.length === 0 ||
+                      enviando ||
+                      !metodoPagoId ||
+                      turnoAbierto === false ||
+                      (metodo?.es_efectivo && cambio < 0)
+                    }
+                    onClick={confirmarVenta}
+                  >
+                    <span className="cifra">{enviando ? "Cobrando…" : `Cobrar ${fmt(total)}`}</span>
+                  </Boton>
+                </>
+              )}
 
               {mensaje && (
                 <Aviso

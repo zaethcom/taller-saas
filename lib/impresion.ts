@@ -55,6 +55,7 @@ interface CargaReciboVenta extends CargaMarcaEmpresa {
   cajero?: string | null;
   montoRecibido?: number | null;
   cambio?: number | null;
+  imprimir?: boolean;
 }
 
 interface CargaComprobanteRecepcion extends CargaMarcaEmpresa {

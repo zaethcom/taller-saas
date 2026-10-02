@@ -1,7 +1,7 @@
 /**
  * POST /api/ventas
  * Body: { items: {repuestoId?, articuloId?, descripcion, cantidad, precioUnit}[],
- *          metodoPagoId, montoRecibido?, ordenId? }
+ *          metodoPagoId, montoRecibido?, ordenId?, imprimir? }
  *
  * Registra una venta de mostrador (o el cobro de una orden si se manda
  * ordenId). Cada item sale del inventario de una de dos maneras: un
@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
     metodoPagoId: string;
     montoRecibido?: number;
     ordenId?: string;
+    imprimir?: boolean;
   };
 
   if (!body.items?.length) {
@@ -211,6 +212,7 @@ export async function POST(req: NextRequest) {
       cajero: perfil.codigo ? `${perfil.codigo} · ${perfil.nombre}` : perfil.nombre,
       montoRecibido: metodo.es_efectivo ? body.montoRecibido ?? null : null,
       cambio: metodo.es_efectivo && body.montoRecibido ? body.montoRecibido - total : null,
+      imprimir: body.imprimir ?? true,
     },
   });
 
