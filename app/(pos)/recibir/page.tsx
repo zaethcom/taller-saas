@@ -13,8 +13,9 @@
  */
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Inbox, Search, Check, User, Wrench, FileText, Printer, ClipboardList, Barcode } from "lucide-react";
+import { Inbox, Search, Check, User, Wrench, FileText, Printer, ClipboardList, Barcode, KeyRound } from "lucide-react";
 import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
+import { PatronGrid } from "@/componentes/patron-android/patron-grid";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
@@ -93,6 +94,12 @@ export default function PaginaRecibir() {
   const [buscandoProducto, setBuscandoProducto] = useState(false);
   const [escaneando, setEscaneando] = useState(false);
 
+  const [tipoAcceso, setTipoAcceso] = useState<"" | "pin3" | "pin4" | "pin6" | "patron" | "otro">("");
+  const [pinAcceso, setPinAcceso] = useState("");
+  const [patronAcceso, setPatronAcceso] = useState<number[]>([]);
+  const [otroAcceso, setOtroAcceso] = useState("");
+  const [notaAcceso, setNotaAcceso] = useState("");
+
   const [motivo, setMotivo] = useState("");
   const [infoAdicional, setInfoAdicional] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -141,6 +148,14 @@ export default function PaginaRecibir() {
         infoAdicional: infoAdicional.trim() || undefined,
       };
 
+      if (tipoAcceso) {
+        const valor =
+          tipoAcceso === "patron" ? patronAcceso.join("-") : tipoAcceso === "otro" ? otroAcceso.trim() : pinAcceso.trim();
+        if (valor) {
+          body.acceso = { tipo: tipoAcceso, valor, nota: notaAcceso.trim() || undefined };
+        }
+      }
+
       if (cliente) body.clienteId = cliente.id;
       else {
         if (!clienteNuevo.nombre.trim()) throw new Error("Falta el nombre del cliente");
@@ -178,6 +193,11 @@ export default function PaginaRecibir() {
     setProductoNuevo({ tipo: "patineta", marca: "", modelo: "" });
     setMotivo("");
     setInfoAdicional("");
+    setTipoAcceso("");
+    setPinAcceso("");
+    setPatronAcceso([]);
+    setOtroAcceso("");
+    setNotaAcceso("");
     setResultado(null);
   }
 
@@ -378,7 +398,66 @@ export default function PaginaRecibir() {
           </div>
         </Paso>
 
-        <Paso n={3} titulo="Motivo" icono={<FileText size={18} strokeWidth={2} color="var(--ink-2)" />}>
+        <Paso n={3} titulo="Acceso" icono={<KeyRound size={18} strokeWidth={2} color="var(--ink-2)" />}>
+          <p className="campo-ayuda" style={{ marginTop: 0, marginBottom: 12 }}>
+            Opcional -- solo si el servicio necesita entrar al equipo. Se borra solo al entregarlo.
+          </p>
+          <div className="fila" style={{ gap: 8, marginBottom: 14 }}>
+            {(
+              [
+                { valor: "", etiqueta: "Sin acceso" },
+                { valor: "pin3", etiqueta: "PIN de 3" },
+                { valor: "pin4", etiqueta: "PIN de 4" },
+                { valor: "pin6", etiqueta: "PIN de 6" },
+                ...(productoNuevo.tipo === "celular" || producto?.tipo === "celular"
+                  ? [{ valor: "patron" as const, etiqueta: "Patrón" }]
+                  : []),
+                { valor: "otro", etiqueta: "Otro" },
+              ] as const
+            ).map((o) => (
+              <Boton
+                key={o.valor}
+                tamano="sm"
+                variante={tipoAcceso === o.valor ? "primario" : "contorno"}
+                onClick={() => setTipoAcceso(o.valor)}
+                aria-pressed={tipoAcceso === o.valor}
+              >
+                {o.etiqueta}
+              </Boton>
+            ))}
+          </div>
+
+          {(tipoAcceso === "pin3" || tipoAcceso === "pin4" || tipoAcceso === "pin6") && (
+            <Campo etiqueta="PIN">
+              <input
+                value={pinAcceso}
+                onChange={(e) => setPinAcceso(e.target.value.replace(/\D/g, ""))}
+                maxLength={tipoAcceso === "pin3" ? 3 : tipoAcceso === "pin4" ? 4 : 6}
+                inputMode="numeric"
+                className="cifra"
+                style={{ maxWidth: 140 }}
+              />
+            </Campo>
+          )}
+
+          {tipoAcceso === "patron" && <PatronGrid valor={patronAcceso} onChange={setPatronAcceso} />}
+
+          {tipoAcceso === "otro" && (
+            <Campo etiqueta="Contraseña o código de acceso">
+              <input value={otroAcceso} onChange={(e) => setOtroAcceso(e.target.value)} />
+            </Campo>
+          )}
+
+          {tipoAcceso && (
+            <div style={{ marginTop: 12 }}>
+              <Campo etiqueta="Nota" ayuda="Opcional, ej. &quot;solo huella, el PIN es de respaldo&quot;.">
+                <input value={notaAcceso} onChange={(e) => setNotaAcceso(e.target.value)} />
+              </Campo>
+            </div>
+          )}
+        </Paso>
+
+        <Paso n={4} titulo="Motivo" icono={<FileText size={18} strokeWidth={2} color="var(--ink-2)" />}>
           <Campo ayuda="Lo que el cliente reporta, con sus palabras. Es lo que lee el técnico al abrir la orden.">
             <textarea
               value={motivo}

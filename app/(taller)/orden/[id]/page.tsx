@@ -12,12 +12,69 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Camera, Wrench, Package, ChevronRight, ArrowRight } from "lucide-react";
+import { Camera, Wrench, Package, ChevronRight, ArrowRight, KeyRound, Eye } from "lucide-react";
 import { ETIQUETA_ESTADO, siguientesEstados, type Estado } from "@/lib/estados";
+import { puede, type Rol } from "@/lib/permisos";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Aviso } from "@/componentes/ui/campo";
 import { EstadoOrden } from "@/componentes/ui/estado-orden";
+
+const ETIQUETA_TIPO_ACCESO: Record<string, string> = {
+  pin3: "PIN de 3",
+  pin4: "PIN de 4",
+  pin6: "PIN de 6",
+  patron: "Patrón",
+  otro: "Otro",
+};
+
+/** Panel con el PIN/patrón del equipo -- se carga solo al tocar "Ver",
+ *  nunca automático con el resto de la orden, para no exponerlo sin
+ *  necesidad en una pantalla que puede estar a la vista del cliente. */
+function PanelAcceso({ ordenId }: { ordenId: string }) {
+  const [acceso, setAcceso] = useState<{ tipo: string; valor: string; nota: string | null } | null | undefined>(
+    undefined,
+  );
+  const [cargando, setCargando] = useState(false);
+
+  async function verAcceso() {
+    setCargando(true);
+    try {
+      const res = await fetch(`/api/ordenes/${ordenId}/acceso`);
+      setAcceso(res.ok ? await res.json() : null);
+    } catch {
+      setAcceso(null);
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  return (
+    <Tarjeta>
+      <h2 style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
+        <KeyRound size={19} strokeWidth={2} color="var(--ink-2)" aria-hidden />
+        Acceso al equipo
+      </h2>
+      {acceso === undefined ? (
+        <Boton variante="contorno" icono={<Eye size={16} strokeWidth={2} />} onClick={verAcceso} disabled={cargando}>
+          {cargando ? "Cargando…" : "Ver código de acceso"}
+        </Boton>
+      ) : acceso === null ? (
+        <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>No se registró información de acceso.</p>
+      ) : (
+        <div>
+          <div className="campo-etiqueta">{ETIQUETA_TIPO_ACCESO[acceso.tipo] ?? acceso.tipo}</div>
+          <div className="cifra" style={{ fontSize: 20, fontWeight: 800 }}>
+            {acceso.tipo === "patron" ? acceso.valor.split("-").join(" → ") : acceso.valor}
+          </div>
+          {acceso.nota && (
+            <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--ink-2)" }}>{acceso.nota}</p>
+          )}
+        </div>
+      )}
+    </Tarjeta>
+  );
+}
 
 interface OrdenTecnico {
   id: string;
@@ -76,6 +133,7 @@ export default function PaginaOrdenTecnico() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [orden, setOrden] = useState<OrdenTecnico | null>(null);
+  const [rol, setRol] = useState<Rol | null>(null);
   const [cambiando, setCambiando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,6 +142,10 @@ export default function PaginaOrdenTecnico() {
       .then((r) => r.json())
       .then(setOrden)
       .catch(() => setError("No se pudo cargar la orden"));
+    fetch("/api/perfil")
+      .then((r) => r.json())
+      .then((p) => setRol(p.rol ?? null))
+      .catch(() => {});
   }, [id]);
 
   async function avanzar(aEstado: Estado) {
@@ -139,6 +201,8 @@ export default function PaginaOrdenTecnico() {
           )}
         </div>
       </Tarjeta>
+
+      {rol && puede(rol, "ver_acceso_dispositivo") && <PanelAcceso ordenId={id} />}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <Acceso

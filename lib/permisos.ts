@@ -21,7 +21,8 @@ export type Accion =
   | "gestionar_traslados" // Admin/Compras: enviar y recibir mercancía entre sedes
   | "recibir_mercancia" // Admin/Compras: dar entrada a un artículo nuevo e imprimir su etiqueta
   | "personalizar_empresa" // Admin: logo, color, tema, bloque de marca y datos de recibo
-  | "gestionar_sedes"; // Admin: alta de sedes -- sin esto no hay a dónde trasladar
+  | "gestionar_sedes" // Admin: alta de sedes -- sin esto no hay a dónde trasladar
+  | "ver_acceso_dispositivo"; // Ver el PIN/patrón del equipo de una orden (orden_acceso)
 
 const PERMISOS: Record<Rol, Accion[]> = {
   admin: [
@@ -40,9 +41,17 @@ const PERMISOS: Record<Rol, Accion[]> = {
     "recibir_mercancia",
     "personalizar_empresa",
     "gestionar_sedes",
+    "ver_acceso_dispositivo",
   ],
-  recepcion: ["recibir_equipo", "cobrar_orden", "abrir_cajon_manual", "ver_ordenes", "gestionar_traslados"],
-  tecnico: ["diagnosticar", "marcar_faltante"],
+  recepcion: [
+    "recibir_equipo",
+    "cobrar_orden",
+    "abrir_cajon_manual",
+    "ver_ordenes",
+    "gestionar_traslados",
+    "ver_acceso_dispositivo",
+  ],
+  tecnico: ["diagnosticar", "marcar_faltante", "ver_acceso_dispositivo"],
   compras: ["gestionar_compras", "gestionar_traslados", "recibir_mercancia", "ver_ordenes"],
   cajero: ["vender", "cobrar_orden", "abrir_cajon_manual", "cerrar_turno"],
 };
