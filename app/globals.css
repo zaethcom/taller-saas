@@ -636,11 +636,15 @@ textarea.invalido {
 }
 
 /* La rejilla de catálogo de /vender e /inventario: se acomoda sola
-   entre el escritorio de caja y el celular, sin punto de quiebre. */
+   entre el escritorio de caja y el celular, sin punto de quiebre.
+   Tarjetas compactas (punto 7 del documento del cliente): minmax más
+   chico cabe más productos por pantalla -- la foto de cada tarjeta
+   sigue siendo cuadrada (ver foto-producto.tsx) así que se achica
+   proporcional, sigue siendo el elemento más grande de la tarjeta. */
 .rejilla-catalogo {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 10px;
 }
 
 .pila {
