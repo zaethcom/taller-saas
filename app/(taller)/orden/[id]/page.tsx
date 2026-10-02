@@ -19,6 +19,7 @@ import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Aviso } from "@/componentes/ui/campo";
 import { EstadoOrden } from "@/componentes/ui/estado-orden";
+import { HiloMensajes, type Mensaje } from "@/componentes/mensajeria/hilo-mensajes";
 
 const ETIQUETA_TIPO_ACCESO: Record<string, string> = {
   pin3: "PIN de 3",
@@ -136,6 +137,7 @@ export default function PaginaOrdenTecnico() {
   const [rol, setRol] = useState<Rol | null>(null);
   const [cambiando, setCambiando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mensajes, setMensajes] = useState<Mensaje[]>([]);
 
   useEffect(() => {
     fetch(`/api/ordenes/${id}`)
@@ -146,7 +148,23 @@ export default function PaginaOrdenTecnico() {
       .then((r) => r.json())
       .then((p) => setRol(p.rol ?? null))
       .catch(() => {});
+    cargarMensajes();
   }, [id]);
+
+  async function cargarMensajes() {
+    const res = await fetch(`/api/ordenes/${id}/mensajes`);
+    if (res.ok) setMensajes(await res.json());
+  }
+
+  async function enviarMensaje(texto: string) {
+    const res = await fetch(`/api/ordenes/${id}/mensajes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+    await cargarMensajes();
+  }
 
   async function avanzar(aEstado: Estado) {
     setCambiando(true);
@@ -245,6 +263,11 @@ export default function PaginaOrdenTecnico() {
           </div>
         </Tarjeta>
       )}
+
+      <div>
+        <h2 style={{ marginBottom: 12 }}>Mensajes</h2>
+        <HiloMensajes mensajes={mensajes} ladoPropio="staff" onEnviar={enviarMensaje} placeholder="Responder al cliente…" />
+      </div>
 
       {error && <Aviso tono="peligro">{error}</Aviso>}
     </div>
