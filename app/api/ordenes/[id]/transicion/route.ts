@@ -134,5 +134,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     autor_id: user.id,
   });
 
+  // El PIN/patrón del equipo ya no hace falta una vez el cliente se lo
+  // llevó -- no debe seguir acumulándose indefinidamente (Fase A2 del
+  // Plan 3, supabase/migrations/0036_orden_acceso.sql).
+  if (body.aEstado === "entregada") {
+    await supabase.from("orden_acceso").delete().eq("orden_id", id);
+  }
+
   return NextResponse.json({ ok: true, estado: body.aEstado });
 }
