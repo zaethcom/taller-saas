@@ -385,21 +385,21 @@ export default function PaginaVender() {
                       key={r.id}
                       relleno={false}
                       style={{
-                        padding: 11,
+                        padding: 8,
                         display: "flex",
                         flexDirection: "column",
-                        gap: 8,
+                        gap: 6,
                         opacity: agotado ? 0.55 : 1,
                         borderColor: estaEnCarrito("repuesto", r.id) ? "var(--accent)" : undefined,
                       }}
                     >
                       <FotoProducto tipo="repuesto" id={r.id} imagenUrl={r.imagenUrl} editable={false} />
-                      <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.25 }}>{r.descripcion}</div>
-                      <div className="cifra" style={{ fontSize: 11, color: "var(--ink-3)", marginTop: -4 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>{r.descripcion}</div>
+                      <div className="cifra" style={{ fontSize: 10, color: "var(--ink-3)", marginTop: -4 }}>
                         {r.codigo}
                       </div>
                       <div className="fila" style={{ justifyContent: "space-between", gap: 6 }}>
-                        <span className="cifra" style={{ fontSize: 15, fontWeight: 800 }}>
+                        <span className="cifra" style={{ fontSize: 14, fontWeight: 800 }}>
                           {fmt(r.precioVenta)}
                         </span>
                         <Etiqueta tono={agotado ? "neutro" : r.existenciaAqui <= 3 ? "aviso" : "ok"}>
@@ -454,21 +454,21 @@ export default function PaginaVender() {
                       key={a.id}
                       relleno={false}
                       style={{
-                        padding: 11,
+                        padding: 8,
                         display: "flex",
                         flexDirection: "column",
-                        gap: 8,
+                        gap: 6,
                         borderColor: enCarrito ? "var(--accent)" : undefined,
                       }}
                     >
                       <FotoProducto tipo="articulo" id={a.id} imagenUrl={a.imagen_url} editable={false} />
-                      <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.25 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>
                         {[a.marca, a.modelo].filter(Boolean).join(" ") || a.tipo}
                       </div>
-                      <div className="cifra" style={{ fontSize: 11, color: "var(--ink-3)", marginTop: -4 }}>
+                      <div className="cifra" style={{ fontSize: 10, color: "var(--ink-3)", marginTop: -4 }}>
                         {a.codigo}
                       </div>
-                      <span className="cifra" style={{ fontSize: 15, fontWeight: 800 }}>
+                      <span className="cifra" style={{ fontSize: 14, fontWeight: 800 }}>
                         {fmt(a.precio_venta)}
                       </span>
                       <Boton
