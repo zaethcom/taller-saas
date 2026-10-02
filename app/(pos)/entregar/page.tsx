@@ -17,6 +17,8 @@ import { useRouter } from "next/navigation";
 import { PackageCheck, Search, Check, Camera, PenLine, Eraser, Lock, Printer, QrCode } from "lucide-react";
 import { FirmaCanvas, type FirmaCanvasHandle } from "@/componentes/evidencia/firma-canvas";
 import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
+import { PanelCobro } from "@/componentes/cobro/panel-cobro";
+import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-turno";
 import { subirEvidencia } from "@/lib/subir-evidencia";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
@@ -57,6 +59,7 @@ function extraerTokenDeSeguimiento(valor: string): string | null {
 interface Metodo {
   id: string;
   nombre: string;
+  es_efectivo: boolean;
 }
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
@@ -72,10 +75,15 @@ export default function PaginaEntregar() {
   const [foto, setFoto] = useState<File | null>(null);
   const [metodos, setMetodos] = useState<Metodo[]>([]);
   const [metodoPagoId, setMetodoPagoId] = useState("");
+  const [montoRecibido, setMontoRecibido] = useState(0);
+  const [imprimir, setImprimir] = useState(true);
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
   const [perfil, setPerfil] = useState<{ empresaId: string } | null>(null);
+  const turnoAbierto = useTurnoAbierto();
+  const metodo = metodos.find((m) => m.id === metodoPagoId);
+  const cambio = montoRecibido - (orden?.saldoPendiente ?? 0);
 
   useEffect(() => {
     fetch("/api/metodos-pago")
@@ -148,6 +156,8 @@ export default function PaginaEntregar() {
           body: JSON.stringify({
             ordenId: orden.id,
             metodoPagoId,
+            montoRecibido: metodo?.es_efectivo ? montoRecibido : undefined,
+            imprimir,
             items: orden.items.map((it) => ({
               descripcion: it.descripcion,
               cantidad: it.cantidad,
@@ -323,22 +333,21 @@ export default function PaginaEntregar() {
 
             {orden.saldoPendiente > 0 && metodos.length > 0 && (
               <div style={{ marginTop: 16 }}>
-                <div className="campo-etiqueta">Forma de pago del saldo</div>
-                <div className="fila" style={{ gap: 8 }}>
-                  {metodos.map((m) => (
-                    <Boton
-                      key={m.id}
-                      variante={metodoPagoId === m.id ? "primario" : "contorno"}
-                      onClick={() => setMetodoPagoId(m.id)}
-                      aria-pressed={metodoPagoId === m.id}
-                    >
-                      {m.nombre}
-                    </Boton>
-                  ))}
-                </div>
+                <PanelCobro
+                  total={orden.saldoPendiente}
+                  metodos={metodos}
+                  metodoPagoId={metodoPagoId}
+                  onCambiarMetodo={setMetodoPagoId}
+                  montoRecibido={montoRecibido}
+                  onCambiarMontoRecibido={setMontoRecibido}
+                  imprimir={imprimir}
+                  onCambiarImprimir={setImprimir}
+                />
               </div>
             )}
           </Tarjeta>
+
+          {turnoAbierto === false && <AvisoTurnoCerrado />}
 
           <Tarjeta>
             <h2 style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
@@ -382,7 +391,11 @@ export default function PaginaEntregar() {
             ancho
             icono={<Lock size={19} strokeWidth={2} />}
             onClick={entregar}
-            disabled={procesando || (orden.saldoPendiente > 0 && !metodoPagoId)}
+            disabled={
+              procesando ||
+              turnoAbierto === false ||
+              (orden.saldoPendiente > 0 && (!metodoPagoId || (metodo?.es_efectivo && cambio < 0)))
+            }
           >
             <span className="cifra">
               {procesando
