@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0036_orden_acceso.sql
+-- 0038_orden_acceso.sql
 -- Fase A2 del Plan 3: PIN/patrón de desbloqueo del equipo, capturado al
 -- recibirlo cuando el servicio lo necesita.
 --
