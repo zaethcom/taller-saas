@@ -17,6 +17,7 @@ import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Aviso } from "@/componentes/ui/campo";
+import { HiloMensajes, type Mensaje } from "@/componentes/mensajeria/hilo-mensajes";
 
 interface Diagnostico {
   hallazgos: string | null;
@@ -45,6 +46,7 @@ interface Seguimiento {
   } | null;
   evidencias: { tipo: "foto" | "video"; tomadaEn: string; url: string | null }[];
   itemsPendientes: { id: string; descripcion: string; cantidad: number; precioUnit: number; decision: string | null }[];
+  mensajes: Mensaje[];
 }
 
 /** El diagnóstico es texto libre en cuatro campos opcionales --
@@ -107,6 +109,17 @@ export default function PaginaSeguimiento() {
     } finally {
       setDecidiendoItem(null);
     }
+  }
+
+  async function enviarMensaje(texto: string) {
+    const res = await fetch(`/api/seguimiento/${token}/mensajes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+    const actualizado = await fetch(`/api/seguimiento/${token}`).then((r) => r.json());
+    setDatos(actualizado);
   }
 
   if (error) {
@@ -387,6 +400,11 @@ export default function PaginaSeguimiento() {
             </div>
           </section>
         )}
+
+        <section>
+          <h2 style={{ marginBottom: 12 }}>Mensajes</h2>
+          <HiloMensajes mensajes={datos.mensajes} ladoPropio="cliente" onEnviar={enviarMensaje} />
+        </section>
       </div>
     </main>
   );

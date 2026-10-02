@@ -43,6 +43,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     { data: itemsPendientes },
     { data: diagnostico },
     { data: empresa },
+    { data: mensajes },
   ] = await Promise.all([
     admin
       .from("orden_evento")
@@ -78,6 +79,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       .eq("orden_id", orden.id)
       .maybeSingle(),
     admin.from("empresa").select("nombre").eq("id", orden.empresa_id).maybeSingle(),
+    // El hilo de mensajes cliente <-> taller -- Fase F3 del Plan 3.
+    admin
+      .from("orden_mensaje")
+      .select("autor_tipo, texto, creado_en")
+      .eq("orden_id", orden.id)
+      .order("creado_en", { ascending: true }),
   ]);
 
   const { data: config } = await admin
@@ -123,6 +130,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       cantidad: it.cantidad,
       precioUnit: Number(it.precio_unit),
       decision: it.decision,
+    })),
+    mensajes: (mensajes ?? []).map((m) => ({
+      autorTipo: m.autor_tipo,
+      texto: m.texto,
+      creadoEn: m.creado_en,
     })),
   });
 }
