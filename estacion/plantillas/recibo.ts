@@ -20,11 +20,23 @@ export interface CargaReciboVenta extends CargaMarcaEmpresa {
   cajero?: string | null;
   montoRecibido?: number | null;
   cambio?: number | null;
+  // "Imprimir recibo" desmarcado en el cobro -- default true porque
+  // casi todo el código existente (reimpresión, etiqueta_qr nunca pasa
+  // por acá) nunca manda este campo. El cajón se abre igual: abrirlo o
+  // no depende solo de abreCajon, nunca de esto.
+  imprimir?: boolean;
 }
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
 export function reciboVenta(c: CargaReciboVenta): Buffer {
+  if (c.imprimir === false) {
+    // Sin ticket de texto -- nada que darle al cliente -- pero el
+    // cajón se abre igual si el pago fue en efectivo: desmarcar
+    // "Imprimir recibo" no debe tener ningún efecto sobre eso.
+    return componer(inicializar(), ...(c.abreCajon ? [abrirCajon()] : []));
+  }
+
   const partes = [
     inicializar(),
     ...encabezadoEmpresa(c),

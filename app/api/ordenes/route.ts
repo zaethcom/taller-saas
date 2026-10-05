@@ -3,7 +3,7 @@
  * Body: {
  *   clienteId?: string, clienteNuevo?: {nombre, documento?, telefono?, correo?},
  *   productoId?: string, productoNuevo?: {serial, tipo, marca?, modelo?},
- *   motivo: string,
+ *   motivo: string, infoAdicional?: string,
  * }
  *
  * El punto de entrada de todo el sistema: recibir un equipo. Reutiliza
@@ -31,12 +31,20 @@ interface ProductoNuevo {
   modelo?: string;
 }
 
+interface AccesoDispositivo {
+  tipo: "pin3" | "pin4" | "pin6" | "patron" | "otro";
+  valor: string;
+  nota?: string;
+}
+
 interface CuerpoOrden {
   clienteId?: string;
   clienteNuevo?: ClienteNuevo;
   productoId?: string;
   productoNuevo?: ProductoNuevo;
   motivo: string;
+  infoAdicional?: string;
+  acceso?: AccesoDispositivo;
 }
 
 export async function POST(req: NextRequest) {
@@ -110,6 +118,7 @@ export async function POST(req: NextRequest) {
       sede_id: perfil.sede_id,
       producto_id: productoId,
       motivo: body.motivo.trim(),
+      info_adicional: body.infoAdicional?.trim() || null,
     })
     .select("id, numero, token_publico")
     .single();
@@ -125,6 +134,17 @@ export async function POST(req: NextRequest) {
     autor_id: user.id,
     nota: "Recepción inicial",
   });
+
+  if (body.acceso?.valor?.trim()) {
+    await supabase.from("orden_acceso").insert({
+      empresa_id: perfil.empresa_id,
+      orden_id: orden.id,
+      tipo: body.acceso.tipo,
+      valor: body.acceso.valor.trim(),
+      nota: body.acceso.nota?.trim() || null,
+      creado_por: user.id,
+    });
+  }
 
   const [{ data: producto }, { data: config }] = await Promise.all([
     supabase
