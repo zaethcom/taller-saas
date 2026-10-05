@@ -2,7 +2,8 @@
 
 /**
  * Login con correo y contraseña contra Supabase Auth. Al entrar,
- * consulta /api/perfil y redirige según el rol -- un técnico cae en
+ * consulta /api/perfil; si el usuario tiene acceso a varias sedes pasa
+ * por /elegir-sede, y si no, redirige según el rol -- un técnico cae en
  * /escanear, un cajero en /vender, admin en /ordenes (ver
  * lib/perfil.ts ATERRIZAJE_POR_ROL).
  *
@@ -127,6 +128,13 @@ export default function PaginaLogin() {
     }
 
     const perfil = await res.json();
+    // Con varias sedes permitidas, se escoge en cuál se está entrando
+    // antes de seguir (lib/sede-activa.ts).
+    if (Array.isArray(perfil.sedesPermitidas) && perfil.sedesPermitidas.length > 1) {
+      router.push("/elegir-sede");
+      router.refresh();
+      return;
+    }
     const destinos: Record<string, string> = {
       admin: "/ordenes",
       recepcion: "/vender",

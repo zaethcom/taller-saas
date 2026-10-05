@@ -11,6 +11,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { obtenerSedeActivaId } from "@/lib/perfil";
 import { encolarImpresion } from "@/lib/impresion";
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -28,8 +29,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     .select("empresa_id, sede_id, nombre, codigo")
     .eq("id", user.id)
     .single();
-  if (!perfil?.sede_id) {
-    return NextResponse.json({ error: "el usuario no tiene sede asignada" }, { status: 400 });
+  const sedeActivaId = await obtenerSedeActivaId(supabase);
+  if (!perfil || !sedeActivaId) {
+    return NextResponse.json({ error: "elige la sede en la que estás trabajando" }, { status: 400 });
   }
 
   const [{ data: venta }, { data: items }, { data: pago }] = await Promise.all([
@@ -44,7 +46,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   await encolarImpresion(supabase, {
     empresaId: perfil.empresa_id,
-    sedeId: perfil.sede_id,
+    sedeId: sedeActivaId,
     tipo: "recibo_venta",
     creadoPor: user.id,
     carga: {

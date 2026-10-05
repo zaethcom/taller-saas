@@ -7,6 +7,7 @@
 import { NextResponse } from "next/server";
 import { efectivoEsperado } from "@/lib/caja";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { obtenerSedeActivaId } from "@/lib/perfil";
 
 export async function GET() {
   const supabase = await clienteServidor();
@@ -17,20 +18,16 @@ export async function GET() {
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
-  const { data: perfil } = await supabase
-    .from("perfil")
-    .select("sede_id")
-    .eq("id", user.id)
-    .single();
+  const sedeActivaId = await obtenerSedeActivaId(supabase);
 
-  if (!perfil?.sede_id) {
-    return NextResponse.json({ error: "el usuario no tiene sede asignada" }, { status: 400 });
+  if (!sedeActivaId) {
+    return NextResponse.json({ error: "elige la sede en la que estás trabajando" }, { status: 400 });
   }
 
   const { data: turno } = await supabase
     .from("turno_caja")
     .select("id, base_inicial, abierto_en")
-    .eq("sede_id", perfil.sede_id)
+    .eq("sede_id", sedeActivaId)
     .is("cerrado_en", null)
     .order("abierto_en", { ascending: false })
     .limit(1)

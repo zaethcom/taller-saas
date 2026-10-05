@@ -31,6 +31,11 @@ export default async function LayoutPos({ children }: { children: React.ReactNod
     );
   }
 
+  // Con varias sedes permitidas, nadie trabaja sin decir en cuál está
+  // (lib/sede-activa.ts) -- si no, la venta o el turno caerían en una
+  // sede adivinada.
+  if (!perfil.sedeId && perfil.sedesPermitidas.length > 1) redirect("/elegir-sede");
+
   const config = await obtenerConfiguracion(supabase, perfil.empresaId);
 
   const items: ItemNavLateral[] = [
@@ -50,7 +55,7 @@ export default async function LayoutPos({ children }: { children: React.ReactNod
         pie={<BloqueMarca imagenUrl={config.imagenMarcaUrl} eslogan={config.eslogan} />}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <BarraSuperior nombre={perfil.nombre} rol={perfil.rol} puerta="pos" />
+        <BarraSuperior nombre={perfil.nombre} rol={perfil.rol} sedeNombre={perfil.sedeNombre} puedeCambiarSede={perfil.sedesPermitidas.length > 1} puerta="pos" />
         <main style={{ padding: 20, maxWidth: 1280, margin: "0 auto" }}>{children}</main>
       </div>
     </div>
