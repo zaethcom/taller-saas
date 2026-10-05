@@ -84,7 +84,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const admin = clienteAdmin();
 
   // Revocar la anterior ANTES de insertar: el índice único parcial de la
-  // 0036 no deja dos activas en la misma sede, así que hacerlo al revés
+  // 0042 no deja dos activas en la misma sede, así que hacerlo al revés
   // fallaría. Y en este orden, si el insert falla, la sede queda sin
   // credencial en vez de con dos -- se nota enseguida y se vuelve a
   // intentar, que es mejor que una ambigüedad silenciosa.

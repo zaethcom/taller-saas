@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0036_vincular_estacion.sql
+-- 0042_vincular_estacion.sql
 -- Vincular una estación de impresión desde la web, en vez de un INSERT a mano.
 --
 -- estacion_credencial (0006) ya modela bien la identidad de una estación:
