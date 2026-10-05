@@ -12,7 +12,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Camera, Wrench, Package, ChevronRight, ArrowRight, KeyRound, Eye } from "lucide-react";
+import { Camera, Wrench, Package, ChevronRight, ArrowRight, KeyRound, Eye, Clock, Check } from "lucide-react";
 import { ETIQUETA_ESTADO, siguientesEstados, type Estado } from "@/lib/estados";
 import { puede, type Rol } from "@/lib/permisos";
 import { Boton } from "@/componentes/ui/boton";
@@ -77,6 +77,57 @@ function PanelAcceso({ ordenId }: { ordenId: string }) {
   );
 }
 
+interface Evento {
+  estado: string;
+  etiqueta: string;
+  nota: string | null;
+  fecha: string;
+}
+
+/** Mismo formato de timeline que ya usa app/(publico)/seguimiento/[token]/page.tsx,
+ *  del lado del técnico/admin -- Fase 8 del Plan 1. La nota (si hay)
+ *  solo se muestra acá, no en el enlace público del cliente. */
+function Historial({ eventos }: { eventos: Evento[] }) {
+  if (eventos.length === 0) return null;
+  return (
+    <section>
+      <h2 style={{ marginBottom: 12 }}>Historial</h2>
+      <Tarjeta>
+        <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 14 }}>
+          {eventos.map((e, i) => (
+            <li key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 26,
+                  height: 26,
+                  borderRadius: "50%",
+                  background: i === eventos.length - 1 ? "var(--accent)" : "var(--surface-2)",
+                  color: i === eventos.length - 1 ? "var(--accent-texto)" : "var(--ink-3)",
+                  flexShrink: 0,
+                }}
+              >
+                {i === eventos.length - 1 ? <Clock size={14} strokeWidth={2.4} /> : <Check size={14} strokeWidth={2.6} />}
+              </span>
+              <span>
+                <span style={{ display: "block", fontSize: 14, fontWeight: 700 }}>{e.etiqueta}</span>
+                <span className="cifra" style={{ display: "block", fontSize: 12, color: "var(--ink-3)" }}>
+                  {new Date(e.fecha).toLocaleString("es-CO")}
+                </span>
+                {e.nota && (
+                  <span style={{ display: "block", fontSize: 13, color: "var(--ink-2)", marginTop: 2 }}>{e.nota}</span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </Tarjeta>
+    </section>
+  );
+}
+
 interface OrdenTecnico {
   id: string;
   numero: number;
@@ -138,6 +189,7 @@ export default function PaginaOrdenTecnico() {
   const [cambiando, setCambiando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
+  const [eventos, setEventos] = useState<Evento[]>([]);
 
   useEffect(() => {
     fetch(`/api/ordenes/${id}`)
@@ -147,6 +199,10 @@ export default function PaginaOrdenTecnico() {
     fetch("/api/perfil")
       .then((r) => r.json())
       .then((p) => setRol(p.rol ?? null))
+      .catch(() => {});
+    fetch(`/api/ordenes/${id}/eventos`)
+      .then((r) => r.json())
+      .then((data) => setEventos(Array.isArray(data) ? data : []))
       .catch(() => {});
     cargarMensajes();
   }, [id]);
@@ -178,6 +234,10 @@ export default function PaginaOrdenTecnico() {
       if (!res.ok) throw new Error((await res.json()).error);
       router.refresh();
       setOrden((prev) => (prev ? { ...prev, estado: aEstado } : prev));
+      fetch(`/api/ordenes/${id}/eventos`)
+        .then((r) => r.json())
+        .then((data) => setEventos(Array.isArray(data) ? data : []))
+        .catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo cambiar el estado");
     } finally {
@@ -263,6 +323,8 @@ export default function PaginaOrdenTecnico() {
           </div>
         </Tarjeta>
       )}
+
+      <Historial eventos={eventos} />
 
       <div>
         <h2 style={{ marginBottom: 12 }}>Mensajes</h2>
