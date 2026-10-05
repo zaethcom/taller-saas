@@ -19,11 +19,21 @@ la máquina física de la sede.
 3. Copiar `config.ejemplo.json` a `config.json` y completar:
    - `sedeId`: el UUID de la sede en la tabla `sede` (Local 1 o Local 2).
    - `apiBase`: la URL de la aplicación desplegada en Vercel.
-   - `servicioClave`: la clave de servicio de esta estación (se genera
-     desde el panel de administración — ver sección "Rutas API" del
-     código, `app/api/impresion/`).
+   - `servicioClave`: la clave de servicio de esta estación. Se genera
+     desde la web, en **/sedes → Vincular estación de impresión** de esa
+     sede. Aparece **una sola vez**, al crearla: `estacion_credencial`
+     guarda solo su sha256, así que no hay forma de volver a verla. Si se
+     pierde, se genera otra — y la anterior deja de aceptarse, con lo que
+     el equipo que la tenga puesta deja de imprimir hasta que le pongas la
+     nueva.
    - `impresoras.tickets.host` / `impresoras.etiquetas.host`: las IPs
      fijas de cada impresora en la red del local.
+
+   `config.json` lleva esa clave **en claro**, así que está en
+   `.gitignore`. Si copiaste solo la carpeta `estacion/` a otro sitio
+   versionado, excluirlo también ahí — o dejar el archivo fuera del
+   repositorio y pasarle la ruta: `npm start -- /ruta/a/config.json`
+   (`index.ts` lee el primer argumento, y si no hay usa `./config.json`).
 4. Probar en primer plano: `npm start` — debe quedar imprimiendo sin
    errores en la consola. Encolar una etiqueta de prueba desde la app y
    confirmar que sale.

@@ -3,7 +3,7 @@
  * usuario, se identifican con una clave propia por sede (ver
  * supabase/migrations/0006_estaciones.sql).
  */
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { clienteAdmin } from "./supabase/servidor";
 
 export interface IdentidadEstacion {
@@ -11,8 +11,27 @@ export interface IdentidadEstacion {
   empresaId: string;
 }
 
-function hashClave(clave: string): string {
+/**
+ * Exportada para que quien CREA una credencial guarde exactamente el
+ * mismo hash que compara quien la verifica. Dos implementaciones de esto
+ * en dos archivos es una clave que se guarda bien y no valida nunca.
+ */
+export function hashClave(clave: string): string {
   return createHash("sha256").update(clave).digest("hex");
+}
+
+/**
+ * Una clave nueva para una estación. 32 bytes de aleatoriedad
+ * criptográfica en base64url: sin `+`, `/` ni `=`, así viaja entera por
+ * una URL, un JSON y un `Authorization: Bearer` sin que nadie tenga que
+ * escaparla.
+ *
+ * No está pensada para teclearse a mano -- se copia y se pega. El código
+ * corto para escribir en la pantalla del puente es otra cosa, y va en el
+ * paso siguiente del plan.
+ */
+export function generarClaveEstacion(): string {
+  return randomBytes(32).toString("base64url");
 }
 
 /**
