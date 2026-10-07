@@ -413,18 +413,11 @@ export default function PaginaConfiguracion() {
         </Tarjeta>
 
         <Tarjeta>
-          <h2 style={{ marginBottom: 12 }}>Compras</h2>
-          <Campo
-            etiqueta="WhatsApp del proveedor"
-            ayuda="A este número se manda la lista de faltantes desde /compras."
-          >
-            <input
-              placeholder="57300000000"
-              defaultValue={config.whatsappProveedor ?? ""}
-              onBlur={(e) => guardar({ whatsappProveedor: e.target.value || null })}
-              className="cifra"
-            />
-          </Campo>
+          <h2 style={{ marginBottom: 6 }}>Compras</h2>
+          <p style={{ margin: 0, fontSize: 13, color: "var(--ink-2)" }}>
+            Los números de WhatsApp para enviar pedidos (mensajero, almacén, proveedor…) se configuran ahora en{" "}
+            <a href="/compras">Compras</a>.
+          </p>
         </Tarjeta>
 
         {mensaje && (
