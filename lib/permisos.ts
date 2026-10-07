@@ -22,7 +22,8 @@ export type Accion =
   | "recibir_mercancia" // Admin/Compras: dar entrada a un artículo nuevo e imprimir su etiqueta
   | "personalizar_empresa" // Admin: logo, color, tema, bloque de marca y datos de recibo
   | "gestionar_sedes" // Admin: alta de sedes -- sin esto no hay a dónde trasladar
-  | "ver_acceso_dispositivo"; // Ver el PIN/patrón del equipo de una orden (orden_acceso)
+  | "ver_acceso_dispositivo" // Ver el PIN/patrón del equipo de una orden (orden_acceso)
+  | "ver_reportes"; // Admin: informes de ventas, caja, inventario y taller, y su exportación
 
 const PERMISOS: Record<Rol, Accion[]> = {
   admin: [
@@ -42,6 +43,7 @@ const PERMISOS: Record<Rol, Accion[]> = {
     "personalizar_empresa",
     "gestionar_sedes",
     "ver_acceso_dispositivo",
+    "ver_reportes",
   ],
   recepcion: [
     "recibir_equipo",
