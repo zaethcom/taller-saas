@@ -70,7 +70,9 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
     { href: "/usuarios", etiqueta: "Usuarios", icono: <Users size={18} strokeWidth={2} /> },
     { href: "/metodos-pago", etiqueta: "Métodos de pago", icono: <CreditCard size={18} strokeWidth={2} /> },
     { href: "/clientes", etiqueta: "Clientes (CRM)", icono: <Contact size={18} strokeWidth={2} /> },
-    { href: "/reportes", etiqueta: "Reportes", icono: <BarChart3 size={18} strokeWidth={2} /> },
+    ...(puede(perfil.rol, "ver_reportes")
+      ? [{ href: "/reportes", etiqueta: "Reportes", icono: <BarChart3 size={18} strokeWidth={2} /> }]
+      : []),
     ...(puede(perfil.rol, "personalizar_empresa")
       ? [{ href: "/configuracion", etiqueta: "Configuración", icono: <Settings size={18} strokeWidth={2} /> }]
       : []),
