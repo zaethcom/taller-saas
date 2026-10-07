@@ -135,7 +135,7 @@ export default function PaginaVender() {
   }
 
   async function buscarRepuestos() {
-    const res = await fetch(conCategoria(`/api/repuestos?buscar=${encodeURIComponent(buscarRepuesto)}`));
+    const res = await fetch(conCategoria(`/api/repuestos?venta=1&buscar=${encodeURIComponent(buscarRepuesto)}`));
     const data = await res.json();
     setResultadosRepuesto(res.ok && Array.isArray(data) ? data : []);
   }
