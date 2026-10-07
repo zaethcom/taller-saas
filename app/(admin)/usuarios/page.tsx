@@ -11,8 +11,8 @@ import { puede } from "@/lib/permisos";
 import { EditarCodigo } from "@/componentes/ui/editar-codigo";
 import { NuevoUsuario } from "@/componentes/usuarios/nuevo-usuario";
 import { EditarSedes } from "@/componentes/usuarios/editar-sedes";
+import { EliminarUsuario } from "@/componentes/usuarios/eliminar-usuario";
 import { TarjetaTabla } from "@/componentes/ui/tarjeta";
-import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
 export default async function PaginaUsuarios() {
@@ -21,7 +21,9 @@ export default async function PaginaUsuarios() {
   if (!perfil) redirect("/login");
 
   const [{ data: perfiles }, { data: sedes }, { data: accesos }] = await Promise.all([
-    supabase.from("perfil").select("id, nombre, rol, activo, codigo, sede_id").order("nombre"),
+    // Los desactivados (DELETE /api/usuarios/<id> con historial) ya no
+    // se listan: para quien administra, están eliminados.
+    supabase.from("perfil").select("id, nombre, rol, codigo, sede_id").eq("activo", true).order("nombre"),
     supabase.from("sede").select("id, nombre").order("nombre"),
     supabase.from("perfil_sede").select("perfil_id, sede_id"),
   ]);
@@ -57,8 +59,8 @@ export default async function PaginaUsuarios() {
               <th>Nombre</th>
               <th>Rol</th>
               <th>Sedes</th>
-              <th>Estado</th>
               <th>Código</th>
+              {gestiona && <th />}
             </tr>
           </thead>
           <tbody>
@@ -76,13 +78,11 @@ export default async function PaginaUsuarios() {
                   )}
                 </td>
                 <td>
-                  <Etiqueta tono={p.activo ? "ok" : "neutro"} punto>
-                    {p.activo ? "Activo" : "Deshabilitado"}
-                  </Etiqueta>
-                </td>
-                <td>
                   <EditarCodigo perfilId={p.id} codigoInicial={p.codigo} />
                 </td>
+                {gestiona && (
+                  <td>{p.id !== perfil.id && <EliminarUsuario perfilId={p.id} nombre={p.nombre} />}</td>
+                )}
               </tr>
             ))}
           </tbody>
