@@ -32,7 +32,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!perfil) {
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
-  if (!puede(perfil.rol, "gestionar_inventario")) {
+  // El rol compras tiene gestionar_compras pero no gestionar_inventario,
+  // y es justamente quien recibe lo que pidió.
+  if (!puede(perfil.rol, "gestionar_compras") && !puede(perfil.rol, "gestionar_inventario")) {
     return NextResponse.json({ error: "no autorizado" }, { status: 403 });
   }
   if (!body.repuestoId || !body.sedeId) {
