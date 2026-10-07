@@ -6,9 +6,12 @@
  * manera de abrir una segunda para poder trasladar mercancía entre
  * ellas -- /traslados ya asume que existen, solo no había dónde
  * crearlas.
+ *
+ * Eliminar: solo las sedes que nunca se usaron (ver DELETE
+ * /api/sedes/<id>); si ya tiene historial, la API dice qué la ata.
  */
 import { useEffect, useState } from "react";
-import { Building2, Plus } from "lucide-react";
+import { Building2, Plus, Trash2 } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
@@ -30,6 +33,8 @@ export default function PaginaSedes() {
   const [tipo, setTipo] = useState<"tienda" | "taller">("tienda");
   const [creando, setCreando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
 
   async function cargar() {
     try {
@@ -66,6 +71,21 @@ export default function PaginaSedes() {
     }
   }
 
+  async function eliminar(id: string) {
+    setError(null);
+    setEliminandoId(id);
+    try {
+      const res = await fetch(`/api/sedes/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setConfirmandoId(null);
+      await cargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo eliminar la sede");
+    } finally {
+      setEliminandoId(null);
+    }
+  }
+
   return (
     <div>
       <TituloPantalla
@@ -87,6 +107,35 @@ export default function PaginaSedes() {
                   <span style={{ fontWeight: 700 }}>{s.nombre}</span>
                   <Etiqueta tono="neutro">{s.tipo}</Etiqueta>
                 </div>
+                {confirmandoId === s.id ? (
+                  <div className="fila" style={{ gap: 8, alignItems: "center" }}>
+                    <span style={{ fontSize: 13, color: "var(--ink-2)" }}>
+                      ¿Eliminar <strong>{s.nombre}</strong>?
+                    </span>
+                    <Boton
+                      variante="peligro"
+                      tamano="sm"
+                      onClick={() => eliminar(s.id)}
+                      disabled={eliminandoId === s.id}
+                    >
+                      {eliminandoId === s.id ? "Eliminando…" : "Sí, eliminar"}
+                    </Boton>
+                    <Boton variante="fantasma" tamano="sm" onClick={() => setConfirmandoId(null)}>
+                      Cancelar
+                    </Boton>
+                  </div>
+                ) : (
+                  sedes.length > 1 && (
+                    <Boton
+                      variante="fantasma"
+                      tamano="sm"
+                      icono={<Trash2 size={14} strokeWidth={2} />}
+                      onClick={() => setConfirmandoId(s.id)}
+                    >
+                      Eliminar
+                    </Boton>
+                  )
+                )}
               </div>
               <ConfigImpresoras sedeId={s.id} />
               <ConfigMarca sedeId={s.id} empresaId={s.empresa_id} />
