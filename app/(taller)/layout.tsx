@@ -30,6 +30,11 @@ export default async function LayoutTaller({ children }: { children: React.React
     );
   }
 
+  // Con varias sedes permitidas, nadie trabaja sin decir en cuál está
+  // (lib/sede-activa.ts) -- si no, la venta o el turno caerían en una
+  // sede adivinada.
+  if (!perfil.sedeId && perfil.sedesPermitidas.length > 1) redirect("/elegir-sede");
+
   // La puerta del taller es siempre oscura a propósito -- visibilidad y
   // batería en un celular usado con una mano, sin importar el tema
   // claro/oscuro/alto contraste que la empresa haya elegido para el
@@ -50,7 +55,7 @@ export default async function LayoutTaller({ children }: { children: React.React
         pie={<BloqueMarca imagenUrl={config.imagenMarcaUrl} eslogan={config.eslogan} />}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <BarraSuperior nombre={perfil.nombre} rol={perfil.rol} puerta="taller" />
+        <BarraSuperior nombre={perfil.nombre} rol={perfil.rol} sedeNombre={perfil.sedeNombre} puedeCambiarSede={perfil.sedesPermitidas.length > 1} puerta="taller" />
         <main style={{ padding: 20, maxWidth: 520, margin: "0 auto" }}>{children}</main>
       </div>
     </div>

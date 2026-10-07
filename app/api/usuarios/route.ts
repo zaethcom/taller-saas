@@ -71,6 +71,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: errPerfil.message }, { status: 500 });
     }
 
+    // La sede principal también queda como sede permitida
+    // (0042_perfil_sede.sql) -- las demás se agregan desde /usuarios.
+    if (body.sedeId) {
+      await admin
+        .from("perfil_sede")
+        .insert({ perfil_id: usuarioAuth.user.id, sede_id: body.sedeId, empresa_id: perfil.empresaId });
+    }
+
     return NextResponse.json({ ok: true, id: usuarioAuth.user.id });
   } catch (e) {
     return NextResponse.json(

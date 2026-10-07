@@ -14,6 +14,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { obtenerSedeActivaId } from "@/lib/perfil";
 import { encolarImpresion } from "@/lib/impresion";
 import { notificarCliente } from "@/lib/mensajeria/notificar";
 
@@ -73,9 +74,10 @@ export async function POST(req: NextRequest) {
     .select("empresa_id, sede_id")
     .eq("id", user.id)
     .single();
+  const sedeActivaId = await obtenerSedeActivaId(supabase);
 
-  if (!perfil?.sede_id) {
-    return NextResponse.json({ error: "el usuario no tiene sede asignada" }, { status: 400 });
+  if (!perfil || !sedeActivaId) {
+    return NextResponse.json({ error: "elige la sede en la que estás trabajando" }, { status: 400 });
   }
 
   let clienteId = body.clienteId;
@@ -115,7 +117,7 @@ export async function POST(req: NextRequest) {
     .from("orden")
     .insert({
       empresa_id: perfil.empresa_id,
-      sede_id: perfil.sede_id,
+      sede_id: sedeActivaId,
       producto_id: productoId,
       motivo: body.motivo.trim(),
       info_adicional: body.infoAdicional?.trim() || null,
@@ -173,7 +175,7 @@ export async function POST(req: NextRequest) {
 
   await encolarImpresion(supabase, {
     empresaId: perfil.empresa_id,
-    sedeId: perfil.sede_id,
+    sedeId: sedeActivaId,
     tipo: "comprobante_recepcion",
     creadoPor: user.id,
     carga: {
@@ -191,7 +193,7 @@ export async function POST(req: NextRequest) {
 
   await encolarImpresion(supabase, {
     empresaId: perfil.empresa_id,
-    sedeId: perfil.sede_id,
+    sedeId: sedeActivaId,
     tipo: "etiqueta_qr",
     creadoPor: user.id,
     ordenId: orden.id,
