@@ -74,6 +74,18 @@ impide que Android mate el proceso cuando la pantalla lleva rato apagada —
 smart-food-label deja esto explícitamente pendiente y por eso depende de que nadie
 cierre la app.
 
+## Vincular con la web sin PC (lo recomendado)
+
+En la web: Sedes → la sede → Estación de impresión → «Código para la app
+Android». En esta app, tarjeta «Conexión con la web»: escribir el código y
+«Vincular». Desde ahí la app pide la cola cada 2 s a la web, imprime cada
+trabajo en su impresora (tickets o etiquetas) y reporta el resultado. No hace
+falta computador, Node ni config.json. Contrato en `estacion/puente-android.md`
+(rama `claude/vincular-android-codigo`).
+
+Vincular deja sin efecto la clave de cualquier estación de PC que esa sede
+tuviera. Los puertos TCP siguen abiertos igual.
+
 ## Configurar la estación contra este puente
 
 En `estacion/config.json`, las dos impresoras apuntan al mismo equipo y difieren en

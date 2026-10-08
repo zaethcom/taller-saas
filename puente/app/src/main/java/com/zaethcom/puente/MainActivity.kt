@@ -26,6 +26,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.zaethcom.puente.core.*
+import com.zaethcom.puente.net.ClienteWeb
+import com.zaethcom.puente.net.EstadoWeb
 import com.zaethcom.puente.net.ipLocal
 import com.zaethcom.puente.usb.UsbRawTransport
 import kotlinx.coroutines.launch
@@ -83,6 +85,9 @@ private fun Pantalla(app: PuenteApp) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Cabecera(ip, config, version)
+
+        val estadoWeb by app.web.estado.collectAsState()
+        TarjetaWeb(estadoWeb, app.web)
 
         Rol.entries.forEach { rol ->
             TarjetaImpresora(
@@ -292,6 +297,66 @@ private fun TarjetaImpresora(
 private fun FlowRowSimple(contenido: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { contenido() }
+    }
+}
+
+/**
+ * Vincular este equipo con la web usando el código de Sedes. Va arriba porque es
+ * lo primero que se hace en una sede nueva: con esto ya no hace falta un PC.
+ */
+@Composable
+private fun TarjetaWeb(estado: EstadoWeb, web: ClienteWeb) {
+    val alcance = rememberCoroutineScope()
+    var codigo by remember { mutableStateOf("") }
+    var trabajando by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val vinculo = estado.vinculo
+
+    Card {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Conexión con la web", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+
+            if (vinculo == null) {
+                Text(
+                    "En la web: Sedes → Estación de impresión → «Código para la app Android». " +
+                        "Escribe aquí ese código. No hace falta computador.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                OutlinedTextField(
+                    value = codigo,
+                    onValueChange = { codigo = it.uppercase().take(9) },
+                    label = { Text("Código (ej. ABCD-EFGH)") },
+                    singleLine = true,
+                    isError = error != null,
+                    supportingText = { error?.let { Text(it) } },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Button(
+                    enabled = !trabajando && codigo.isNotBlank(),
+                    onClick = {
+                        trabajando = true
+                        error = null
+                        alcance.launch {
+                            error = web.vincular(codigo, Build.MODEL ?: "Android")
+                            trabajando = false
+                            if (error == null) codigo = ""
+                        }
+                    }
+                ) { Text(if (trabajando) "Vinculando…" else "Vincular") }
+            } else {
+                Text("Sede: ${vinculo.sedeNombre}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    estado.mensaje.ifBlank { "Conectando…" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = when {
+                        estado.esError -> MaterialTheme.colorScheme.error
+                        estado.conectado -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+                OutlinedButton(onClick = { web.desvincular() }) { Text("Desvincular") }
+            }
+        }
     }
 }
 
