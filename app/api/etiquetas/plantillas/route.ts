@@ -35,6 +35,14 @@ export async function GET() {
     .order("uso")
     .order("nombre");
   if (error) {
+    // Código desplegado antes de aplicar 0046 en la base: la sección se
+    // ve con un aviso claro en vez de un error de Postgres.
+    if (error.code === "42P01" || error.code === "PGRST205") {
+      return NextResponse.json(
+        { error: "Falta aplicar la migración 0046_plantilla_etiqueta en la base de datos." },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
