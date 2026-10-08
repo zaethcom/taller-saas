@@ -131,7 +131,11 @@ export interface ConfigImpresora {
   host: string;
   puerto?: number;
   protocolo?: "crudo" | "puente_android";
+  /** Solo para la de etiquetas: Argox habla "pplb" (por defecto), Zebra "zpl". */
+  lenguaje?: LenguajeEtiquetas;
 }
+
+export type LenguajeEtiquetas = "pplb" | "zpl";
 
 export interface ConfigImpresoras {
   tickets: ConfigImpresora;
