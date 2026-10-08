@@ -23,6 +23,7 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 
 type Protocolo = "crudo" | "puente_android";
+type Lenguaje = "pplb" | "zpl";
 
 interface Destino {
   host: string;
@@ -32,7 +33,7 @@ interface Destino {
 
 interface Impresoras {
   tickets: Destino;
-  etiquetas: Destino;
+  etiquetas: Destino & { lenguaje?: Lenguaje };
 }
 
 const DESTINO_VACIO: Destino = { host: "", puerto: 9100, protocolo: "crudo" };
@@ -177,6 +178,7 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
   const [cargando, setCargando] = useState(false);
   const [tickets, setTickets] = useState<Destino>(DESTINO_VACIO);
   const [etiquetas, setEtiquetas] = useState<Destino>(DESTINO_VACIO);
+  const [lenguaje, setLenguaje] = useState<Lenguaje>("pplb");
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -192,6 +194,7 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
         if (data) {
           setTickets(data.tickets);
           setEtiquetas(data.etiquetas);
+          setLenguaje(data.etiquetas.lenguaje ?? "pplb");
         }
       })
       .catch(() => {})
@@ -206,7 +209,7 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
       const res = await fetch(`/api/sedes/${sedeId}/impresoras`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tickets, etiquetas }),
+        body: JSON.stringify({ tickets, etiquetas: { ...etiquetas, lenguaje } }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       setMensaje(
@@ -253,7 +256,18 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20 }}>
           <CampoDestino titulo="Tickets (recibos, comprobantes)" valor={tickets} onCambiar={setTickets} />
-          <CampoDestino titulo="Etiquetas (QR, artículos, repuestos)" valor={etiquetas} onCambiar={setEtiquetas} />
+          <div className="pila" style={{ gap: 10 }}>
+            <CampoDestino titulo="Etiquetas (QR, artículos, repuestos)" valor={etiquetas} onCambiar={setEtiquetas} />
+            <Campo
+              etiqueta="Marca de la etiquetadora"
+              ayuda="Cada marca habla un idioma distinto. Si la etiqueta sale en blanco o con letras raras, prueba la otra."
+            >
+              <select value={lenguaje} onChange={(e) => setLenguaje(e.target.value as Lenguaje)}>
+                <option value="pplb">Argox (PPLB)</option>
+                <option value="zpl">Zebra (ZPL)</option>
+              </select>
+            </Campo>
+          </div>
         </div>
       )}
 
