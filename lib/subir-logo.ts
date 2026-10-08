@@ -64,3 +64,22 @@ export async function subirLogoSede(empresaId: string, sedeId: string, archivo: 
 
   return `${publicUrl}?v=${Date.now()}`;
 }
+
+/**
+ * La imagen de fondo propia de una plantilla de etiqueta (0045): un
+ * marco o logo diseñado a la medida del sticker, sobre el que se dibujan
+ * el código y los textos. Nombre con marca de tiempo, no fijo: cada
+ * plantilla puede tener la suya y ninguna pisa la de otra.
+ */
+export async function subirFondoEtiqueta(empresaId: string, archivo: File): Promise<string> {
+  const supabase = clienteNavegador();
+  const extension = archivo.name.split(".").pop() ?? "png";
+  const ruta = `${empresaId}/etiquetas/${Date.now()}.${extension}`;
+
+  const { error } = await supabase.storage.from("logos").upload(ruta, archivo);
+  if (error) {
+    throw new Error(`No se pudo subir la imagen: ${error.message}`);
+  }
+
+  return supabase.storage.from("logos").getPublicUrl(ruta).data.publicUrl;
+}

@@ -10,6 +10,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { generarLogoRaster, type LogoRaster } from "./logo-bitmap";
 import { generarEtiquetaQrRaster } from "./etiqueta-bitmap";
 import { generarQrRaster } from "./qr-bitmap";
+import { rasterEtiqueta } from "./etiquetas/renderizar";
+import {
+  COLUMNAS_PLANTILLA,
+  filaAPlantilla,
+  type DatosEtiqueta,
+  type FilaPlantilla,
+  type PlantillaEtiqueta,
+  type UsoEtiqueta,
+} from "./etiquetas/plantilla";
 
 export type TipoTrabajo =
   | "etiqueta_qr"
@@ -29,6 +38,8 @@ export type TipoTrabajo =
  */
 interface CargaEtiquetaQr {
   codigoEntrada: string;
+  /** Marca/modelo del equipo -- solo lo usa una plantilla con "descripción" (0045). */
+  producto?: string | null;
 }
 
 /**
@@ -119,6 +130,78 @@ type CargaPorTipo = {
   etiqueta_repuesto: CargaEtiquetaRepuesto;
 };
 
+const USO_POR_TIPO: Partial<Record<TipoTrabajo, UsoEtiqueta>> = {
+  etiqueta_qr: "orden",
+  etiqueta_articulo: "articulo",
+  etiqueta_repuesto: "repuesto",
+};
+
+/** Qué se imprime en una etiqueta con plantilla, sacado de la carga de cada tipo. */
+function datosDeCarga(tipo: TipoTrabajo, carga: Record<string, unknown>): DatosEtiqueta {
+  const texto = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
+  switch (tipo) {
+    case "etiqueta_qr":
+      return { codigo: String(carga.codigoEntrada ?? ""), descripcion: texto(carga.producto) };
+    case "etiqueta_articulo":
+      return {
+        codigo: String(carga.codigo ?? ""),
+        descripcion: [carga.marca, carga.modelo].filter((v) => texto(v)).join(" ") || texto(carga.tipo),
+      };
+    default:
+      return {
+        codigo: String(carga.codigo ?? ""),
+        empresa: texto(carga.nombreEmpresa),
+        descripcion: texto(carga.descripcion),
+      };
+  }
+}
+
+/**
+ * Si el uso de esta etiqueta tiene plantilla activa (/configuracion),
+ * la etiqueta se dibuja completa como bitmap con esa plantilla. La
+ * carga original se conserva al lado: una estación vieja, que todavía
+ * no sabe de `etiquetaRaster` para artículos y repuestos, sigue
+ * imprimiendo la etiqueta de fábrica con esos mismos datos.
+ *
+ * Devuelve null si no hay plantilla (o si dibujarla falla) -- entonces
+ * se imprime la etiqueta de fábrica, nunca se pierde el trabajo.
+ */
+async function aplicarPlantilla(
+  supabase: SupabaseClient,
+  empresaId: string,
+  tipo: TipoTrabajo,
+  carga: Record<string, unknown>,
+  forzada?: PlantillaEtiqueta,
+): Promise<Record<string, unknown> | null> {
+  const uso = USO_POR_TIPO[tipo];
+  if (!uso) return null;
+
+  let plantilla = forzada ?? null;
+  if (!plantilla) {
+    const { data } = await supabase
+      .from("plantilla_etiqueta")
+      .select(COLUMNAS_PLANTILLA)
+      .eq("empresa_id", empresaId)
+      .eq("uso", uso)
+      .eq("activa", true)
+      .maybeSingle();
+    if (!data) return null;
+    plantilla = filaAPlantilla(data as FilaPlantilla);
+  }
+
+  try {
+    const datos = datosDeCarga(tipo, carga);
+    if (plantilla.campos.includes("empresa") && !datos.empresa) {
+      const { data: empresa } = await supabase.from("empresa").select("nombre").eq("id", empresaId).single();
+      datos.empresa = empresa?.nombre ?? null;
+    }
+    return { ...carga, etiquetaRaster: await rasterEtiqueta(plantilla, datos) };
+  } catch (err) {
+    console.error("[impresion] no se pudo dibujar la etiqueta con la plantilla; sale la de fábrica", err);
+    return null;
+  }
+}
+
 const TIPOS_CON_MARCA = new Set<TipoTrabajo>([
   "recibo_venta",
   "comprobante_recepcion",
@@ -141,6 +224,11 @@ export async function encolarImpresion<T extends TipoTrabajo>(
      * suposición.
      */
     ordenId?: string;
+    /**
+     * Imprimir con esta plantilla en vez de la activa -- solo para la
+     * impresión de prueba desde /configuracion.
+     */
+    plantillaEtiqueta?: PlantillaEtiqueta;
   },
 ): Promise<{ id: string }> {
   let carga: object = params.carga;
@@ -184,7 +272,21 @@ export async function encolarImpresion<T extends TipoTrabajo>(
   // comando PPLB `GW`. Quien encola solo pide el código de entrada
   // (`{ codigoEntrada }`), igual que antes -- este archivo se encarga
   // de convertirlo en la imagen.
-  if (params.tipo === "etiqueta_qr") {
+  //
+  // Con una plantilla activa (0045) para el uso de la etiqueta, la
+  // dibuja la plantilla en vez de esto -- para etiqueta_qr y también
+  // para etiqueta_articulo/etiqueta_repuesto, que sin plantilla siguen
+  // con sus comandos nativos de siempre.
+  const conPlantilla = await aplicarPlantilla(
+    supabase,
+    params.empresaId,
+    params.tipo,
+    params.carga as Record<string, unknown>,
+    params.plantillaEtiqueta,
+  );
+  if (conPlantilla) {
+    carga = params.tipo === "etiqueta_qr" ? { etiquetaRaster: conPlantilla.etiquetaRaster } : conPlantilla;
+  } else if (params.tipo === "etiqueta_qr") {
     const { codigoEntrada } = params.carga as unknown as { codigoEntrada: string };
     carga = { etiquetaRaster: await generarEtiquetaQrRaster(codigoEntrada) };
   }
