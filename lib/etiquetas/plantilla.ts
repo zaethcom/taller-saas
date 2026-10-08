@@ -1,5 +1,5 @@
 /**
- * Plantillas de etiqueta (0045_plantilla_etiqueta.sql): qué medida tiene
+ * Plantillas de etiqueta (0046_plantilla_etiqueta.sql): qué medida tiene
  * el sticker, qué código lleva y qué textos. Puro -- sin Supabase ni
  * sharp -- para que la validación y los modelos se prueben solos y los
  * use igual la API que la pantalla de /configuracion.
