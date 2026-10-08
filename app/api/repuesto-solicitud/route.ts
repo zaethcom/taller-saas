@@ -7,7 +7,7 @@
  * a marcar faltante, que significa comprar algo que la empresa ya tiene
  * en el otro local.
  *
- * ordenId es opcional a propósito (0043): en el mostrador se acaba algo y
+ * ordenId es opcional a propósito (0050): en el mostrador se acaba algo y
  * hay que poder pedirlo sin una reparación detrás.
  *
  * GET /api/repuesto-solicitud?bandeja=recibidas|enviadas
@@ -16,6 +16,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { obtenerSedeActivaId } from "@/lib/perfil";
 import { ESTADOS_ABIERTOS } from "@/lib/solicitudes";
 
 const SELECT =
@@ -58,10 +59,14 @@ export async function POST(req: NextRequest) {
     .eq("id", user.id)
     .single();
 
-  if (!perfil?.sede_id) {
-    return NextResponse.json({ error: "el usuario no tiene sede asignada" }, { status: 400 });
+  // La sede ACTIVA, no la principal del perfil: desde que se puede elegir
+  // sede al entrar (lib/sede-activa.ts), pedirle algo "a la otra sede"
+  // tiene que partir de donde la persona está trabajando ahora.
+  const sedeActivaId = await obtenerSedeActivaId(supabase);
+  if (!perfil || !sedeActivaId) {
+    return NextResponse.json({ error: "elige la sede en la que estás trabajando" }, { status: 400 });
   }
-  if (perfil.sede_id === body.sedeProveedoraId) {
+  if (sedeActivaId === body.sedeProveedoraId) {
     return NextResponse.json({ error: "no tiene sentido pedirle a la propia sede" }, { status: 400 });
   }
 
@@ -74,7 +79,7 @@ export async function POST(req: NextRequest) {
       descripcion: body.descripcion,
       cantidad: body.cantidad,
       estado: "pedido_a_sede",
-      sede_solicitante_id: perfil.sede_id,
+      sede_solicitante_id: sedeActivaId,
       sede_proveedora_id: body.sedeProveedoraId,
       solicitado_por: user.id,
     })
@@ -99,9 +104,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
-  const { data: perfil } = await supabase.from("perfil").select("sede_id").eq("id", user.id).single();
-  if (!perfil?.sede_id) {
-    return NextResponse.json({ error: "el usuario no tiene sede asignada" }, { status: 400 });
+  const sedeActivaId = await obtenerSedeActivaId(supabase);
+  if (!sedeActivaId) {
+    return NextResponse.json({ error: "elige la sede en la que estás trabajando" }, { status: 400 });
   }
 
   let consulta = supabase
@@ -111,9 +116,9 @@ export async function GET(req: NextRequest) {
     .order("creada_en", { ascending: true });
 
   if (bandeja === "enviadas") {
-    consulta = consulta.eq("sede_solicitante_id", perfil.sede_id);
+    consulta = consulta.eq("sede_solicitante_id", sedeActivaId);
   } else {
-    consulta = consulta.eq("sede_proveedora_id", perfil.sede_id);
+    consulta = consulta.eq("sede_proveedora_id", sedeActivaId);
   }
 
   const { data, error } = await consulta;

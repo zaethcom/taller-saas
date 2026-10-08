@@ -20,6 +20,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { obtenerSedeActivaId } from "@/lib/perfil";
 import { crearTraslado, type ItemTraslado } from "@/lib/traslados";
 
 export async function POST(req: NextRequest) {
@@ -46,9 +47,10 @@ export async function POST(req: NextRequest) {
     .select("empresa_id, sede_id")
     .eq("id", user.id)
     .single();
+  const sedeActivaId = await obtenerSedeActivaId(supabase);
 
-  if (!perfil?.sede_id) {
-    return NextResponse.json({ error: "el usuario no tiene sede asignada" }, { status: 400 });
+  if (!perfil || !sedeActivaId) {
+    return NextResponse.json({ error: "elige la sede en la que estás trabajando" }, { status: 400 });
   }
 
   // El trabajo de verdad -- descontar, registrar e imprimir -- vive en
@@ -56,7 +58,7 @@ export async function POST(req: NextRequest) {
   // exactamente el mismo traslado por otro camino.
   const resultado = await crearTraslado(supabase, {
     empresaId: perfil.empresa_id,
-    sedeOrigenId: perfil.sede_id,
+    sedeOrigenId: sedeActivaId,
     sedeDestinoId: body.sedeDestinoId,
     items: body.items ?? [],
     nota: body.nota,
@@ -82,7 +84,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
-  const { data: perfil } = await supabase.from("perfil").select("sede_id").eq("id", user.id).single();
+  const sedeActivaId = await obtenerSedeActivaId(supabase);
 
   let consulta = supabase
     .from("traslado")
@@ -91,10 +93,10 @@ export async function GET(req: NextRequest) {
     )
     .order("enviado_en", { ascending: false });
 
-  if (direccion === "entrantes" && perfil?.sede_id) {
-    consulta = consulta.eq("sede_destino_id", perfil.sede_id);
-  } else if (direccion === "salientes" && perfil?.sede_id) {
-    consulta = consulta.eq("sede_origen_id", perfil.sede_id);
+  if (direccion === "entrantes" && sedeActivaId) {
+    consulta = consulta.eq("sede_destino_id", sedeActivaId);
+  } else if (direccion === "salientes" && sedeActivaId) {
+    consulta = consulta.eq("sede_origen_id", sedeActivaId);
   }
   if (estado) {
     consulta = consulta.eq("estado", estado);

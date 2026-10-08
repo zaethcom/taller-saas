@@ -409,9 +409,9 @@ export default function PaginaRecibir() {
                 { valor: "pin3", etiqueta: "PIN de 3" },
                 { valor: "pin4", etiqueta: "PIN de 4" },
                 { valor: "pin6", etiqueta: "PIN de 6" },
-                ...(productoNuevo.tipo === "celular" || producto?.tipo === "celular"
-                  ? [{ valor: "patron" as const, etiqueta: "Patrón" }]
-                  : []),
+                // Siempre visible: antes dependía de que el tipo fuera "celular",
+                // y con el tipo por defecto (patineta) el patrón no aparecía.
+                { valor: "patron", etiqueta: "Patrón" },
                 { valor: "otro", etiqueta: "Otro" },
               ] as const
             ).map((o) => (

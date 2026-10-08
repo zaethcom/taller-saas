@@ -13,6 +13,7 @@
  */
 import { NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { obtenerSedeActivaId } from "@/lib/perfil";
 import { crearTraslado } from "@/lib/traslados";
 import { transicionarSolicitud, type EstadoSolicitud } from "@/lib/solicitudes";
 
@@ -32,8 +33,14 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     .select("empresa_id, sede_id")
     .eq("id", user.id)
     .single();
-  if (!perfil?.sede_id) {
-    return NextResponse.json({ error: "el usuario no tiene sede asignada" }, { status: 400 });
+  // La sede ACTIVA, no la principal del perfil: desde que se puede elegir
+  // sede al entrar (lib/sede-activa.ts), pedirle algo "a la otra sede"
+  // tiene que partir de donde la persona está trabajando ahora. Usar
+  // sedeActivaId dejaría a quien cambió de sede pidiendo para la
+  // equivocada, sin ningún error que lo delate.
+  const sedeActivaId = await obtenerSedeActivaId(supabase);
+  if (!perfil || !sedeActivaId) {
+    return NextResponse.json({ error: "elige la sede en la que estás trabajando" }, { status: 400 });
   }
 
   const { data: solicitud } = await supabase
@@ -45,7 +52,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (!solicitud) {
     return NextResponse.json({ error: "la solicitud no existe" }, { status: 404 });
   }
-  if (solicitud.sede_proveedora_id !== perfil.sede_id) {
+  if (solicitud.sede_proveedora_id !== sedeActivaId) {
     return NextResponse.json({ error: "esta solicitud no es para tu sede" }, { status: 403 });
   }
   if (!solicitud.repuesto_id || !solicitud.sede_solicitante_id) {
@@ -60,7 +67,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   const traslado = await crearTraslado(supabase, {
     empresaId: perfil.empresa_id,
-    sedeOrigenId: perfil.sede_id,
+    sedeOrigenId: sedeActivaId,
     sedeDestinoId: solicitud.sede_solicitante_id,
     items: [
       {

@@ -12,6 +12,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { obtenerSedeActivaId } from "@/lib/perfil";
 
 export async function GET(req: NextRequest) {
   const buscar = req.nextUrl.searchParams.get("buscar")?.trim() ?? "";
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
-  const { data: perfil } = await supabase.from("perfil").select("sede_id").eq("id", user.id).single();
+  const sedeActivaId = await obtenerSedeActivaId(supabase);
 
   // Los nombres de las demás sedes, para poder decir "3 en Local 1" en vez
   // de "3 en otra parte". RLS ya limita esto a la empresa del usuario.
@@ -55,9 +56,12 @@ export async function GET(req: NextRequest) {
     descripcion: r.descripcion,
     precioVenta: Number(r.precio_venta),
     imagenUrl: r.imagen_url,
-    existenciaAqui: r.existencia.find((e) => e.sede_id === perfil?.sede_id)?.cantidad ?? 0,
+    existenciaAqui: r.existencia.find((e) => e.sede_id === sedeActivaId)?.cantidad ?? 0,
+    // Sin esto el técnico no puede distinguir «no lo tenemos» de «está en
+    // el almacén», que es la diferencia entre pedir un traslado y mandar
+    // a comprar. Se mide contra la sede ACTIVA, igual que existenciaAqui.
     enOtrasSedes: r.existencia
-      .filter((e) => e.sede_id !== perfil?.sede_id && e.cantidad > 0)
+      .filter((e) => e.sede_id !== sedeActivaId && e.cantidad > 0)
       .map((e) => ({
         sedeId: e.sede_id,
         nombre: nombreDeSede.get(e.sede_id) ?? "otra sede",

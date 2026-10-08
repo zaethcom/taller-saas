@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0043_solicitudes_entre_sedes.sql
+-- 0050_solicitudes_entre_sedes.sql
 -- Pedirle un repuesto a la otra sede antes de salir a comprarlo.
 --
 -- El inventario a granel es por sede (existencia, clave (repuesto_id, sede_id))

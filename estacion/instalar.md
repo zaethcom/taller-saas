@@ -16,16 +16,33 @@ la máquina física de la sede.
 
 1. Clonar el repositorio o copiar solo la carpeta `estacion/`.
 2. `cd estacion && npm install`
-3. Copiar `config.ejemplo.json` a `config.json` y completar:
-   - `sedeId`: el UUID de la sede en la tabla `sede` (Local 1 o Local 2).
-   - `apiBase`: la URL de la aplicación desplegada en Vercel.
-   - `servicioClave`: la clave de servicio de esta estación (se genera
-     desde el panel de administración — ver sección "Rutas API" del
-     código, `app/api/impresion/`).
-   - `impresoras.tickets.host` / `impresoras.etiquetas.host`: las IPs
-     fijas de cada impresora en la red del local.
+3. En la web, **Administrador → Sedes**, en la sede de este local:
+   - Configurar las impresoras (IP, puerto y si es «Red por IP» o
+     «Local por USB»). La estación las lee de ahí al arrancar y vuelve a
+     mirarlas cada minuto, así que un cambio de IP no exige ir al local.
+   - **Vincular estación de impresión → Generar clave → Descargar
+     config.json.** Ese archivo ya trae `sedeId`, `apiBase` (la URL desde
+     la que lo descargaste) y `servicioClave`. Ponlo en la carpeta
+     `estacion/` del aparato.
+
+   La clave aparece **una sola vez**: `estacion_credencial` guarda solo su
+   sha256, así que no hay forma de volver a verla. Si se pierde, se
+   genera otra — y la anterior deja de aceptarse, con lo que el equipo que
+   la tenga puesta deja de imprimir hasta que le pongas el config.json
+   nuevo.
+
+   Si prefieres armarlo a mano, `config.ejemplo.json` muestra los campos;
+   `impresoras` ahí es solo un respaldo para cuando la web no responde al
+   arrancar.
+
+   `config.json` lleva esa clave **en claro**, así que está en
+   `.gitignore`. Si copiaste solo la carpeta `estacion/` a otro sitio
+   versionado, excluirlo también ahí — o dejar el archivo fuera del
+   repositorio y pasarle la ruta: `npm start -- /ruta/a/config.json`
+   (`index.ts` lee el primer argumento, y si no hay usa `./config.json`).
 4. Probar en primer plano: `npm start` — debe quedar imprimiendo sin
-   errores en la consola. Encolar una etiqueta de prueba desde la app y
+   errores en la consola. En /sedes la sede debe pasar a **En línea** en
+   menos de un minuto. Encolar una etiqueta de prueba desde la app y
    confirmar que sale.
 5. Dejarlo corriendo siempre:
    - **Termux (Android):** instalar `Termux:Boot` desde F-Droid y poner
@@ -64,10 +81,19 @@ qué app la abra.
 
 ## Cómo saber si está viva
 
-`GET /api/impresion/pendientes?sede=<id>` con la clave de esa sede
-responde `200` aunque no haya trabajos — un `401` significa clave mal
-puesta, y ningún error de red en la consola de la estación es la señal
-de que sigue consultando cada dos segundos.
+En **/sedes**, debajo de las impresoras de cada sede:
+
+- **En línea**: consultó la cola hace menos de dos minutos.
+- **Sin conexión desde …**: el aparato está apagado, sin red, o el
+  proceso murió (en Android, casi siempre la optimización de batería).
+- **Vinculada, todavía no se ha conectado**: se generó la clave pero el
+  config.json nuevo no está puesto, o la estación no se reinició.
+- **Sin vincular**: nadie generó clave para esta sede; nada de lo que se
+  encole va a imprimirse.
+
+Al lado dice cuántas impresiones están esperando. Si la consola de la
+estación muestra un 401, la clave no es la vigente: descarga un
+config.json nuevo.
 
 ## Un aviso de la sección de trampas del plano
 

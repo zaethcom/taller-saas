@@ -10,6 +10,7 @@
  */
 import { NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { obtenerSedeActivaId } from "@/lib/perfil";
 import { transicionarSolicitud, type EstadoSolicitud } from "@/lib/solicitudes";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -23,7 +24,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
-  const { data: perfil } = await supabase.from("perfil").select("sede_id").eq("id", user.id).single();
+  // La sede ACTIVA, no la principal del perfil: quien decide "no tengo"
+  // es el almacén donde la persona está parada ahora.
+  const sedeActivaId = await obtenerSedeActivaId(supabase);
+  if (!sedeActivaId) {
+    return NextResponse.json({ error: "elige la sede en la que estás trabajando" }, { status: 400 });
+  }
 
   const { data: solicitud } = await supabase
     .from("repuesto_solicitud")
@@ -34,7 +40,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (!solicitud) {
     return NextResponse.json({ error: "la solicitud no existe" }, { status: 404 });
   }
-  if (solicitud.sede_proveedora_id !== perfil?.sede_id) {
+  if (solicitud.sede_proveedora_id !== sedeActivaId) {
     return NextResponse.json({ error: "esta solicitud no es para tu sede" }, { status: 403 });
   }
 

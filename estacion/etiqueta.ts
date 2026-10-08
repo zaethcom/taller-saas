@@ -99,10 +99,22 @@ function imagenGw(x: number, y: number, raster: EtiquetaRaster): Buffer {
  * particular.
  */
 export function etiquetaQrPplb(d: DatosEtiquetaQr): Buffer {
+  return etiquetaRasterPplb(d.etiquetaRaster, 1);
+}
+
+/**
+ * Cualquier etiqueta ya dibujada como bitmap en el servidor -- la de la
+ * orden, o la de un artículo/repuesto cuando la empresa tiene una
+ * plantilla de etiqueta activa (/configuracion, 0046). La medida, el
+ * tipo de código y los textos ya vienen resueltos en los píxeles: acá
+ * no se decide nada de diseño. `P<copias>` repite la misma imagen.
+ */
+export function etiquetaRasterPplb(raster: EtiquetaRaster, copias: number): Buffer {
+  const n = Number.isInteger(copias) && copias > 0 ? copias : 1;
   return Buffer.concat([
     Buffer.from("N\r\n", "ascii"),
-    imagenGw(0, 0, d.etiquetaRaster),
-    Buffer.from("\r\nP1\r\n", "ascii"),
+    imagenGw(0, 0, raster),
+    Buffer.from(`\r\nP${n}\r\n`, "ascii"),
   ]);
 }
 
@@ -111,6 +123,8 @@ export interface DatosEtiquetaArticulo {
   tipo: string;
   marca: string | null;
   modelo: string | null;
+  /** Presente solo si la empresa tiene plantilla de etiqueta activa -- ver etiquetaRasterPplb. */
+  etiquetaRaster?: EtiquetaRaster;
 }
 
 /**
@@ -137,6 +151,8 @@ export interface DatosEtiquetaRepuesto {
   codigo: string; // repuesto.codigo -- lo que codifica el código de barras
   descripcion: string;
   cantidadCopias: number; // una copia por unidad física recibida
+  /** Presente solo si la empresa tiene plantilla de etiqueta activa -- ver etiquetaRasterPplb. */
+  etiquetaRaster?: EtiquetaRaster;
 }
 
 /**
