@@ -16,7 +16,7 @@
  * primero que hay que mirar cuando una sede dice que no le imprime.
  */
 import { useCallback, useEffect, useState } from "react";
-import { KeyRound, Copy, Check, X, AlertTriangle, Download } from "lucide-react";
+import { KeyRound, Copy, Check, X, AlertTriangle, Download, Smartphone } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
@@ -70,6 +70,7 @@ export function VincularEstacion({ sedeId }: { sedeId: string }) {
   const [descargado, setDescargado] = useState(false);
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [codigo, setCodigo] = useState<{ codigo: string; expiraEn: string } | null>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -88,6 +89,29 @@ export function VincularEstacion({ sedeId }: { sedeId: string }) {
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  // Mientras el código está en pantalla, se mira cada 5 s si la app ya lo
+  // canjeó: así la pantalla dice «En línea» sola, sin recargar.
+  useEffect(() => {
+    if (!codigo) return;
+    const t = setInterval(cargar, 5000);
+    return () => clearInterval(t);
+  }, [codigo, cargar]);
+
+  async function pedirCodigo() {
+    setProcesando(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/sedes/${sedeId}/estacion/codigo`, { method: "POST" });
+      const cuerpo = await res.json();
+      if (!res.ok) throw new Error(cuerpo.error);
+      setCodigo(cuerpo);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo generar el código");
+    } finally {
+      setProcesando(false);
+    }
+  }
 
   async function generar() {
     setProcesando(true);
@@ -167,6 +191,7 @@ export function VincularEstacion({ sedeId }: { sedeId: string }) {
     setClave(null);
     setCopiada(false);
     setDescargado(false);
+    setCodigo(null);
     setNombre("");
     cargar();
     setError(null);
@@ -201,8 +226,37 @@ export function VincularEstacion({ sedeId }: { sedeId: string }) {
         <Boton variante="fantasma" tamano="sm" icono={<X size={15} strokeWidth={2} />} onClick={cerrar} />
       </div>
 
-      {cargando ? (
+      {cargando && !estado ? (
         <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>Cargando…</p>
+      ) : codigo ? (
+        <div className="pila" style={{ gap: 12 }}>
+          {estado && <LineaEstado estado={estado} />}
+          <p style={{ margin: 0, fontSize: 13, color: "var(--ink-2)" }}>
+            Escribe este código en la app <strong>Puente de impresión</strong> del Android, en
+            «Vincular con la página»:
+          </p>
+          <div
+            className="cifra"
+            style={{
+              padding: "14px 12px",
+              background: "var(--surface-2)",
+              border: "1px solid var(--rule)",
+              borderRadius: "var(--r-md)",
+              fontSize: 32,
+              fontWeight: 700,
+              letterSpacing: 4,
+              textAlign: "center",
+              userSelect: "all",
+            }}
+          >
+            {codigo.codigo}
+          </div>
+          <p style={{ margin: 0, fontSize: 12, color: "var(--ink-3)" }}>
+            Sirve una sola vez y vence a las{" "}
+            {new Date(codigo.expiraEn).toLocaleTimeString("es-CO", { timeStyle: "short" })}. Si la
+            sede ya tenía una estación vinculada, deja de servir cuando la app use este código.
+          </p>
+        </div>
       ) : clave ? (
         <div className="pila" style={{ gap: 12 }}>
           <Aviso tono="aviso" icono={<AlertTriangle size={16} strokeWidth={2} />}>
@@ -277,7 +331,7 @@ export function VincularEstacion({ sedeId }: { sedeId: string }) {
             <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Tablet del mostrador" />
           </Campo>
 
-          <div className="fila" style={{ gap: 8 }}>
+          <div className="fila" style={{ gap: 8, flexWrap: "wrap" }}>
             <Boton
               variante="primario"
               tamano="sm"
@@ -287,12 +341,26 @@ export function VincularEstacion({ sedeId }: { sedeId: string }) {
             >
               {estado?.vinculada ? "Generar otra clave" : "Generar clave"}
             </Boton>
+            <Boton
+              variante="contorno"
+              tamano="sm"
+              icono={<Smartphone size={15} strokeWidth={2} />}
+              onClick={pedirCodigo}
+              disabled={procesando}
+            >
+              Código para la app Android
+            </Boton>
             {estado?.vinculada && (
               <Boton variante="contorno" tamano="sm" onClick={revocar} disabled={procesando}>
                 Revocar
               </Boton>
             )}
           </div>
+
+          <p style={{ margin: 0, fontSize: 12, color: "var(--ink-3)" }}>
+            «Generar clave» es para una estación en un computador (descarga un config.json).
+            «Código para la app Android» es para que el Android del puente imprima solo, sin computador.
+          </p>
 
           {estado?.vinculada && (
             <p style={{ margin: 0, fontSize: 12, color: "var(--ink-3)" }}>
