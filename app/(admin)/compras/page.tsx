@@ -13,13 +13,20 @@
  * técnico todavía lo ve en su orden para consumirlo); "Mostrar
  * recibidos" lo trae de vuelta para consultar.
  *
+ * Arriba de la lista hay una segunda bandeja: lo que el otro local me
+ * está pidiendo del almacén. Se despacha como traslado si lo hay, o se
+ * pasa a faltante si no -- y entonces cae en la lista de abajo, que es el
+ * flujo que ya existía. Esa bifurcación la decide una persona mirando el
+ * estante, no la existencia registrada: un inventario desactualizado
+ * mandaría a comprar algo que sí está.
+ *
  * WhatsApp: se marcan con check los faltantes que van en el pedido y se
  * elige a qué contacto va (mensajero, almacén, proveedor... los que la
  * empresa configure abajo). Arma un enlace wa.me con el texto ya
  * escrito -- sin backend, sin cuenta de negocio de Meta.
  */
 import { Fragment, useEffect, useState } from "react";
-import { ShoppingBag, PackageCheck, MessageCircle, X, Plus, Trash2 } from "lucide-react";
+import { ShoppingBag, PackageCheck, MessageCircle, Truck, X, Plus, Trash2 } from "lucide-react";
 import { clienteNavegador } from "@/lib/supabase/cliente";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
@@ -56,6 +63,21 @@ interface Sede {
 }
 
 /** Urgente grita, normal no: si todo se ve igual, nada se atiende primero. */
+/** Lo que otra sede me pide del almacén. Trae más campos que un faltante:
+ *  quién lo pide y contra qué repuesto del catálogo, que en un faltante
+ *  (descripción libre del técnico) todavía no se sabe. */
+interface Solicitud {
+  id: string;
+  descripcion: string;
+  cantidad: number;
+  prioridad: string;
+  estado: string;
+  creada_en: string;
+  orden: { numero: number } | null;
+  solicitante: { id: string; nombre: string } | null;
+  repuesto: { id: string; codigo: string } | null;
+}
+
 const TONO_PRIORIDAD: Record<string, TonoEtiqueta> = {
   urgente: "peligro",
   alta: "aviso",
@@ -66,6 +88,7 @@ const CASILLA = { width: 18, height: 18, padding: 0, accentColor: "var(--accent)
 
 export default function PaginaCompras() {
   const [faltantes, setFaltantes] = useState<Faltante[]>([]);
+  const [pedidos, setPedidos] = useState<Solicitud[]>([]);
   const [cargando, setCargando] = useState(true);
   const [procesando, setProcesando] = useState<string | null>(null);
 
@@ -91,6 +114,13 @@ export default function PaginaCompras() {
   const [error, setError] = useState<string | null>(null);
 
   async function cargar(conRecibidos = mostrarRecibidos) {
+    // La bandeja de pedidos va por la API y no por el cliente del
+    // navegador: filtra por la sede activa, que el servidor conoce.
+    fetch("/api/repuesto-solicitud?bandeja=recibidas")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setPedidos(Array.isArray(d) ? d : []))
+      .catch(() => setPedidos([]));
+
     const supabase = clienteNavegador();
     const { data } = await supabase
       .from("repuesto_solicitud")
@@ -102,6 +132,26 @@ export default function PaginaCompras() {
     // Lo que ya no está como faltante no puede seguir marcado para enviar.
     setSeleccionados((prev) => new Set(lista.filter((f) => f.estado === "faltante" && prev.has(f.id)).map((f) => f.id)));
     setCargando(false);
+  }
+
+  async function accionSobrePedido(id: string, accion: "despachar" | "sin-existencia") {
+    setProcesando(id);
+    setAviso(null);
+    try {
+      const res = await fetch(`/api/repuesto-solicitud/${id}/${accion}`, { method: "POST" });
+      const cuerpo = await res.json();
+      if (!res.ok) throw new Error(cuerpo.error);
+      setAviso(
+        accion === "despachar"
+          ? `Despachado como traslado #${cuerpo.traslado?.numero}. Falta que lo reciban allá.`
+          : "Marcado sin existencia. Pasa a la lista de compras.",
+      );
+      await cargar();
+    } catch (e) {
+      setAviso(e instanceof Error ? e.message : "No se pudo procesar el pedido");
+    } finally {
+      setProcesando(null);
+    }
   }
 
   async function cargarContactos() {
@@ -298,6 +348,70 @@ export default function PaginaCompras() {
           <Aviso tono="ok">
             <span style={{ fontSize: 13 }}>{aviso}</span>
           </Aviso>
+        )}
+
+        {pedidos.length > 0 && (
+          <section>
+            <h2 style={{ fontSize: 15, margin: "0 0 10px" }}>Te piden del almacén</h2>
+            <TarjetaTabla>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Repuesto</th>
+                    <th>Lo pide</th>
+                    <th>Cantidad</th>
+                    <th>Estado</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pedidos.map((p) => (
+                    <tr key={p.id}>
+                      <td style={{ fontWeight: 600 }}>
+                        {p.descripcion}
+                        {p.repuesto && (
+                          <span className="cifra" style={{ color: "var(--ink-3)", fontWeight: 400 }}>
+                            {" "}
+                            · {p.repuesto.codigo}
+                          </span>
+                        )}
+                      </td>
+                      <td>{p.solicitante?.nombre ?? "—"}</td>
+                      <td className="cifra">{p.cantidad}</td>
+                      <td>
+                        <Etiqueta tono={p.estado === "pedido_a_sede" ? "aviso" : "info"}>
+                          {p.estado === "pedido_a_sede" ? "te lo piden" : "en camino"}
+                        </Etiqueta>
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        {p.estado === "pedido_a_sede" && (
+                          <span style={{ display: "inline-flex", gap: 8 }}>
+                            <Boton
+                              variante="primario"
+                              tamano="sm"
+                              icono={<Truck size={15} strokeWidth={2} />}
+                              onClick={() => accionSobrePedido(p.id, "despachar")}
+                              disabled={procesando === p.id}
+                            >
+                              Despachar
+                            </Boton>
+                            <Boton
+                              variante="contorno"
+                              tamano="sm"
+                              onClick={() => accionSobrePedido(p.id, "sin-existencia")}
+                              disabled={procesando === p.id}
+                            >
+                              No tengo
+                            </Boton>
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TarjetaTabla>
+          </section>
         )}
 
         {pendientes.length > 0 && (

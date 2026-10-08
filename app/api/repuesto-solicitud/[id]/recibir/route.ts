@@ -16,6 +16,7 @@ import { NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
+import { puedeTransicionarSolicitud, type EstadoSolicitud } from "@/lib/solicitudes";
 
 interface Cuerpo {
   repuestoId: string;
@@ -53,7 +54,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (errSolicitud || !solicitud) {
     return NextResponse.json({ error: "el faltante no existe" }, { status: 404 });
   }
-  if (solicitud.estado !== "faltante") {
+  // Los estados desde los que compras puede dar algo por recibido salen de
+  // lib/solicitudes.ts, no de una cadena suelta aquí: antes este guard
+  // clavaba 'faltante', y hoy también existe 'solicitado' (pedido al
+  // proveedor) -- con el guard viejo, abrir la transición en la máquina de
+  // estados no servía de nada, la solicitud se rechazaba antes de llegar.
+  const desdeAqui = (["faltante", "solicitado"] as EstadoSolicitud[]).filter((e) =>
+    puedeTransicionarSolicitud(e, "recibido"),
+  );
+
+  if (!desdeAqui.includes(solicitud.estado as EstadoSolicitud)) {
     return NextResponse.json({ error: "este faltante ya fue procesado" }, { status: 409 });
   }
 
@@ -73,7 +83,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .from("repuesto_solicitud")
     .update({ estado: "recibido", recibido_en: new Date().toISOString() })
     .eq("id", id)
-    .eq("estado", "faltante")
+    .in("estado", desdeAqui)
     .select("id, orden_id")
     .maybeSingle();
 

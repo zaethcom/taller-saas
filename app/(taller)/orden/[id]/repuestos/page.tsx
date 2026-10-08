@@ -1,9 +1,13 @@
 "use client";
 
 /**
- * Consumir un repuesto contra el inventario de la sede, o marcarlo
- * como faltante si no hay -- lo que crea la fila en repuesto_solicitud
- * que aparece en /compras. Fase 6 del plano de construcción.
+ * Consumir un repuesto contra el inventario de la sede, pedírselo a la
+ * sede que sí lo tiene, o marcarlo como faltante -- lo que crea la fila
+ * en repuesto_solicitud que aparece en /compras. Fase 6 del plano de
+ * construcción.
+ *
+ * El del medio es el camino que faltaba: sin él, no tener existencia
+ * propia obligaba a mandar a comprar algo que está en el otro local.
  *
  * También muestra lo que este técnico ya pidió para esta orden y su
  * estado -- antes no había ninguna manera de saber, desde acá, cuando
@@ -11,7 +15,18 @@
  */
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Package, Search, Minus, AlertTriangle, Check, PackageCheck, Wrench, Hammer, Plus } from "lucide-react";
+import {
+  Package,
+  Search,
+  Minus,
+  Send,
+  AlertTriangle,
+  Check,
+  PackageCheck,
+  Wrench,
+  Hammer,
+  Plus,
+} from "lucide-react";
 import { clienteNavegador } from "@/lib/supabase/cliente";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
@@ -28,11 +43,21 @@ interface Solicitud {
   creada_en: string;
 }
 
+/** Cuánto hay del repuesto en cada OTRA sede. Sin esto el técnico no puede
+ *  distinguir «no lo tenemos» de «está en el almacén», que es exactamente la
+ *  diferencia entre pedir un traslado y mandar a comprar. */
+interface EnSede {
+  sedeId: string;
+  nombre: string;
+  cantidad: number;
+}
+
 interface Repuesto {
   id: string;
   codigo: string;
   descripcion: string;
   existenciaAqui: number;
+  enOtrasSedes: EnSede[];
 }
 
 interface ItemCatalogo {
@@ -209,6 +234,32 @@ export default function PaginaRepuestos() {
     }
   }
 
+  async function pedirASede(r: Repuesto, destino: EnSede) {
+    setProcesando(true);
+    setError(null);
+    setMensaje(null);
+    try {
+      const res = await fetch("/api/repuesto-solicitud", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          repuestoId: r.id,
+          descripcion: r.descripcion,
+          cantidad: 1,
+          sedeProveedoraId: destino.sedeId,
+          ordenId: id,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setMensaje(`Pedido a ${destino.nombre}. Te llegará como traslado por recibir.`);
+      await cargarSolicitudes();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo pedir el repuesto");
+    } finally {
+      setProcesando(false);
+    }
+  }
+
   async function marcarFaltante() {
     setProcesando(true);
     setError(null);
@@ -286,6 +337,21 @@ export default function PaginaRepuestos() {
               <Etiqueta tono={r.existenciaAqui <= 0 ? "neutro" : r.existenciaAqui <= 3 ? "aviso" : "ok"}>
                 <span className="cifra">{r.existenciaAqui <= 0 ? "Agotado" : `${r.existenciaAqui} aquí`}</span>
               </Etiqueta>
+              {/* Pedir a otra sede solo aparece cuando aquí no hay y allá sí:
+                  ofrecerlo siempre invitaría a mover mercancía sin necesidad. */}
+              {r.existenciaAqui <= 0 &&
+                r.enOtrasSedes.map((s) => (
+                  <Boton
+                    key={s.sedeId}
+                    variante="contorno"
+                    tamano="sm"
+                    icono={<Send size={15} strokeWidth={2} />}
+                    onClick={() => pedirASede(r, s)}
+                    disabled={procesando}
+                  >
+                    Pedir a {s.nombre} ({s.cantidad})
+                  </Boton>
+                ))}
               <Boton
                 variante="primario"
                 tamano="sm"
