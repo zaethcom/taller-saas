@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0045_plantilla_etiqueta.sql
+-- 0046_plantilla_etiqueta.sql
 -- Plantillas de etiqueta (sticker) por empresa, editables desde
 -- /configuracion: medida del rollo (ancho x alto en mm), resolución de
 -- la impresora, tipo de código (QR o código de barras), qué textos

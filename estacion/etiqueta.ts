@@ -105,7 +105,7 @@ export function etiquetaQrPplb(d: DatosEtiquetaQr): Buffer {
 /**
  * Cualquier etiqueta ya dibujada como bitmap en el servidor -- la de la
  * orden, o la de un artículo/repuesto cuando la empresa tiene una
- * plantilla de etiqueta activa (/configuracion, 0045). La medida, el
+ * plantilla de etiqueta activa (/configuracion, 0046). La medida, el
  * tipo de código y los textos ya vienen resueltos en los píxeles: acá
  * no se decide nada de diseño. `P<copias>` repite la misma imagen.
  */

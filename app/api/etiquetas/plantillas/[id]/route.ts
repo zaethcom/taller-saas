@@ -2,11 +2,11 @@
  * PATCH /api/etiquetas/plantillas/<id>
  * Body: cualquier campo de la plantilla, y/o { activa: true | false }.
  * Activar una desactiva la que estuviera activa para el mismo uso --
- * hay como mucho una por uso (índice parcial de 0045). Desactivarla
+ * hay como mucho una por uso (índice parcial de 0046). Desactivarla
  * vuelve a la etiqueta de fábrica.
  *
  * DELETE /api/etiquetas/plantillas/<id>
- * Borrado real: lo ya impreso guarda su propio bitmap (ver 0045).
+ * Borrado real: lo ya impreso guarda su propio bitmap (ver 0046).
  */
 import { NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";

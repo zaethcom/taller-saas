@@ -38,7 +38,7 @@ export type TipoTrabajo =
  */
 interface CargaEtiquetaQr {
   codigoEntrada: string;
-  /** Marca/modelo del equipo -- solo lo usa una plantilla con "descripción" (0045). */
+  /** Marca/modelo del equipo -- solo lo usa una plantilla con "descripción" (0046). */
   producto?: string | null;
 }
 
@@ -273,7 +273,7 @@ export async function encolarImpresion<T extends TipoTrabajo>(
   // (`{ codigoEntrada }`), igual que antes -- este archivo se encarga
   // de convertirlo en la imagen.
   //
-  // Con una plantilla activa (0045) para el uso de la etiqueta, la
+  // Con una plantilla activa (0046) para el uso de la etiqueta, la
   // dibuja la plantilla en vez de esto -- para etiqueta_qr y también
   // para etiqueta_articulo/etiqueta_repuesto, que sin plantilla siguen
   // con sus comandos nativos de siempre.

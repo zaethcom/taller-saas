@@ -2,7 +2,7 @@
 
 /**
  * La sección Etiquetas de /configuracion: las plantillas de sticker de
- * la empresa (0045), por uso (equipo recibido, artículo, repuesto).
+ * la empresa (0046), por uso (equipo recibido, artículo, repuesto).
  * Cada plantilla es una medida de rollo + tipo de código + qué textos
  * lleva + una imagen de fondo opcional; la que está "en uso" es la que
  * imprimen las sedes. Sin ninguna en uso, sale la etiqueta de fábrica.

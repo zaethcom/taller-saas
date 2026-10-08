@@ -1,6 +1,6 @@
 /**
  * GET /api/etiquetas/plantillas -- las plantillas de etiqueta de la
- * empresa (0045), para la sección Etiquetas de /configuracion.
+ * empresa (0046), para la sección Etiquetas de /configuracion.
  *
  * POST /api/etiquetas/plantillas
  * Body: { nombre, uso, anchoMm, altoMm, dpi, codigo, campos, fondoUrl?, girar? }

@@ -66,7 +66,7 @@ export async function subirLogoSede(empresaId: string, sedeId: string, archivo: 
 }
 
 /**
- * La imagen de fondo propia de una plantilla de etiqueta (0045): un
+ * La imagen de fondo propia de una plantilla de etiqueta (0046): un
  * marco o logo diseñado a la medida del sticker, sobre el que se dibujan
  * el código y los textos. Nombre con marca de tiempo, no fijo: cada
  * plantilla puede tener la suya y ninguna pisa la de otra.

@@ -202,7 +202,7 @@ export async function POST(req: NextRequest) {
     // si el QR no se puede leer. El resto de los datos (empresa, serial,
     // marca/modelo, número de orden) ya van en el comprobante impreso
     // arriba, que sí tiene espacio. `producto` solo lo imprime una
-    // plantilla de etiqueta más grande que lo pida (0045).
+    // plantilla de etiqueta más grande que lo pida (0046).
     carga: { codigoEntrada, producto: nombreProducto },
   });
 
