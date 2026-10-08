@@ -19,6 +19,7 @@ import { componer, inicializar, abrirCajon as abrirCajonBytes, pitido } from "./
 import {
   etiquetaArticuloPplb,
   etiquetaQrPplb,
+  etiquetaRasterPplb,
   etiquetaRepuestoPplb,
   type DatosEtiquetaArticulo,
   type DatosEtiquetaQr,
@@ -162,11 +163,25 @@ function resolverImpresion(
     case "etiqueta_qr":
       return { destino: "etiquetas", contenido: etiquetaQrPplb(trabajo.carga as DatosEtiquetaQr) };
 
-    case "etiqueta_articulo":
-      return { destino: "etiquetas", contenido: etiquetaArticuloPplb(trabajo.carga as DatosEtiquetaArticulo) };
+    // Con plantilla activa en la web, la carga trae la etiqueta ya
+    // dibujada (`etiquetaRaster`); sin ella, la de fábrica con comandos nativos.
+    case "etiqueta_articulo": {
+      const carga = trabajo.carga as DatosEtiquetaArticulo;
+      return {
+        destino: "etiquetas",
+        contenido: carga.etiquetaRaster ? etiquetaRasterPplb(carga.etiquetaRaster, 1) : etiquetaArticuloPplb(carga),
+      };
+    }
 
-    case "etiqueta_repuesto":
-      return { destino: "etiquetas", contenido: etiquetaRepuestoPplb(trabajo.carga as DatosEtiquetaRepuesto) };
+    case "etiqueta_repuesto": {
+      const carga = trabajo.carga as DatosEtiquetaRepuesto;
+      return {
+        destino: "etiquetas",
+        contenido: carga.etiquetaRaster
+          ? etiquetaRasterPplb(carga.etiquetaRaster, carga.cantidadCopias)
+          : etiquetaRepuestoPplb(carga),
+      };
+    }
   }
 }
 

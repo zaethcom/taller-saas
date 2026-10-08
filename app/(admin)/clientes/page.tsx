@@ -2,12 +2,14 @@
  * Directorio de clientes de la empresa. Un cliente puede tener varios
  * equipos (tabla `producto`, ver /equipos) y varias órdenes a lo largo
  * del tiempo -- esta pantalla es solo el directorio; el historial vive
- * en cada orden.
+ * en cada orden. Cada cliente con teléfono tiene un botón para escribirle
+ * por WhatsApp.
  */
 import { Contact } from "lucide-react";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { TarjetaTabla } from "@/componentes/ui/tarjeta";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { BotonWhatsappCliente } from "@/componentes/clientes/boton-whatsapp-cliente";
 
 export default async function PaginaClientes() {
   const supabase = await clienteServidor();
@@ -36,6 +38,7 @@ export default async function PaginaClientes() {
                 <th>Documento</th>
                 <th>Teléfono</th>
                 <th>Correo</th>
+                <th aria-label="Acciones" />
               </tr>
             </thead>
             <tbody>
@@ -49,6 +52,9 @@ export default async function PaginaClientes() {
                     {c.telefono ?? "—"}
                   </td>
                   <td style={{ color: "var(--ink-2)" }}>{c.correo ?? "—"}</td>
+                  <td style={{ textAlign: "right" }}>
+                    <BotonWhatsappCliente nombre={c.nombre} telefono={c.telefono} />
+                  </td>
                 </tr>
               ))}
             </tbody>

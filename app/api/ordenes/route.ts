@@ -201,8 +201,9 @@ export async function POST(req: NextRequest) {
     // código de entrada) y el mismo código en texto grande como respaldo
     // si el QR no se puede leer. El resto de los datos (empresa, serial,
     // marca/modelo, número de orden) ya van en el comprobante impreso
-    // arriba, que sí tiene espacio.
-    carga: { codigoEntrada },
+    // arriba, que sí tiene espacio. `producto` solo lo imprime una
+    // plantilla de etiqueta más grande que lo pida (0046).
+    carga: { codigoEntrada, producto: nombreProducto },
   });
 
   const esCelular = /cel|tel[eé]fono|smartphone/i.test(producto?.tipo ?? "");
