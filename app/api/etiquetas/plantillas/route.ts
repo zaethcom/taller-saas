@@ -3,9 +3,11 @@
  * empresa (0046), para la sección Etiquetas de /configuracion.
  *
  * POST /api/etiquetas/plantillas
- * Body: { nombre, uso, anchoMm, altoMm, dpi, codigo, campos, fondoUrl?, girar? }
+ * Body: { nombre, uso, anchoMm, altoMm, dpi, codigo, campos, fondoUrl?, girar?, activa? }
  * Se crea inactiva: activarla es un paso aparte (PATCH { activa: true }),
  * para poder verla e imprimir una prueba antes de que la usen las sedes.
+ * La excepción es editar la etiqueta de fábrica desde /configuracion,
+ * que manda { activa: true } y queda en uso al guardar.
  */
 import { NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
@@ -66,9 +68,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: validacion.error }, { status: 400 });
   }
 
+  // { activa: true }: la edición de la etiqueta de fábrica se guarda ya
+  // en uso -- primero se suelta la que estuviera activa para ese uso.
+  const activa = body.activa === true;
+  if (activa) {
+    const { error: errOtras } = await supabase
+      .from("plantilla_etiqueta")
+      .update({ activa: false })
+      .eq("uso", validacion.valor.uso)
+      .eq("activa", true);
+    if (errOtras) {
+      return NextResponse.json({ error: errOtras.message }, { status: 500 });
+    }
+  }
+
   const { data, error } = await supabase
     .from("plantilla_etiqueta")
-    .insert({ empresa_id: perfil.empresaId, ...plantillaAFila(validacion.valor) })
+    .insert({ empresa_id: perfil.empresaId, ...plantillaAFila(validacion.valor), activa })
     .select(COLUMNAS_PLANTILLA)
     .single();
 
