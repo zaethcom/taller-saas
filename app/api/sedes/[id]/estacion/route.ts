@@ -7,8 +7,9 @@
  * el alta de una sede nueva fuera del alcance de quien administra el
  * negocio, que es justo lo que un SaaS no puede permitirse.
  *
- * GET    -- ¿hay credencial activa? Nunca devuelve la clave: solo existe
- *           en claro en la respuesta del POST que la creó.
+ * GET    -- ¿hay credencial activa?, ¿cuándo consultó la cola por última
+ *           vez? y cuántos trabajos esperan. Nunca devuelve la clave: solo
+ *           existe en claro en la respuesta del POST que la creó.
  * POST   -- generar una. Si ya había, la revoca: rotar es crear la nueva y
  *           dar de baja la vieja, no pisarla (así queda el rastro).
  * DELETE -- revocar sin crear otra, para una tablet que se perdió.
@@ -57,19 +58,33 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const auth = await autorizar(id);
   if (auth.error) return auth.error;
 
-  const { data } = await clienteAdmin()
-    .from("estacion_credencial")
-    .select("id, nombre, creada_en")
-    .eq("sede_id", id)
-    .is("revocada_en", null)
-    .maybeSingle();
+  const admin = clienteAdmin();
+  const [{ data, error }, { count: pendientes }] = await Promise.all([
+    admin
+      .from("estacion_credencial")
+      .select("id, nombre, creada_en, ultimo_contacto_en")
+      .eq("sede_id", id)
+      .is("revocada_en", null)
+      .maybeSingle(),
+    admin
+      .from("trabajo_impresion")
+      .select("id", { count: "exact", head: true })
+      .eq("sede_id", id)
+      .eq("estado", "pendiente"),
+  ]);
 
-  if (!data) return NextResponse.json({ vinculada: false });
+  // Un error aquí no es "no vinculada": decirlo así haría que alguien
+  // genere otra clave y deje sin imprimir a la estación que sí funcionaba.
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (!data) return NextResponse.json({ vinculada: false, pendientes: pendientes ?? 0 });
 
   return NextResponse.json({
     vinculada: true,
     nombre: data.nombre,
     creadaEn: data.creada_en,
+    ultimoContactoEn: data.ultimo_contacto_en,
+    pendientes: pendientes ?? 0,
   });
 }
 
@@ -84,7 +99,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const admin = clienteAdmin();
 
   // Revocar la anterior ANTES de insertar: el índice único parcial de la
-  // 0042 no deja dos activas en la misma sede, así que hacerlo al revés
+  // 0047 no deja dos activas en la misma sede, así que hacerlo al revés
   // fallaría. Y en este orden, si el insert falla, la sede queda sin
   // credencial en vez de con dos -- se nota enseguida y se vuelve a
   // intentar, que es mejor que una ambigüedad silenciosa.

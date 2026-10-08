@@ -58,3 +58,30 @@ export async function verificarEstacion(
 
   return { sedeId: data.sede_id, empresaId: data.empresa_id };
 }
+
+/** Cada cuánto, como mucho, se anota que la estación sigue viva. */
+export const INTERVALO_CONTACTO_MS = 30_000;
+
+/**
+ * Anota que la estación de esta sede acaba de consultar la cola, para que
+ * /sedes pueda mostrar si está en línea. La estación pregunta cada dos
+ * segundos; escribir en cada consulta sería ruido, así que solo se
+ * actualiza si la última marca tiene más de INTERVALO_CONTACTO_MS.
+ *
+ * Nunca falla hacia afuera: si no se puede anotar (por ejemplo, la
+ * migración 0047 todavía no está aplicada), la impresión sigue igual.
+ */
+export async function registrarContacto(sedeId: string, ahora = new Date()): Promise<void> {
+  const limite = new Date(ahora.getTime() - INTERVALO_CONTACTO_MS).toISOString();
+  try {
+    await clienteAdmin()
+      .from("estacion_credencial")
+      .update({ ultimo_contacto_en: ahora.toISOString() })
+      .eq("sede_id", sedeId)
+      .is("revocada_en", null)
+      .or(`ultimo_contacto_en.is.null,ultimo_contacto_en.lt.${limite}`);
+  } catch {
+    // Ver arriba: el latido es informativo, no puede tumbar la cola.
+  }
+}
+

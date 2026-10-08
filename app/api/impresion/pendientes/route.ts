@@ -9,7 +9,7 @@
  * alguna forma adivinara su id.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { verificarEstacion } from "@/lib/estacion-auth";
+import { registrarContacto, verificarEstacion } from "@/lib/estacion-auth";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 
 export async function GET(req: NextRequest) {
@@ -25,6 +25,8 @@ export async function GET(req: NextRequest) {
       { status: 403 },
     );
   }
+
+  await registrarContacto(identidad.sedeId);
 
   const admin = clienteAdmin();
   const { data, error } = await admin

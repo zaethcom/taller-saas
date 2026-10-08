@@ -10,17 +10,54 @@
  * hash. Por eso la pantalla insiste en copiarla antes de cerrar, y por
  * eso "Generar otra" dice en voz alta que la anterior deja de servir --
  * rotar sin avisar es dejar una sede sin imprimir a mitad de un día.
+ *
+ * La línea de estado se ve siempre, sin abrir nada: "en línea", "sin
+ * conexión desde…" o "sin vincular", con los trabajos que esperan. Es lo
+ * primero que hay que mirar cuando una sede dice que no le imprime.
  */
-import { useEffect, useState } from "react";
-import { KeyRound, Copy, Check, X, AlertTriangle } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { KeyRound, Copy, Check, X, AlertTriangle, Download } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
+import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
+import { configEstacion, estadoConexion } from "@/lib/estacion-estado";
 
 interface Estado {
   vinculada: boolean;
   nombre?: string | null;
   creadaEn?: string;
+  ultimoContactoEn?: string | null;
+  pendientes?: number;
+}
+
+function fechaHora(iso: string): string {
+  return new Date(iso).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" });
+}
+
+/** La línea que se ve siempre debajo de las impresoras de la sede. */
+function LineaEstado({ estado }: { estado: Estado }) {
+  const conexion = estado.vinculada ? estadoConexion(estado.ultimoContactoEn) : null;
+  const pendientes = estado.pendientes ?? 0;
+  return (
+    <div className="fila" style={{ gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
+      <span style={{ color: "var(--ink-2)" }}>Estación de impresión:</span>
+      {!estado.vinculada ? (
+        <Etiqueta tono="neutro">Sin vincular</Etiqueta>
+      ) : conexion === "en_linea" ? (
+        <Etiqueta tono="ok">En línea</Etiqueta>
+      ) : conexion === "sin_conexion" && estado.ultimoContactoEn ? (
+        <Etiqueta tono="peligro">Sin conexión desde {fechaHora(estado.ultimoContactoEn)}</Etiqueta>
+      ) : (
+        <Etiqueta tono="aviso">Vinculada, todavía no se ha conectado</Etiqueta>
+      )}
+      {pendientes > 0 && (
+        <span style={{ color: "var(--ink-3)" }}>
+          {pendientes === 1 ? "1 impresión esperando" : `${pendientes} impresiones esperando`}
+        </span>
+      )}
+    </div>
+  );
 }
 
 export function VincularEstacion({ sedeId }: { sedeId: string }) {
@@ -30,18 +67,27 @@ export function VincularEstacion({ sedeId }: { sedeId: string }) {
   const [nombre, setNombre] = useState("");
   const [clave, setClave] = useState<string | null>(null);
   const [copiada, setCopiada] = useState(false);
+  const [descargado, setDescargado] = useState(false);
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!abierto) return;
+  const cargar = useCallback(async () => {
     setCargando(true);
-    fetch(`/api/sedes/${sedeId}/estacion`)
-      .then((r) => r.json())
-      .then((d: Estado) => setEstado(d))
-      .catch(() => {})
-      .finally(() => setCargando(false));
-  }, [abierto, sedeId]);
+    try {
+      const res = await fetch(`/api/sedes/${sedeId}/estacion`);
+      const cuerpo = await res.json();
+      if (!res.ok) throw new Error(cuerpo.error);
+      setEstado(cuerpo as Estado);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo consultar la estación");
+    } finally {
+      setCargando(false);
+    }
+  }, [sedeId]);
+
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
 
   async function generar() {
     setProcesando(true);
@@ -56,7 +102,13 @@ export function VincularEstacion({ sedeId }: { sedeId: string }) {
       const cuerpo = await res.json();
       if (!res.ok) throw new Error(cuerpo.error);
       setClave(cuerpo.clave);
-      setEstado({ vinculada: true, nombre: nombre.trim() || null, creadaEn: new Date().toISOString() });
+      setEstado({
+        vinculada: true,
+        nombre: nombre.trim() || null,
+        creadaEn: new Date().toISOString(),
+        ultimoContactoEn: null,
+        pendientes: estado?.pendientes ?? 0,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo generar la credencial");
     } finally {
@@ -71,7 +123,7 @@ export function VincularEstacion({ sedeId }: { sedeId: string }) {
       const res = await fetch(`/api/sedes/${sedeId}/estacion`, { method: "DELETE" });
       if (!res.ok) throw new Error((await res.json()).error);
       setClave(null);
-      setEstado({ vinculada: false });
+      setEstado({ vinculada: false, pendientes: estado?.pendientes ?? 0 });
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo revocar");
     } finally {
@@ -88,25 +140,54 @@ export function VincularEstacion({ sedeId }: { sedeId: string }) {
     );
   }
 
+  /**
+   * El config.json listo para la estación: con esto en la carpeta
+   * estacion/ del aparato, `npm start` ya imprime. apiBase sale de la
+   * página donde se generó, así que apunta al mismo despliegue que se
+   * está usando.
+   */
+  function descargarConfig() {
+    if (!clave) return;
+    const contenido = JSON.stringify(
+      configEstacion({ sedeId, apiBase: window.location.origin, clave }),
+      null,
+      2,
+    );
+    const url = URL.createObjectURL(new Blob([contenido + "\n"], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "config.json";
+    a.click();
+    URL.revokeObjectURL(url);
+    setDescargado(true);
+  }
+
   function cerrar() {
     setAbierto(false);
     setClave(null);
     setCopiada(false);
+    setDescargado(false);
     setNombre("");
+    cargar();
     setError(null);
   }
 
   if (!abierto) {
     return (
-      <Boton
-        variante="fantasma"
-        tamano="sm"
-        icono={<KeyRound size={14} strokeWidth={2} />}
-        onClick={() => setAbierto(true)}
-        style={{ marginTop: 10 }}
-      >
-        Vincular estación de impresión
-      </Boton>
+      <div className="pila" style={{ gap: 6, marginTop: 10 }}>
+        {estado && <LineaEstado estado={estado} />}
+        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <div>
+          <Boton
+            variante="fantasma"
+            tamano="sm"
+            icono={<KeyRound size={14} strokeWidth={2} />}
+            onClick={() => setAbierto(true)}
+          >
+            {estado?.vinculada ? "Estación de impresión" : "Vincular estación de impresión"}
+          </Boton>
+        </div>
+      </div>
     );
   }
 
@@ -142,22 +223,39 @@ export function VincularEstacion({ sedeId }: { sedeId: string }) {
           >
             {clave}
           </div>
-          <div>
+          <div className="fila" style={{ gap: 8, flexWrap: "wrap" }}>
             <Boton
-              variante={copiada ? "contorno" : "primario"}
+              variante={descargado ? "contorno" : "primario"}
+              tamano="sm"
+              icono={descargado ? <Check size={15} strokeWidth={2.2} /> : <Download size={15} strokeWidth={2} />}
+              onClick={descargarConfig}
+            >
+              {descargado ? "config.json descargado" : "Descargar config.json"}
+            </Boton>
+            <Boton
+              variante="contorno"
               tamano="sm"
               icono={copiada ? <Check size={15} strokeWidth={2.2} /> : <Copy size={15} strokeWidth={2} />}
               onClick={copiar}
             >
-              {copiada ? "Copiada" : "Copiar clave"}
+              {copiada ? "Copiada" : "Copiar solo la clave"}
             </Boton>
           </div>
-          <p style={{ margin: 0, fontSize: 12, color: "var(--ink-2)" }}>
-            Va en el campo <code>servicioClave</code> del <code>config.json</code> de la estación.
-          </p>
+          <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--ink-2)" }}>
+            <li>
+              Pon el <code>config.json</code> descargado en la carpeta <code>estacion/</code> del
+              equipo de la sede (reemplaza el que haya).
+            </li>
+            <li>
+              Reinicia la estación (<code>npm start</code>). Las impresoras las toma de lo que
+              configuraste arriba en esta sede.
+            </li>
+            <li>Vuelve aquí: en menos de un minuto debe decir «En línea».</li>
+          </ol>
         </div>
       ) : (
         <div className="pila" style={{ gap: 12 }}>
+          {estado && <LineaEstado estado={estado} />}
           {estado?.vinculada ? (
             <Aviso tono="ok">
               Esta sede ya tiene una estación vinculada

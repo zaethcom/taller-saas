@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0042_vincular_estacion.sql
+-- 0047_vincular_estacion.sql
 -- Vincular una estación de impresión desde la web, en vez de un INSERT a mano.
 --
 -- estacion_credencial (0006) ya modela bien la identidad de una estación:
@@ -37,5 +37,16 @@ alter table estacion_credencial
 comment on column estacion_credencial.nombre is
   'Cómo la llama quien la creó ("Tablet mostrador"). Solo para la pantalla.';
 
--- 3. La revocación ya la respeta verificar_clave_estacion (0006), que
+-- 3. Cuándo habló la estación con el servidor por última vez. La estación
+--    consulta la cola cada dos segundos; GET /api/impresion/pendientes
+--    anota la hora (a lo sumo cada 30 s, para no escribir en cada consulta).
+--    Con esto /sedes puede decir "en línea" o "sin conexión desde ..." sin
+--    esperar a que una impresión falle para enterarse.
+alter table estacion_credencial
+  add column if not exists ultimo_contacto_en timestamptz;
+
+comment on column estacion_credencial.ultimo_contacto_en is
+  'Última consulta de la estación a la cola. La escribe /api/impresion/pendientes.';
+
+-- 4. La revocación ya la respeta verificar_clave_estacion (0006), que
 --    filtra revocada_en is null. No hace falta tocar esa función.
