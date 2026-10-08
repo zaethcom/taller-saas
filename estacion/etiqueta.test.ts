@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { etiquetaArticuloPplb, etiquetaQrPplb, etiquetaRepuestoPplb } from "./etiqueta";
+import { etiquetaArticuloPplb, etiquetaQrPplb, etiquetaRasterPplb, etiquetaRepuestoPplb } from "./etiqueta";
 
 describe("etiquetaQrPplb", () => {
   // Raster mínimo válido (1x8 dots, un solo byte) -- alcanza para probar
@@ -87,5 +87,21 @@ describe("etiquetaRepuestoPplb", () => {
     const tresCopias = etiquetaRepuestoPplb({ ...base, cantidadCopias: 3 });
     expect(unaCopia.trimEnd().endsWith("P1")).toBe(true);
     expect(tresCopias.trimEnd().endsWith("P3")).toBe(true);
+  });
+});
+
+describe("etiquetaRasterPplb", () => {
+  const raster = { anchoDots: 8, altoDots: 1, datosBase64: Buffer.from([0xff]).toString("base64") };
+
+  it("imprime tantas copias como se pidan con P<n>", () => {
+    expect(etiquetaRasterPplb(raster, 3).subarray(-6).toString("ascii")).toBe("\r\nP3\r\n");
+  });
+
+  it("cae a una copia si la cantidad no es válida", () => {
+    expect(etiquetaRasterPplb(raster, 0).subarray(-6).toString("ascii")).toBe("\r\nP1\r\n");
+  });
+
+  it("es lo mismo que etiquetaQrPplb con una copia", () => {
+    expect(etiquetaRasterPplb(raster, 1).equals(etiquetaQrPplb({ etiquetaRaster: raster }))).toBe(true);
   });
 });
