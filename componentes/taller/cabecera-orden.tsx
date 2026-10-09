@@ -31,6 +31,7 @@ interface OrdenContexto {
   modelo: string | null;
   token_publico: string;
   total: number;
+  fase_nombre: string | null;
 }
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
@@ -77,6 +78,9 @@ export function CabeceraOrden({
               {orden ? `Orden #${orden.numero}` : "Orden"}
             </span>
             {orden && <EstadoOrden estado={orden.estado} />}
+            {orden?.fase_nombre && (
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-2)" }}>· {orden.fase_nombre}</span>
+            )}
           </div>
           {orden && (
             <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--ink-2)" }}>

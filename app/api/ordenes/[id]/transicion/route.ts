@@ -17,6 +17,7 @@ import {
   type Requisito,
 } from "@/lib/estados";
 import { saldoEnCero } from "@/lib/caja";
+import { buscarPrimeraFase } from "@/lib/fases";
 import { clienteServidor } from "@/lib/supabase/servidor";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: orden, error: errOrden } = await supabase
     .from("orden")
-    .select("id, empresa_id, estado, tecnico_id, total")
+    .select("id, empresa_id, estado, tecnico_id, total, fase:fase_id ( nombre )")
     .eq("id", id)
     .maybeSingle();
 
@@ -113,10 +114,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     throw e;
   }
 
+  // Al entrar a un estado, la orden arranca en la primera fase activa
+  // que la empresa configuró para él (0050_fase_orden.sql), o sin fase.
+  // La fase nunca decide si la transición es válida -- eso ya se
+  // resolvió arriba con transicionar().
+  const faseNueva = await buscarPrimeraFase(supabase, orden.empresa_id, body.aEstado);
+  // El join de Supabase infiere `fase` como arreglo aunque la relación
+  // sea 1:1 -- mismo caso que lib/perfil.ts.
+  const faseAnterior = orden.fase as unknown as { nombre: string } | null;
+
   const { error: errUpdate } = await supabase
     .from("orden")
     .update({
       estado: body.aEstado,
+      fase_id: faseNueva?.id ?? null,
       tecnico_id: tecnicoId,
       cerrada_en: body.aEstado === "entregada" ? new Date().toISOString() : null,
     })
@@ -131,6 +142,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     orden_id: id,
     de_estado: orden.estado,
     a_estado: body.aEstado,
+    de_fase: faseAnterior?.nombre ?? null,
+    a_fase: faseNueva?.nombre ?? null,
     autor_id: user.id,
   });
 

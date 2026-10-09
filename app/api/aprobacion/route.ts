@@ -12,6 +12,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { RequisitoFaltanteError, TransicionInvalidaError, transicionar } from "@/lib/estados";
+import { buscarPrimeraFase } from "@/lib/fases";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 
 export async function POST(req: NextRequest) {
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
 
   const { data: orden, error: errOrden } = await admin
     .from("orden")
-    .select("id, empresa_id, estado")
+    .select("id, empresa_id, estado, fase:fase_id ( nombre )")
     .eq("token_publico", body.token)
     .maybeSingle();
 
@@ -78,12 +79,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: errUpdateCot.message }, { status: 500 });
   }
 
-  await admin.from("orden").update({ estado: aEstado }).eq("id", orden.id);
+  // Misma regla de fases que /api/ordenes/<id>/transicion. Con service
+  // role RLS no filtra: buscarPrimeraFase recibe la empresa explícita.
+  const faseNueva = await buscarPrimeraFase(admin, orden.empresa_id, aEstado);
+  const faseAnterior = orden.fase as unknown as { nombre: string } | null;
+
+  await admin.from("orden").update({ estado: aEstado, fase_id: faseNueva?.id ?? null }).eq("id", orden.id);
   await admin.from("orden_evento").insert({
     empresa_id: orden.empresa_id,
     orden_id: orden.id,
     de_estado: orden.estado,
     a_estado: aEstado,
+    de_fase: faseAnterior?.nombre ?? null,
+    a_fase: faseNueva?.nombre ?? null,
     nota: `Cliente ${body.decision === "aprobada" ? "aprobó" : "rechazó"} la cotización desde el enlace`,
   });
 

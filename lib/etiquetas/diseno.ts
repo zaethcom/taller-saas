@@ -14,6 +14,7 @@
  */
 import QRCode from "qrcode";
 import { anchosCode128, modulosCode128 } from "./code128";
+import { anchoPorCaracter, anchoTexto, escalaDe, textoEnPixeles } from "./fuente-pixel";
 import type { DatosEtiqueta, DisenoEtiqueta } from "./plantilla";
 
 export interface SvgEtiqueta {
@@ -32,11 +33,10 @@ function escaparXml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-/** Recorta un texto al ancho disponible, estimando el ancho medio de un carácter sans-serif. */
-export function recortar(texto: string, anchoDots: number, fuente: number, negrita = false): string {
-  const porCaracter = fuente * (negrita ? 0.62 : 0.56);
-  const caben = Math.max(1, Math.floor(anchoDots / porCaracter));
-  return texto.length <= caben ? texto : `${texto.slice(0, Math.max(1, caben - 1))}…`;
+/** Recorta un texto al ancho disponible, con la medida exacta de la letra de lib/etiquetas/fuente-pixel.ts. */
+export function recortar(texto: string, anchoDots: number, fuente: number): string {
+  const caben = Math.max(1, Math.floor((anchoDots + escalaDe(fuente)) / anchoPorCaracter(fuente)));
+  return texto.length <= caben ? texto : `${texto.slice(0, Math.max(1, caben - 1))}.`;
 }
 
 /**
@@ -44,8 +44,9 @@ export function recortar(texto: string, anchoDots: number, fuente: number, negri
  * escanea): si no cabe, se achica la letra hasta que quepa.
  */
 export function fuenteQueCabe(texto: string, anchoDots: number, fuente: number): number {
-  const porCaracter = 0.62;
-  return Math.max(8, Math.min(fuente, Math.floor(anchoDots / (Math.max(1, texto.length) * porCaracter))));
+  let f = fuente;
+  while (f > 8 && anchoTexto(texto, f) > anchoDots) f--;
+  return f;
 }
 
 interface Linea {
@@ -59,19 +60,20 @@ interface Linea {
 function ajustar(l: Linea, anchoDots: number): Linea {
   return l.entero
     ? { ...l, fuente: fuenteQueCabe(l.texto, anchoDots, l.fuente) }
-    : { ...l, texto: recortar(l.texto, anchoDots, l.fuente, l.negrita) };
+    : { ...l, texto: recortar(l.texto, anchoDots, l.fuente) };
 }
 
 function texto(x: number, y: number, l: Linea, ancla: "start" | "middle"): string {
-  return `<text x="${x}" y="${y}" text-anchor="${ancla}" font-family="sans-serif"${
-    l.negrita ? ' font-weight="bold"' : ""
-  } font-size="${l.fuente}">${escaparXml(l.texto)}</text>`;
+  return textoEnPixeles(l.texto, x, y, l.fuente, ancla, l.negrita, escaparXml);
 }
 
 function qrSvg(contenido: string, x: number, y: number, lado: number): { svg: string; modulo: number } {
   const qr = QRCode.create(contenido, { errorCorrectionLevel: "M" });
   const n = qr.modules.size;
-  const modulo = Math.max(1, Math.floor(lado / n));
+  // El módulo se calcula dejando 2 módulos de silencio a cada lado dentro
+  // de `lado`: si no, el fondo blanco de abajo se sale del área del código
+  // y tapa el marco (pasaba en stickers donde el QR llena el ancho).
+  const modulo = Math.max(1, Math.floor(lado / (n + 4)));
   const real = modulo * n;
   const ox = x + Math.floor((lado - real) / 2);
   const oy = y + Math.floor((lado - real) / 2);

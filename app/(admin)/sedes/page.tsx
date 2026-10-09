@@ -19,6 +19,7 @@ import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { ConfigImpresoras } from "@/componentes/sedes/config-impresoras";
 import { ConfigMarca } from "@/componentes/sedes/config-marca";
+import { VincularEstacion } from "@/componentes/sedes/vincular-estacion";
 
 interface Sede {
   id: string;
@@ -139,6 +140,7 @@ export default function PaginaSedes() {
               </div>
               <ConfigImpresoras sedeId={s.id} />
               <ConfigMarca sedeId={s.id} empresaId={s.empresa_id} />
+              <VincularEstacion sedeId={s.id} />
             </Tarjeta>
           ))
         )}

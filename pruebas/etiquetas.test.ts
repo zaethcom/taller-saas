@@ -3,6 +3,7 @@ import { anchosCode128, modulosCode128, PATRONES_CODE128 } from "../lib/etiqueta
 import { disenarEtiqueta, mmADots } from "../lib/etiquetas/diseno";
 import { DATOS_EJEMPLO, MODELOS, filaAPlantilla, validarPlantilla, type DisenoEtiqueta } from "../lib/etiquetas/plantilla";
 import { rasterEtiqueta } from "../lib/etiquetas/renderizar";
+import { generarEtiquetaQrRaster } from "../lib/etiqueta-bitmap";
 
 describe("Code 128", () => {
   it("cada patrón suma 11 módulos y el de parada 13", () => {
@@ -113,6 +114,16 @@ describe("rasterEtiqueta", () => {
     expect(r.anchoDots).toBe(240);
     expect(r.altoDots).toBe(200);
     expect(Buffer.from(r.datosBase64, "base64").length).toBe((240 / 8) * 200);
+  });
+
+  it("la etiqueta de fábrica de la orden deja el QR dentro del sticker y dibuja el código sin fuentes", async () => {
+    const r = await generarEtiquetaQrRaster("PS000123");
+    expect(r.anchoDots).toBe(240);
+    expect(r.altoDots).toBe(200);
+    // El código va como trazos (fuente-pixel), no como <text> que en el servidor sale en cuadritos.
+    const { svg } = disenarEtiqueta({ ...MODELOS[0]!.diseno, fondoUrl: null, girar: false }, { codigo: "PS000123" });
+    expect(svg).not.toContain("<text");
+    expect(svg).toContain('aria-label="PS000123"');
   });
 
   it("girar 180° invierte el bitmap", async () => {
