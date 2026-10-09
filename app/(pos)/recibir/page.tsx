@@ -103,7 +103,7 @@ export default function PaginaRecibir() {
   const [motivo, setMotivo] = useState("");
   const [infoAdicional, setInfoAdicional] = useState("");
   const [guardando, setGuardando] = useState(false);
-  const [resultado, setResultado] = useState<{ numero: number } | null>(null);
+  const [resultado, setResultado] = useState<{ numero: number; serialGenerado?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // El tipo que la empresa configuró en /configuracion (ver
@@ -164,8 +164,8 @@ export default function PaginaRecibir() {
 
       if (producto) body.productoId = producto.id;
       else {
-        if (!serial.trim()) throw new Error("Falta el serial del equipo");
-        body.productoNuevo = { serial: serial.trim(), ...productoNuevo };
+        // Sin serial, el servidor genera uno (EQ-XXXXXX) y lo devuelve.
+        body.productoNuevo = { serial: serial.trim() || undefined, ...productoNuevo };
       }
 
       const res = await fetch("/api/ordenes", {
@@ -176,7 +176,7 @@ export default function PaginaRecibir() {
       if (!res.ok) throw new Error((await res.json()).error);
 
       const data = await res.json();
-      setResultado({ numero: data.numero });
+      setResultado({ numero: data.numero, serialGenerado: data.serialGenerado });
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo registrar la recepción");
     } finally {
@@ -222,6 +222,11 @@ export default function PaginaRecibir() {
         <h1>
           Orden <span className="cifra">#{resultado.numero}</span> creada
         </h1>
+        {resultado.serialGenerado && (
+          <p style={{ margin: "8px 0 0", color: "var(--ink-2)" }}>
+            Serial del equipo: <strong className="cifra">{resultado.serialGenerado}</strong>
+          </p>
+        )}
         <p style={{ margin: "8px 0 20px", color: "var(--ink-2)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
           <Printer size={17} strokeWidth={2} aria-hidden />
           El comprobante y la etiqueta se están imprimiendo en la estación de esta sede.
