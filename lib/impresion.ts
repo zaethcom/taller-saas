@@ -157,6 +157,24 @@ function datosDeCarga(tipo: TipoTrabajo, carga: Record<string, unknown>): DatosE
 }
 
 /**
+ * Logo y eslogan de la empresa (Configuración > Marca), solo si la
+ * plantilla los usa -- así una etiqueta sin logo no hace la consulta.
+ */
+export async function marcaParaEtiqueta(
+  supabase: SupabaseClient,
+  empresaId: string,
+  campos: string[],
+): Promise<Pick<DatosEtiqueta, "logoUrl" | "eslogan">> {
+  if (!campos.includes("logo") && !campos.includes("eslogan")) return {};
+  const { data } = await supabase
+    .from("empresa_config")
+    .select("logo_url, eslogan")
+    .eq("empresa_id", empresaId)
+    .maybeSingle();
+  return { logoUrl: data?.logo_url ?? null, eslogan: data?.eslogan ?? null };
+}
+
+/**
  * Si el uso de esta etiqueta tiene plantilla activa (/configuracion),
  * la etiqueta se dibuja completa como bitmap con esa plantilla. La
  * carga original se conserva al lado: una estación vieja, que todavía
@@ -195,6 +213,7 @@ async function aplicarPlantilla(
       const { data: empresa } = await supabase.from("empresa").select("nombre").eq("id", empresaId).single();
       datos.empresa = empresa?.nombre ?? null;
     }
+    Object.assign(datos, await marcaParaEtiqueta(supabase, empresaId, plantilla.campos));
     return { ...carga, etiquetaRaster: await rasterEtiqueta(plantilla, datos) };
   } catch (err) {
     console.error("[impresion] no se pudo dibujar la etiqueta con la plantilla; sale la de fábrica", err);

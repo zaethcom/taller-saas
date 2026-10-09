@@ -12,6 +12,7 @@ import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
 import { DATOS_EJEMPLO, validarPlantilla } from "@/lib/etiquetas/plantilla";
 import { pngEtiqueta } from "@/lib/etiquetas/renderizar";
+import { marcaParaEtiqueta } from "@/lib/impresion";
 
 export async function POST(req: Request) {
   const body = (await req.json()) as Record<string, unknown>;
@@ -32,7 +33,11 @@ export async function POST(req: Request) {
   }
 
   const plantilla = validacion.valor;
-  const datos = { ...DATOS_EJEMPLO[plantilla.uso], empresa: perfil.empresaNombre };
+  const datos = {
+    ...DATOS_EJEMPLO[plantilla.uso],
+    empresa: perfil.empresaNombre,
+    ...(await marcaParaEtiqueta(supabase, perfil.empresaId, plantilla.campos)),
+  };
   const { png, avisos } = await pngEtiqueta(plantilla, datos);
 
   return new NextResponse(new Uint8Array(png), {

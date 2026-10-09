@@ -74,7 +74,9 @@ export function etiquetaRepuestoZpl(d: DatosEtiquetaRepuesto): string {
     ENCABEZADO,
     `^FO20,15^A0N,26,26^FD${escapar(d.nombreEmpresa)}^FS`,
     `^FO20,50^BY2^BCN,80,N,N,N^FD${escapar(d.codigo)}^FS`,
-    `^FO20,145^A0N,26,26^FD${escapar(d.descripcion)}^FS`,
+    // El código interno en texto, para leerlo sin lector (y de respaldo si no escanea).
+    `^FO20,140^A0N,30,30^FD${escapar(d.codigo)}^FS`,
+    `^FO20,180^A0N,26,26^FD${escapar(d.descripcion)}^FS`,
     `^PQ${copiasValidas(d.cantidadCopias)}`,
     "^XZ",
   ].join("\r\n");

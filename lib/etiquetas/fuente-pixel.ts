@@ -101,6 +101,7 @@ export function textoEnPixeles(
   ancla: "start" | "middle",
   negrita: boolean,
   escaparXml: (s: string) => string,
+  relleno: "black" | "white" = "black",
 ): string {
   const s = escalaDe(fuente);
   const letras = normalizar(texto);
@@ -130,5 +131,5 @@ export function textoEnPixeles(
     });
   });
 
-  return `<path aria-label="${escaparXml(texto)}" d="${d}" fill="black"/>`;
+  return `<path aria-label="${escaparXml(texto)}" d="${d}" fill="${relleno}"/>`;
 }

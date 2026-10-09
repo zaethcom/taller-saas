@@ -33,17 +33,41 @@ async function bajarFondo(url: string): Promise<Buffer | null> {
   }
 }
 
+/**
+ * El logo de la empresa, ajustado (sin deformar) a la caja que le dejó
+ * el acomodo, centrado y sobre blanco. Los colores se pasan a gris: el
+ * umbral de abajo los vuelve negro o blanco igual que todo lo demás.
+ */
+async function logoEnCaja(url: string, ancho: number, alto: number): Promise<Buffer | null> {
+  const original = await bajarFondo(url);
+  if (!original) return null;
+  try {
+    return await sharp(original)
+      .flatten({ background: "#ffffff" })
+      .resize(ancho, alto, { fit: "contain", background: "#ffffff" })
+      .png()
+      .toBuffer();
+  } catch {
+    return null;
+  }
+}
+
 async function renderizarGris(p: DisenoEtiqueta, datos: DatosEtiqueta, girar: boolean): Promise<Gris> {
   const fondo = p.fondoUrl ? await bajarFondo(p.fondoUrl) : null;
-  const { svg, anchoDots, altoDots, avisos } = disenarEtiqueta(p, datos, Boolean(fondo));
+  const { svg, anchoDots, altoDots, avisos, logo } = disenarEtiqueta(p, datos, Boolean(fondo));
   if (p.fondoUrl && !fondo) avisos.push("No se pudo cargar la imagen de fondo; la etiqueta sale sin ella.");
 
+  const capas: sharp.OverlayOptions[] = [];
+  if (fondo) capas.push({ input: Buffer.from(svg) });
+  if (logo) {
+    const img = await logoEnCaja(logo.url, logo.ancho, logo.alto);
+    if (img) capas.push({ input: img, left: logo.x, top: logo.y });
+    else avisos.push("No se pudo cargar el logo de la empresa; la etiqueta sale sin él.");
+  }
+
   const base = fondo
-    ? sharp(fondo)
-        .resize(anchoDots, altoDots, { fit: "cover" })
-        .flatten({ background: "#ffffff" })
-        .composite([{ input: Buffer.from(svg) }])
-    : sharp(Buffer.from(svg));
+    ? sharp(fondo).resize(anchoDots, altoDots, { fit: "cover" }).flatten({ background: "#ffffff" }).composite(capas)
+    : sharp(Buffer.from(svg)).composite(capas);
 
   // Se pasa por PNG antes de girar/umbralizar: sharp aplica el composite
   // al final de la cadena, y el giro tiene que ser sobre la imagen ya compuesta.

@@ -169,6 +169,8 @@ export function etiquetaRepuestoPplb(d: DatosEtiquetaRepuesto): string {
     // sin confirmar (2 es el único dato real encontrado, no de esta
     // impresora en particular).
     `B18,45,${ROTACION},2,3,7,80,N,"${escapar(d.codigo)}"`,
+    // El código interno en texto, para leerlo sin lector (y de respaldo si no escanea).
+    `A18,135,${ROTACION},3,1,1,N,"${escapar(d.codigo)}"`,
     `A18,175,${ROTACION},3,1,1,N,"${escapar(d.descripcion)}"`,
     `P${d.cantidadCopias}`,
   ].join("\r\n");

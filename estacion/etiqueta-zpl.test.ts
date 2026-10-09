@@ -61,4 +61,9 @@ describe("etiquetaRepuestoZpl", () => {
     expect(zpl).toContain("^PQ4");
     expect(zpl).toMatch(/\^BCN,\d+,N,N,N\^FDREP-9\^FS/);
   });
+
+  it("escribe el código interno en texto debajo de las barras", () => {
+    const zpl = etiquetaRepuestoZpl({ nombreEmpresa: "Polaco Scooter", codigo: "REP-9", descripcion: "Llanta", cantidadCopias: 1 });
+    expect(zpl).toMatch(/\^A0N,\d+,\d+\^FDREP-9\^FS/);
+  });
 });

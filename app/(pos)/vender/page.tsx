@@ -536,27 +536,32 @@ export default function PaginaVender() {
                       key={l.kind === "repuesto" ? `r${l.repuestoId}` : `a${l.articuloId}`}
                       style={{
                         display: "flex",
+                        flexWrap: "wrap",
                         alignItems: "center",
-                        gap: 10,
+                        gap: "6px 8px",
                         padding: 9,
                         border: "1px solid var(--rule)",
                         borderRadius: "var(--r-md)",
                       }}
                     >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>{l.descripcion}</div>
+                      {/* En el celular no cabe todo en una fila: el nombre se
+                          queda con la primera y la cantidad, el total y el
+                          botón de quitar bajan juntos a la segunda, sin taparlo. */}
+                      <div style={{ flex: "1 1 170px", minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, overflowWrap: "anywhere" }}>{l.descripcion}</div>
                         <div className="cifra" style={{ fontSize: 11, color: "var(--ink-3)" }}>
                           {l.kind === "articulo" ? `${l.codigo} · ` : ""}
                           {fmt(l.precioUnit)}
                         </div>
                       </div>
 
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
                       {l.kind === "repuesto" ? (
                         <div
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
-                            height: 32,
+                            height: 28,
                             border: "1px solid var(--rule-fuerte)",
                             borderRadius: "var(--r-sm)",
                             overflow: "hidden",
@@ -567,13 +572,13 @@ export default function PaginaVender() {
                             type="button"
                             onClick={() => cambiarCantidad(i, -1)}
                             aria-label={`Quitar una unidad de ${l.descripcion}`}
-                            style={{ display: "flex", width: 30, height: 30, alignItems: "center", justifyContent: "center", border: "none", background: "var(--surface)", cursor: "pointer" }}
+                            style={{ display: "flex", width: 26, height: 26, minWidth: 0, minHeight: 0, padding: 0, alignItems: "center", justifyContent: "center", border: "none", background: "var(--surface)", cursor: "pointer" }}
                           >
-                            <Minus size={14} strokeWidth={2.4} />
+                            <Minus size={12} strokeWidth={2.4} />
                           </button>
                           <span
                             className="cifra"
-                            style={{ width: 32, textAlign: "center", fontSize: 13, fontWeight: 700, borderLeft: "1px solid var(--rule)", borderRight: "1px solid var(--rule)", lineHeight: "30px" }}
+                            style={{ width: 28, textAlign: "center", fontSize: 12, fontWeight: 700, borderLeft: "1px solid var(--rule)", borderRight: "1px solid var(--rule)", lineHeight: "26px" }}
                           >
                             {l.cantidad}
                           </span>
@@ -581,16 +586,16 @@ export default function PaginaVender() {
                             type="button"
                             onClick={() => cambiarCantidad(i, 1)}
                             aria-label={`Agregar una unidad de ${l.descripcion}`}
-                            style={{ display: "flex", width: 30, height: 30, alignItems: "center", justifyContent: "center", border: "none", background: "var(--surface)", cursor: "pointer" }}
+                            style={{ display: "flex", width: 26, height: 26, minWidth: 0, minHeight: 0, padding: 0, alignItems: "center", justifyContent: "center", border: "none", background: "var(--surface)", cursor: "pointer" }}
                           >
-                            <Plus size={14} strokeWidth={2.4} />
+                            <Plus size={12} strokeWidth={2.4} />
                           </button>
                         </div>
                       ) : (
                         <Etiqueta tono="neutro">1 unidad</Etiqueta>
                       )}
 
-                      <span className="cifra" style={{ width: 86, textAlign: "right", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>
+                      <span className="cifra" style={{ minWidth: 70, textAlign: "right", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>
                         {fmt(cantidad * l.precioUnit)}
                       </span>
 
@@ -601,6 +606,7 @@ export default function PaginaVender() {
                         onClick={() => quitar(i)}
                         aria-label={`Quitar ${l.descripcion} del carrito`}
                       />
+                      </div>
                     </div>
                   );
                 })}

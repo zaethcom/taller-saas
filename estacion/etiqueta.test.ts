@@ -82,6 +82,11 @@ describe("etiquetaRepuestoPplb", () => {
     expect(pplb).toContain(`"${base.descripcion}"`);
   });
 
+  it("escribe el código interno en texto, además de las barras", () => {
+    const pplb = etiquetaRepuestoPplb(base);
+    expect(pplb).toMatch(/^A\d+,\d+,2,3,1,1,N,"F-1023"$/m);
+  });
+
   it("pide una copia por cada unidad recibida (P<cantidadCopias>, no P1 fijo)", () => {
     const unaCopia = etiquetaRepuestoPplb({ ...base, cantidadCopias: 1 });
     const tresCopias = etiquetaRepuestoPplb({ ...base, cantidadCopias: 3 });
