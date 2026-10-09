@@ -20,6 +20,8 @@ import { encolarImpresion } from "@/lib/impresion";
 import { notificarCliente } from "@/lib/mensajeria/notificar";
 import { generarSerialEquipo } from "@/lib/serial-equipo";
 import { codigoEntrada as calcularCodigoEntrada } from "@/lib/codigo-entrada";
+import { ESTADO_INICIAL } from "@/lib/estados";
+import { buscarPrimeraFase } from "@/lib/fases";
 
 interface ClienteNuevo {
   nombre: string;
@@ -129,6 +131,10 @@ export async function POST(req: NextRequest) {
     productoId = producto.id;
   }
 
+  // Si la empresa configuró fases para "recibida" (0050_fase_orden.sql),
+  // la orden nace en la primera.
+  const faseInicial = await buscarPrimeraFase(supabase, perfil.empresa_id, ESTADO_INICIAL);
+
   const { data: orden, error: errOrden } = await supabase
     .from("orden")
     .insert({
@@ -137,6 +143,7 @@ export async function POST(req: NextRequest) {
       producto_id: productoId,
       motivo: body.motivo.trim(),
       info_adicional: body.infoAdicional?.trim() || null,
+      fase_id: faseInicial?.id ?? null,
     })
     .select("id, numero, token_publico")
     .single();
@@ -149,6 +156,7 @@ export async function POST(req: NextRequest) {
     empresa_id: perfil.empresa_id,
     orden_id: orden.id,
     a_estado: "recibida",
+    a_fase: faseInicial?.nombre ?? null,
     autor_id: user.id,
     nota: "Recepción inicial",
   });

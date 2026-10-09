@@ -12,6 +12,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
+import { etiquetaEvento } from "@/lib/fases";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
@@ -23,6 +24,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     .select(
       `
       id, empresa_id, numero, estado, motivo, abierta_en, cerrada_en,
+      fase:fase_id ( nombre ),
       producto:producto_id ( serial, tipo, marca, modelo ),
       cliente:producto_id ( cliente:cliente_id ( nombre ) )
     `,
@@ -47,7 +49,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   ] = await Promise.all([
     admin
       .from("orden_evento")
-      .select("a_estado, ocurrio_en")
+      .select("de_estado, a_estado, a_fase, ocurrio_en")
       .eq("orden_id", orden.id)
       .order("ocurrio_en", { ascending: true }),
     admin
@@ -109,6 +111,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     numero: orden.numero,
     estado: orden.estado,
     etiquetaEstado: ETIQUETA_ESTADO[orden.estado as Estado],
+    // La fase dentro del estado (0050_fase_orden.sql), solo el nombre.
+    // El join de Supabase infiere `fase` como arreglo aunque sea 1:1.
+    fase: (orden.fase as unknown as { nombre: string } | null)?.nombre ?? null,
     motivo: orden.motivo,
     abiertaEn: orden.abierta_en,
     cerradaEn: orden.cerrada_en,
@@ -119,7 +124,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     diagnostico,
     historial: (eventos ?? []).map((e) => ({
       estado: e.a_estado,
-      etiqueta: ETIQUETA_ESTADO[e.a_estado as Estado],
+      etiqueta: etiquetaEvento(e),
       fecha: e.ocurrio_en,
     })),
     cotizacion,

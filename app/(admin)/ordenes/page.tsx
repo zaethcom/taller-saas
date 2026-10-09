@@ -22,6 +22,7 @@ export default async function PaginaOrdenes() {
     .select(
       `
       id, numero, estado, motivo, abierta_en,
+      fase:fase_id ( nombre ),
       producto:producto_id ( serial, marca, modelo ),
       sede:sede_id ( nombre )
     `,
@@ -87,6 +88,12 @@ export default async function PaginaOrdenes() {
                   <td>{o.sede?.nombre}</td>
                   <td>
                     <EstadoOrden estado={o.estado as Estado} />
+                    {/* La fase dentro del estado (0050_fase_orden.sql), si tiene. */}
+                    {(o.fase as unknown as { nombre: string } | null)?.nombre && (
+                      <div style={{ marginTop: 4, fontSize: 12, color: "var(--ink-2)" }}>
+                        {(o.fase as unknown as { nombre: string }).nombre}
+                      </div>
+                    )}
                   </td>
                   <td style={{ color: "var(--ink-2)" }}>{o.motivo}</td>
                   <td className="cifra" style={{ whiteSpace: "nowrap", color: "var(--ink-2)" }}>

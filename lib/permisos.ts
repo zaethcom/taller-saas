@@ -24,7 +24,8 @@ export type Accion =
   | "gestionar_sedes" // Admin: alta de sedes -- sin esto no hay a dónde trasladar
   | "ver_acceso_dispositivo" // Ver el PIN/patrón del equipo de una orden (orden_acceso)
   | "reimprimir_etiqueta_orden" // Volver a mandar la etiqueta QR de una orden a la etiquetadora
-  | "ver_reportes"; // Admin: informes de ventas, caja, inventario y taller, y su exportación
+  | "ver_reportes" // Admin: informes de ventas, caja, inventario y taller, y su exportación
+  | "configurar_fases"; // Admin: las fases de cada estado de la orden (0050_fase_orden.sql)
 
 const PERMISOS: Record<Rol, Accion[]> = {
   admin: [
@@ -46,6 +47,7 @@ const PERMISOS: Record<Rol, Accion[]> = {
     "ver_acceso_dispositivo",
     "reimprimir_etiqueta_orden",
     "ver_reportes",
+    "configurar_fases",
   ],
   recepcion: [
     "recibir_equipo",

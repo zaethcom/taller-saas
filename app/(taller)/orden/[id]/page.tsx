@@ -20,6 +20,7 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Aviso } from "@/componentes/ui/campo";
 import { EstadoOrden } from "@/componentes/ui/estado-orden";
 import { HiloMensajes, type Mensaje } from "@/componentes/mensajeria/hilo-mensajes";
+import { SelectorFase } from "@/componentes/taller/selector-fase";
 
 const ETIQUETA_TIPO_ACCESO: Record<string, string> = {
   pin3: "PIN de 3",
@@ -139,6 +140,8 @@ interface OrdenTecnico {
   modelo: string | null;
   cliente_nombre: string;
   total: number;
+  fase_id: string | null;
+  fase_nombre: string | null;
 }
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
@@ -193,19 +196,27 @@ export default function PaginaOrdenTecnico() {
   const [imprimiendo, setImprimiendo] = useState(false);
   const [avisoEtiqueta, setAvisoEtiqueta] = useState<string | null>(null);
 
-  useEffect(() => {
+  function cargarOrden() {
     fetch(`/api/ordenes/${id}`)
       .then((r) => r.json())
       .then(setOrden)
       .catch(() => setError("No se pudo cargar la orden"));
-    fetch("/api/perfil")
-      .then((r) => r.json())
-      .then((p) => setRol(p.rol ?? null))
-      .catch(() => {});
+  }
+
+  function cargarEventos() {
     fetch(`/api/ordenes/${id}/eventos`)
       .then((r) => r.json())
       .then((data) => setEventos(Array.isArray(data) ? data : []))
       .catch(() => {});
+  }
+
+  useEffect(() => {
+    cargarOrden();
+    fetch("/api/perfil")
+      .then((r) => r.json())
+      .then((p) => setRol(p.rol ?? null))
+      .catch(() => {});
+    cargarEventos();
     cargarMensajes();
   }, [id]);
 
@@ -250,10 +261,10 @@ export default function PaginaOrdenTecnico() {
       if (!res.ok) throw new Error((await res.json()).error);
       router.refresh();
       setOrden((prev) => (prev ? { ...prev, estado: aEstado } : prev));
-      fetch(`/api/ordenes/${id}/eventos`)
-        .then((r) => r.json())
-        .then((data) => setEventos(Array.isArray(data) ? data : []))
-        .catch(() => {});
+      // La transición también le pone la primera fase del estado nuevo
+      // (o ninguna): se vuelve a leer la orden para mostrarla.
+      cargarOrden();
+      cargarEventos();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo cambiar el estado");
     } finally {
@@ -270,7 +281,12 @@ export default function PaginaOrdenTecnico() {
       <Tarjeta>
         <div className="fila" style={{ justifyContent: "space-between", marginBottom: 12 }}>
           <h1 className="cifra">Orden #{orden.numero}</h1>
-          <EstadoOrden estado={orden.estado} />
+          <span className="fila" style={{ gap: 6, alignItems: "center" }}>
+            <EstadoOrden estado={orden.estado} />
+            {orden.fase_nombre && (
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-2)" }}>· {orden.fase_nombre}</span>
+            )}
+          </span>
         </div>
         <h2 style={{ fontSize: 17 }}>
           {orden.marca} {orden.modelo}
@@ -310,6 +326,18 @@ export default function PaginaOrdenTecnico() {
           </div>
         )}
       </Tarjeta>
+
+      {rol && puede(rol, "diagnosticar") && (
+        <SelectorFase
+          ordenId={id}
+          estado={orden.estado}
+          faseId={orden.fase_id}
+          onCambio={(fase) => {
+            setOrden((prev) => (prev ? { ...prev, fase_id: fase?.id ?? null, fase_nombre: fase?.nombre ?? null } : prev));
+            cargarEventos();
+          }}
+        />
+      )}
 
       {rol && puede(rol, "ver_acceso_dispositivo") && <PanelAcceso ordenId={id} />}
 
