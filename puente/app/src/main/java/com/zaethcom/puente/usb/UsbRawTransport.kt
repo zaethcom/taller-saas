@@ -52,6 +52,19 @@ class UsbRawTransport(private val context: Context) {
 
     fun tienePermiso(dispositivo: UsbDevice): Boolean = usbManager.hasPermission(dispositivo)
 
+    /**
+     * Muestra el diálogo de permiso sin esperar la respuesta. Lo usa el puente cuando
+     * llega un trabajo para una impresora sin permiso: así el diálogo aparece en la
+     * pantalla del equipo en vez de exigir que alguien abra la app a buscarlo.
+     */
+    fun pedirPermisoSinEsperar(dispositivo: UsbDevice) {
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
+        val intento = PendingIntent.getBroadcast(
+            context, 1, Intent(ACCION_PERMISO_USB).setPackage(context.packageName), flags
+        )
+        runCatching { usbManager.requestPermission(dispositivo, intento) }
+    }
+
     suspend fun pedirPermiso(dispositivo: UsbDevice): Boolean = suspendCancellableCoroutine { cont ->
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
         // setPackage() vuelve el intent explícito: sin esto Android 14+ rechaza un

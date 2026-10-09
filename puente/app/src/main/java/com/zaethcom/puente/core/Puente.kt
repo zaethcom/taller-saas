@@ -88,10 +88,11 @@ class Puente(private val context: Context) : Impresor {
                 )
 
             if (!transporte.tienePermiso(dispositivo)) {
+                transporte.pedirPermisoSinEsperar(dispositivo)
                 return@withLock fallo(
                     rol,
                     "Android no ha concedido permiso USB para la impresora de ${rol.etiqueta}. " +
-                        "Abrir la app del puente y aceptarlo."
+                        "Acepta el aviso en la pantalla del equipo, marcando «Usar de forma predeterminada»."
                 )
             }
 

@@ -10,6 +10,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Arrancar solo al prender el equipo (ver core/ArranqueReceptor.kt). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Android 14+ exige uno de estos para un servicio connectedDevice; sin permiso
+         USB todavía (justo después de prender) este es el que lo habilita. -->
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
 
     <application
         android:name=".PuenteApp"
@@ -37,6 +42,15 @@
                 android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
                 android:resource="@xml/dispositivos_usb" />
         </activity>
+
+        <receiver
+            android:name=".core.ArranqueReceptor"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".core.ServicioPuente"
