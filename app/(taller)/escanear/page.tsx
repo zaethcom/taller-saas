@@ -69,18 +69,17 @@ export default function PaginaEscanear() {
   const [buscando, setBuscando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { videoRef, camaraDisponible, camaraActiva } = useLectorCodigos(["qr_code"], procesarCodigo);
+  const { videoRef, camaraDisponible, camaraActiva, reiniciar } = useLectorCodigos(["qr_code"], procesarCodigo);
 
   async function procesarCodigo(valor: string) {
     const token = extraerTokenDeSeguimiento(valor);
-    if (token) {
-      buscarPorToken(token);
-    } else {
-      buscarPorSerial(valor.trim());
-    }
+    const encontrada = token ? await buscarPorToken(token) : await buscarPorSerial(valor.trim());
+    // La cámara se apagó al leer; si el código no llevó a ninguna orden,
+    // vuelve a encenderse para leer otro sin recargar la página.
+    if (!encontrada) reiniciar();
   }
 
-  async function buscarPorToken(token: string) {
+  async function buscarPorToken(token: string): Promise<boolean> {
     setBuscando(true);
     setError(null);
     try {
@@ -88,13 +87,15 @@ export default function PaginaEscanear() {
       if (!res.ok) throw new Error((await res.json()).error);
       const { ordenId } = await res.json();
       router.push(`/orden/${ordenId}`);
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al buscar la orden");
       setBuscando(false);
+      return false;
     }
   }
 
-  async function buscarPorSerial(valor: string) {
+  async function buscarPorSerial(valor: string): Promise<boolean> {
     setBuscando(true);
     setError(null);
     try {
@@ -102,8 +103,10 @@ export default function PaginaEscanear() {
       if (!res.ok) throw new Error((await res.json()).error);
       const { ordenId } = await res.json();
       router.push(`/orden/${ordenId}`);
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al buscar la orden");
+      return false;
     } finally {
       setBuscando(false);
     }

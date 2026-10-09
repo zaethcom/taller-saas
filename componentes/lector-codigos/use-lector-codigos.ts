@@ -29,6 +29,9 @@ export function useLectorCodigos(formats: string[], onDetectado: (valor: string)
   const streamRef = useRef<MediaStream | null>(null);
   const [camaraDisponible, setCamaraDisponible] = useState(true);
   const [camaraActiva, setCamaraActiva] = useState(false);
+  // Cada cambio vuelve a encender la cámara: tras leer un código se apaga,
+  // y si ese código no lleva a nada quien llama la reinicia con `reiniciar`.
+  const [intento, setIntento] = useState(0);
 
   function detener() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -86,7 +89,9 @@ export function useLectorCodigos(formats: string[], onDetectado: (valor: string)
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [intento]);
 
-  return { videoRef, camaraDisponible, camaraActiva, detener };
+  const reiniciar = () => setIntento((n) => n + 1);
+
+  return { videoRef, camaraDisponible, camaraActiva, detener, reiniciar };
 }
