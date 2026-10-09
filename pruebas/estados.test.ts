@@ -33,8 +33,25 @@ describe("el grafo de transiciones", () => {
     expect(puedeTransicionar("esperando_repuesto", "en_reparacion")).toBe(true);
   });
 
+  it("permite entregar desde cualquier estado no final (los requisitos siguen aplicando)", () => {
+    for (const estado of TODOS_LOS_ESTADOS) {
+      if (ESTADOS_FINALES.includes(estado)) continue;
+      expect(puedeTransicionar(estado, "entregada"), `"${estado}" no puede entregarse`).toBe(true);
+    }
+  });
+
+  it("no deja entregar una orden recibida sin foto de salida, firma y saldo en cero", () => {
+    expect(() => transicionar("recibida", "entregada", new Set())).toThrow(RequisitoFaltanteError);
+    expect(() =>
+      transicionar(
+        "recibida",
+        "entregada",
+        new Set<Requisito>(["tiene_foto_salida", "tiene_firma", "saldo_en_cero"]),
+      ),
+    ).not.toThrow();
+  });
+
   it("rechaza cualquier salto que no esté dibujado en el diagrama", () => {
-    expect(puedeTransicionar("recibida", "entregada")).toBe(false);
     expect(puedeTransicionar("recibida", "en_reparacion")).toBe(false);
     expect(puedeTransicionar("entregada", "recibida")).toBe(false);
     expect(puedeTransicionar("rechazada", "en_reparacion")).toBe(false);
@@ -71,7 +88,7 @@ describe("el grafo de transiciones", () => {
 
 describe("transicionar() — la puerta única de cambio de estado", () => {
   it("lanza TransicionInvalidaError si el salto no existe en el grafo", () => {
-    expect(() => transicionar("recibida", "entregada", new Set())).toThrow(
+    expect(() => transicionar("recibida", "en_reparacion", new Set())).toThrow(
       TransicionInvalidaError,
     );
   });
