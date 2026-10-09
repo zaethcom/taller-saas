@@ -250,18 +250,19 @@ export default function PaginaEntregar() {
         <Tarjeta>
           <form
             className="fila"
-            style={{ gap: 8, flexWrap: "nowrap" }}
+            style={{ gap: 8, flexWrap: "wrap" }}
             onSubmit={(e) => {
               e.preventDefault();
               buscar();
             }}
           >
             <input
-              placeholder="Número de orden"
+              placeholder="Número o código de orden"
               value={numero}
               onChange={(e) => setNumero(e.target.value)}
-              aria-label="Número de orden"
+              aria-label="Número o código de orden"
               className="cifra"
+              style={{ flex: "1 1 160px", minWidth: 0 }}
             />
             <Boton type="submit" variante="primario" icono={<Search size={17} strokeWidth={2} />} disabled={!numero.trim()}>
               Buscar
