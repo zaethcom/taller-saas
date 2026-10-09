@@ -126,6 +126,21 @@ describe("rasterEtiqueta", () => {
     expect(svg).toContain('aria-label="PS000123"');
   });
 
+  it("el marco queda completo aunque el QR llene el sticker (55x60, Zebra de Local 1)", async () => {
+    const r = await rasterEtiqueta(
+      { anchoMm: 55, altoMm: 60, dpi: 203, codigo: "qr", campos: ["texto_codigo", "marco"], fondoUrl: null, girar: false },
+      { codigo: "OR000014" },
+    );
+    const bits = Buffer.from(r.datosBase64, "base64");
+    const B = Math.ceil(r.anchoDots / 8);
+    const negro = (x: number, y: number) => ((bits[y * B + (x >> 3)] ?? 0) & (0x80 >> (x & 7))) !== 0;
+    const medio = { x: r.anchoDots >> 1, y: r.altoDots >> 1 };
+    // Línea de arriba y de los dos lados, en la mitad de cada borde.
+    expect([0, 1, 2, 3, 4, 5].some((y) => negro(medio.x, y))).toBe(true);
+    expect([0, 1, 2, 3, 4, 5].some((x) => negro(x, medio.y))).toBe(true);
+    expect([1, 2, 3, 4, 5, 6].some((d) => negro(r.anchoDots - d, medio.y))).toBe(true);
+  });
+
   it("girar 180° invierte el bitmap", async () => {
     const d = { anchoMm: 30, altoMm: 25, dpi: 203, codigo: "barras", campos: ["texto_codigo"], fondoUrl: null } as const;
     const derecho = Buffer.from((await rasterEtiqueta({ ...d, campos: [...d.campos], girar: false }, DATOS_EJEMPLO.articulo)).datosBase64, "base64");

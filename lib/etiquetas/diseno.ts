@@ -137,11 +137,13 @@ export function disenarEtiqueta(p: DisenoEtiqueta, datos: DatosEtiqueta, conFond
 
   const partes: string[] = [];
   if (!conFondo) partes.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="white"/>`);
-  if (conMarco) {
-    partes.push(
-      `<rect x="${trazo / 2 + 2}" y="${trazo / 2 + 2}" width="${W - trazo - 4}" height="${H - trazo - 4}" fill="none" stroke="black" stroke-width="${trazo}" rx="${Math.round(1.2 * dpmm)}"/>`,
-    );
-  }
+  // El marco se dibuja al final, encima de todo: el fondo blanco de la
+  // zona de silencio del QR (2 módulos) puede pasar del margen y, si el
+  // marco iba antes, lo borraba arriba y a los lados (visto en papel con
+  // 55x60 mm en la Zebra de Local 1).
+  const marco = conMarco
+    ? `<rect x="${trazo / 2 + 2}" y="${trazo / 2 + 2}" width="${W - trazo - 4}" height="${H - trazo - 4}" fill="none" stroke="black" stroke-width="${trazo}" rx="${Math.round(1.2 * dpmm)}"/>`
+    : "";
 
   const textosLaterales: Linea[] = [];
   if (empresa) textosLaterales.push({ texto: empresa, fuente: fuenteChica, negrita: true });
@@ -219,6 +221,7 @@ export function disenarEtiqueta(p: DisenoEtiqueta, datos: DatosEtiqueta, conFond
     avisos.push("El QR queda con puntos muy pequeños para la impresora: puede que no escanee.");
   }
 
+  partes.push(marco);
   const svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${partes.join("")}</svg>`;
   return { svg, anchoDots: W, altoDots: H, avisos };
 }
