@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Camera, Wrench, Package, ChevronRight, ArrowRight, KeyRound, Eye, Clock, Check, Printer } from "lucide-react";
-import { ETIQUETA_ESTADO, siguientesEstados, type Estado } from "@/lib/estados";
+import { ENTREGA_DESDE_TALLER, ETIQUETA_ESTADO, siguientesEstados, type Estado } from "@/lib/estados";
 import { puede, type Rol } from "@/lib/permisos";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
@@ -21,6 +21,12 @@ import { Aviso } from "@/componentes/ui/campo";
 import { EstadoOrden } from "@/componentes/ui/estado-orden";
 import { HiloMensajes, type Mensaje } from "@/componentes/mensajeria/hilo-mensajes";
 import { SelectorFase } from "@/componentes/taller/selector-fase";
+
+/** Lo que la ficha ofrece como siguiente paso: la entrega anticipada
+ *  (desde recibida, diagnóstico, etc.) solo se hace en el mostrador. */
+function siguientesDesdeTaller(estado: Estado): Estado[] {
+  return siguientesEstados(estado).filter((e) => e !== "entregada" || ENTREGA_DESDE_TALLER.includes(estado));
+}
 
 const ETIQUETA_TIPO_ACCESO: Record<string, string> = {
   pin3: "PIN de 3",
@@ -362,11 +368,11 @@ export default function PaginaOrdenTecnico() {
         />
       </div>
 
-      {siguientesEstados(orden.estado).length > 0 && (
+      {siguientesDesdeTaller(orden.estado).length > 0 && (
         <Tarjeta>
           <div className="campo-etiqueta">Avanzar a</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {siguientesEstados(orden.estado).map((e) => (
+            {siguientesDesdeTaller(orden.estado).map((e) => (
               <Boton
                 key={e}
                 variante="primario"

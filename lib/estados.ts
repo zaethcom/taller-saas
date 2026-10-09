@@ -19,15 +19,29 @@ export type Estado =
   | "rechazada"
   | "entregada";
 
+/**
+ * "entregada" se alcanza desde cualquier estado no final: hay órdenes que
+ * no pasan por diagnóstico ni cotización (un accesorio que se instala al
+ * recibir, un equipo que el cliente retira sin reparar) y el mostrador
+ * tiene que poder cerrarlas. Lo que no se salta nunca son los requisitos
+ * de REQUISITOS.entregada: foto de salida, firma y saldo en cero.
+ */
 export const TRANSICIONES: Record<Estado, Estado[]> = {
-  recibida: ["en_diagnostico"],
-  en_diagnostico: ["esperando_aprobacion"],
-  esperando_aprobacion: ["en_reparacion", "rechazada"],
+  recibida: ["en_diagnostico", "entregada"],
+  en_diagnostico: ["esperando_aprobacion", "entregada"],
+  esperando_aprobacion: ["en_reparacion", "rechazada", "entregada"],
   en_reparacion: ["esperando_repuesto", "entregada"],
-  esperando_repuesto: ["en_reparacion"],
+  esperando_repuesto: ["en_reparacion", "entregada"],
   rechazada: ["entregada"],
   entregada: [],
 };
+
+/**
+ * Los estados desde los que la ficha del técnico ofrece "Entregada" como
+ * siguiente paso. Desde los demás también se puede entregar, pero solo
+ * por el mostrador (/entregar), donde se cobra, se firma y se fotografía.
+ */
+export const ENTREGA_DESDE_TALLER: Estado[] = ["en_reparacion", "rechazada"];
 
 export type Requisito =
   | "tiene_foto_entrada"

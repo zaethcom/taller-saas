@@ -20,6 +20,7 @@ import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-b
 import { PanelCobro } from "@/componentes/cobro/panel-cobro";
 import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-turno";
 import { subirEvidencia } from "@/lib/subir-evidencia";
+import { ETIQUETA_ESTADO, puedeTransicionar, type Estado } from "@/lib/estados";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
@@ -68,6 +69,10 @@ export default function PaginaEntregar() {
   const router = useRouter();
   const firmaRef = useRef<FirmaCanvasHandle>(null);
   const fotoInputRef = useRef<HTMLInputElement>(null);
+  // Lo que ya quedó hecho en un intento anterior de esta misma entrega,
+  // para que reintentar no cobre, imprima ni suba evidencia dos veces.
+  const cobradaRef = useRef(false);
+  const evidenciaSubidaRef = useRef(false);
 
   const [numero, setNumero] = useState("");
   const [orden, setOrden] = useState<OrdenEncontrada | null>(null);
@@ -99,6 +104,8 @@ export default function PaginaEntregar() {
   async function buscar(query?: { numero?: string; token?: string }) {
     setError(null);
     setOrden(null);
+    cobradaRef.current = false;
+    evidenciaSubidaRef.current = false;
     const parametro = query?.token
       ? `token=${encodeURIComponent(query.token)}`
       : `numero=${encodeURIComponent((query?.numero ?? numero).trim())}`;
@@ -140,8 +147,17 @@ export default function PaginaEntregar() {
       return;
     }
 
+    // Antes de cobrar nada: si la orden no se puede entregar desde su
+    // estado, cobrar primero deja una venta hecha y la orden abierta.
+    const estado = orden.estado as Estado;
+    if (!(estado in ETIQUETA_ESTADO) || !puedeTransicionar(estado, "entregada")) {
+      setError(`Esta orden está "${ETIQUETA_ESTADO[estado] ?? orden.estado}" y no se puede entregar.`);
+      return;
+    }
+
     setProcesando(true);
     setError(null);
+    const cobraAhora = orden.saldoPendiente > 0;
     try {
       // 1. Cobrar el saldo pendiente, si lo hay -- un venta_item por
       // cada orden_item real (Fase 7 del Plan 1), no un único cargo
@@ -149,7 +165,7 @@ export default function PaginaEntregar() {
       // lo que se usó. /api/ventas no vuelve a descontar inventario
       // para estos items porque manda ordenId -- ya se descontó al
       // consumirlos durante la reparación.
-      if (orden.saldoPendiente > 0) {
+      if (cobraAhora) {
         const resVenta = await fetch("/api/ventas", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -167,34 +183,43 @@ export default function PaginaEntregar() {
           }),
         });
         if (!resVenta.ok) throw new Error((await resVenta.json()).error);
+        // Ya quedó cobrada: si algo de abajo falla y se reintenta, no se
+        // vuelve a cobrar.
+        cobradaRef.current = true;
+        setOrden((prev) => (prev ? { ...prev, saldoPendiente: 0 } : prev));
       }
 
       // 2. Subir firma y foto de salida.
-      const blobFirma = await firmaRef.current!.obtenerBlob();
-      if (!blobFirma) throw new Error("No se pudo capturar la firma");
+      if (!evidenciaSubidaRef.current) {
+        const blobFirma = await firmaRef.current!.obtenerBlob();
+        if (!blobFirma) throw new Error("No se pudo capturar la firma");
 
-      await subirEvidencia({
-        empresaId: perfil.empresaId,
-        ordenId: orden.id,
-        archivo: blobFirma,
-        extension: "png",
-        tipo: "firma",
-      });
-      await subirEvidencia({
-        empresaId: perfil.empresaId,
-        ordenId: orden.id,
-        archivo: foto,
-        extension: foto.name.split(".").pop() ?? "jpg",
-        tipo: "foto",
-        fase: "salida",
-        visibleCliente: true,
-      });
+        await subirEvidencia({
+          empresaId: perfil.empresaId,
+          ordenId: orden.id,
+          archivo: blobFirma,
+          extension: "png",
+          tipo: "firma",
+        });
+        await subirEvidencia({
+          empresaId: perfil.empresaId,
+          ordenId: orden.id,
+          archivo: foto,
+          extension: foto.name.split(".").pop() ?? "jpg",
+          tipo: "foto",
+          fase: "salida",
+          visibleCliente: true,
+        });
+        evidenciaSubidaRef.current = true;
+      }
 
       // 3. Cerrar la orden. El servidor exige saldo_en_cero + firma + foto.
       const resTransicion = await fetch(`/api/ordenes/${orden.id}/transicion`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ aEstado: "entregada" }),
+        // Si no se cobró nada ahora (ya estaba pagada), el servidor
+        // reimprime el recibo de lo pagado para entregárselo al cliente.
+        body: JSON.stringify({ aEstado: "entregada", imprimirComprobante: !cobradaRef.current }),
       });
       if (!resTransicion.ok) throw new Error((await resTransicion.json()).error);
 
