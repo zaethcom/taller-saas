@@ -7,11 +7,14 @@
  * no la propuesta original.
  *
  * `token` es lo que trae el QR de la etiqueta (ver /escanear): resuelve
- * igual que ?numero=, solo cambia cómo se busca la orden.
+ * igual que ?numero=, solo cambia cómo se busca la orden. `numero` acepta
+ * también el código de entrada de la etiqueta ("OR000014", ver
+ * lib/codigo-entrada.ts), que es lo que lee el escáner.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { saldoPendiente } from "@/lib/caja";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { numeroDesdeCodigoEntrada } from "@/lib/codigo-entrada";
 
 export async function GET(req: NextRequest) {
   const numero = req.nextUrl.searchParams.get("numero");
@@ -28,6 +31,25 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
+  let numeroOrden: number | null = null;
+  if (numero && !token) {
+    const texto = numero.trim();
+    if (/^\d+$/.test(texto)) {
+      numeroOrden = Number(texto);
+    } else {
+      const { data: perfil } = await supabase.from("perfil").select("empresa_id").eq("id", user.id).single();
+      const { data: config } = await supabase
+        .from("empresa_config")
+        .select("prefijo_etiqueta")
+        .eq("empresa_id", perfil?.empresa_id ?? "")
+        .maybeSingle();
+      numeroOrden = numeroDesdeCodigoEntrada(config?.prefijo_etiqueta, texto);
+    }
+    if (!numeroOrden) {
+      return NextResponse.json({ error: "no existe una orden con ese dato" }, { status: 404 });
+    }
+  }
+
   let consulta = supabase.from("orden").select(
     `
       id, numero, estado, total,
@@ -35,7 +57,7 @@ export async function GET(req: NextRequest) {
         cliente:cliente_id ( nombre ) )
     `,
   );
-  consulta = token ? consulta.eq("token_publico", token) : consulta.eq("numero", numero);
+  consulta = token ? consulta.eq("token_publico", token) : consulta.eq("numero", numeroOrden);
 
   const { data: orden, error } = await consulta.maybeSingle();
 

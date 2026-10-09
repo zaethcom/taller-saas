@@ -19,6 +19,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { RequisitoFaltanteError, TransicionInvalidaError, transicionar, type Estado } from "@/lib/estados";
+import { buscarPrimeraFase } from "@/lib/fases";
 import { clienteServidor } from "@/lib/supabase/servidor";
 
 interface ItemCotizacion {
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: orden, error: errOrden } = await supabase
     .from("orden")
-    .select("id, empresa_id, estado, token_publico")
+    .select("id, empresa_id, estado, token_publico, fase:fase_id ( nombre )")
     .eq("id", id)
     .maybeSingle();
 
@@ -107,12 +108,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     throw e;
   }
 
-  await supabase.from("orden").update({ estado: "esperando_aprobacion" }).eq("id", id);
+  // Misma regla de fases que /api/ordenes/<id>/transicion: al entrar
+  // al estado, la primera fase activa que tenga configurada, o ninguna.
+  const faseNueva = await buscarPrimeraFase(supabase, orden.empresa_id, "esperando_aprobacion");
+  // El join de Supabase infiere `fase` como arreglo aunque la relación
+  // sea 1:1 -- mismo caso que lib/perfil.ts.
+  const faseAnterior = orden.fase as unknown as { nombre: string } | null;
+
+  await supabase
+    .from("orden")
+    .update({ estado: "esperando_aprobacion", fase_id: faseNueva?.id ?? null })
+    .eq("id", id);
   await supabase.from("orden_evento").insert({
     empresa_id: orden.empresa_id,
     orden_id: id,
     de_estado: orden.estado,
     a_estado: "esperando_aprobacion",
+    de_fase: faseAnterior?.nombre ?? null,
+    a_fase: faseNueva?.nombre ?? null,
     autor_id: user.id,
     nota: body.nota?.trim() || undefined,
   });

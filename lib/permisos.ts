@@ -23,7 +23,9 @@ export type Accion =
   | "personalizar_empresa" // Admin: logo, color, tema, bloque de marca y datos de recibo
   | "gestionar_sedes" // Admin: alta de sedes -- sin esto no hay a dónde trasladar
   | "ver_acceso_dispositivo" // Ver el PIN/patrón del equipo de una orden (orden_acceso)
-  | "ver_reportes"; // Admin: informes de ventas, caja, inventario y taller, y su exportación
+  | "reimprimir_etiqueta_orden" // Volver a mandar la etiqueta QR de una orden a la etiquetadora
+  | "ver_reportes" // Admin: informes de ventas, caja, inventario y taller, y su exportación
+  | "configurar_fases"; // Admin: las fases de cada estado de la orden (0050_fase_orden.sql)
 
 const PERMISOS: Record<Rol, Accion[]> = {
   admin: [
@@ -43,7 +45,9 @@ const PERMISOS: Record<Rol, Accion[]> = {
     "personalizar_empresa",
     "gestionar_sedes",
     "ver_acceso_dispositivo",
+    "reimprimir_etiqueta_orden",
     "ver_reportes",
+    "configurar_fases",
   ],
   recepcion: [
     "recibir_equipo",
@@ -52,8 +56,9 @@ const PERMISOS: Record<Rol, Accion[]> = {
     "ver_ordenes",
     "gestionar_traslados",
     "ver_acceso_dispositivo",
+    "reimprimir_etiqueta_orden",
   ],
-  tecnico: ["diagnosticar", "marcar_faltante", "ver_acceso_dispositivo"],
+  tecnico: ["diagnosticar", "marcar_faltante", "ver_acceso_dispositivo", "reimprimir_etiqueta_orden"],
   compras: ["gestionar_compras", "gestionar_traslados", "recibir_mercancia", "ver_ordenes"],
   cajero: ["vender", "cobrar_orden", "abrir_cajon_manual", "cerrar_turno"],
 };

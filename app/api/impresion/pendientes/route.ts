@@ -7,10 +7,17 @@
  * ?sede= tiene que coincidir, para que una estación no pueda pedir
  * (por error de configuración) los trabajos de otra sede aunque de
  * alguna forma adivinara su id.
+ *
+ * ?formato=bytes -- para la app Android del puente, que imprime sin
+ * estación en medio: cada trabajo viene ya traducido a los bytes exactos
+ * de la impresora (base64) y con su destino (tickets/etiquetas), con el
+ * mismo código que usa la estación de PC (estacion/resolver.ts). Así la
+ * app no tiene que saber ESC/POS ni PPLB.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { verificarEstacion } from "@/lib/estacion-auth";
+import { registrarContacto, verificarEstacion } from "@/lib/estacion-auth";
 import { clienteAdmin } from "@/lib/supabase/servidor";
+import { aBytes, resolverImpresion, type TrabajoPendiente } from "@/estacion/resolver";
 
 export async function GET(req: NextRequest) {
   const identidad = await verificarEstacion(req.headers.get("authorization"));
@@ -26,6 +33,10 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  await registrarContacto(identidad.sedeId);
+
+  const enBytes = req.nextUrl.searchParams.get("formato") === "bytes";
+
   const admin = clienteAdmin();
   const { data, error } = await admin
     .from("trabajo_impresion")
@@ -33,11 +44,39 @@ export async function GET(req: NextRequest) {
     .eq("sede_id", identidad.sedeId)
     .eq("estado", "pendiente")
     .order("creado_en", { ascending: true })
-    .limit(20);
+    // En bytes una etiqueta con imagen pasa de 100 KB: de a pocos.
+    .limit(enBytes ? 5 : 20);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data);
+  if (!enBytes) {
+    return NextResponse.json(data);
+  }
+
+  // Argox (PPLB) o Zebra (ZPL), lo que se eligió en Configurar impresoras.
+  const { data: impresora } = await admin
+    .from("impresora_sede")
+    .select("etiquetas_lenguaje")
+    .eq("sede_id", identidad.sedeId)
+    .maybeSingle();
+  const lenguaje = impresora?.etiquetas_lenguaje === "zpl" ? "zpl" : "pplb";
+
+  return NextResponse.json(
+    (data as TrabajoPendiente[]).map((trabajo) => {
+      try {
+        const { destino, contenido } = resolverImpresion(trabajo, lenguaje);
+        return { id: trabajo.id, tipo: trabajo.tipo, destino, bytes: aBytes(contenido).toString("base64") };
+      } catch (e) {
+        // Una carga que no se puede traducir no debe frenar la cola: la
+        // app lo reporta como error de ese trabajo y sigue con el resto.
+        return {
+          id: trabajo.id,
+          tipo: trabajo.tipo,
+          error: e instanceof Error ? e.message : "no se pudo preparar la impresión",
+        };
+      }
+    }),
+  );
 }

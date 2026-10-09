@@ -8,6 +8,11 @@
  * patrón de autenticación que /api/impresion/pendientes: sin sesión de
  * usuario, con la clave propia de la estación.
  *
+ * `etiquetas.lenguaje` ("pplb" Argox / "zpl" Zebra, migración 0048) se
+ * pide aparte: si la columna todavía no existe, se responde sin él y la
+ * estación sigue en PPLB, igual que antes -- una migración pendiente no
+ * debe dejar una sede sin imprimir.
+ *
  * Si la sede todavía no tiene fila en impresora_sede (nadie configuró
  * nada desde la web todavía), responde 404 -- la estación sabe que debe
  * seguir usando su config.json local en ese caso.
@@ -43,8 +48,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "esta sede no tiene impresoras configuradas todavía" }, { status: 404 });
   }
 
+  const { data: idioma } = await admin
+    .from("impresora_sede")
+    .select("etiquetas_lenguaje")
+    .eq("sede_id", identidad.sedeId)
+    .maybeSingle();
+
   return NextResponse.json({
     tickets: { host: data.tickets_host, puerto: data.tickets_puerto, protocolo: data.tickets_protocolo },
-    etiquetas: { host: data.etiquetas_host, puerto: data.etiquetas_puerto, protocolo: data.etiquetas_protocolo },
+    etiquetas: {
+      host: data.etiquetas_host,
+      puerto: data.etiquetas_puerto,
+      protocolo: data.etiquetas_protocolo,
+      lenguaje: idioma?.etiquetas_lenguaje ?? "pplb",
+    },
   });
 }
