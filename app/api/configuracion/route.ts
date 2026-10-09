@@ -46,7 +46,10 @@ interface CuerpoConfig {
   prefijoEtiqueta?: string;
   fondoLoginUrl?: string | null;
   codigo?: string | null;
+  tipoNegocio?: "celular" | "computador" | "patineta" | "otro" | null;
 }
+
+const TIPOS_NEGOCIO = ["celular", "computador", "patineta", "otro"];
 
 export async function PATCH(req: Request) {
   const body = (await req.json()) as CuerpoConfig;
@@ -74,6 +77,9 @@ export async function PATCH(req: Request) {
       { status: 400 },
     );
   }
+  if (body.tipoNegocio !== undefined && body.tipoNegocio !== null && !TIPOS_NEGOCIO.includes(body.tipoNegocio)) {
+    return NextResponse.json({ error: "tipo de negocio inválido" }, { status: 400 });
+  }
 
   if (body.codigo !== undefined) {
     const { error: errCodigo } = await supabase
@@ -100,6 +106,7 @@ export async function PATCH(req: Request) {
       ...(body.whatsappProveedor !== undefined && { whatsapp_proveedor: body.whatsappProveedor }),
       ...(body.prefijoEtiqueta !== undefined && { prefijo_etiqueta: body.prefijoEtiqueta.toUpperCase() }),
       ...(body.fondoLoginUrl !== undefined && { fondo_login_url: body.fondoLoginUrl }),
+      ...(body.tipoNegocio !== undefined && { tipo_negocio: body.tipoNegocio }),
       actualizado_en: new Date().toISOString(),
     },
     { onConflict: "empresa_id" },

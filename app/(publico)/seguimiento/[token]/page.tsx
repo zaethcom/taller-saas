@@ -12,11 +12,19 @@
  */
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Check, X, Clock } from "lucide-react";
+import { Check, X, Clock, Stethoscope } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Aviso } from "@/componentes/ui/campo";
+import { HiloMensajes, type Mensaje } from "@/componentes/mensajeria/hilo-mensajes";
+
+interface Diagnostico {
+  hallazgos: string | null;
+  fallas: string | null;
+  observaciones: string | null;
+  recomendaciones: string | null;
+}
 
 interface Seguimiento {
   numero: number;
@@ -24,6 +32,10 @@ interface Seguimiento {
   etiquetaEstado: string;
   motivo: string;
   abiertaEn: string;
+  empresaNombre: string;
+  logoUrl: string | null;
+  colorPrincipal: string | null;
+  diagnostico: Diagnostico | null;
   producto: { serial: string; tipo: string; marca: string | null; modelo: string | null };
   historial: { estado: string; etiqueta: string; fecha: string }[];
   cotizacion: {
@@ -33,6 +45,14 @@ interface Seguimiento {
     cotizacion_item: { descripcion: string; cantidad: number; precio_unit: number }[];
   } | null;
   evidencias: { tipo: "foto" | "video"; tomadaEn: string; url: string | null }[];
+  itemsPendientes: { id: string; descripcion: string; cantidad: number; precioUnit: number; decision: string | null }[];
+  mensajes: Mensaje[];
+}
+
+/** El diagnóstico es texto libre en cuatro campos opcionales --
+ *  solo vale la pena mostrar la sección si alguno quedó lleno. */
+function tieneDiagnostico(d: Diagnostico | null): d is Diagnostico {
+  return !!d && [d.hallazgos, d.fallas, d.observaciones, d.recomendaciones].some((v) => v?.trim());
 }
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
@@ -42,6 +62,7 @@ export default function PaginaSeguimiento() {
   const [datos, setDatos] = useState<Seguimiento | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [decidiendoItem, setDecidiendoItem] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/seguimiento/${token}`)
@@ -72,6 +93,35 @@ export default function PaginaSeguimiento() {
     }
   }
 
+  async function decidirItem(itemId: string, decision: "aprobada" | "rechazada") {
+    setDecidiendoItem(itemId);
+    try {
+      const res = await fetch(`/api/seguimiento/${token}/items/aprobar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, itemId, decision }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      const actualizado = await fetch(`/api/seguimiento/${token}`).then((r) => r.json());
+      setDatos(actualizado);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo enviar la decisión");
+    } finally {
+      setDecidiendoItem(null);
+    }
+  }
+
+  async function enviarMensaje(texto: string) {
+    const res = await fetch(`/api/seguimiento/${token}/mensajes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+    const actualizado = await fetch(`/api/seguimiento/${token}`).then((r) => r.json());
+    setDatos(actualizado);
+  }
+
   if (error) {
     return (
       <main style={{ padding: 24, maxWidth: 520, margin: "0 auto" }}>
@@ -94,6 +144,20 @@ export default function PaginaSeguimiento() {
   return (
     <main style={{ padding: "28px 20px 48px", maxWidth: 520, margin: "0 auto" }}>
       <div className="pila">
+        {(datos.logoUrl || datos.empresaNombre) && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {datos.logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={datos.logoUrl}
+                alt={datos.empresaNombre}
+                style={{ height: 40, width: 40, objectFit: "contain", borderRadius: "var(--r-md)", background: "var(--surface-2)" }}
+              />
+            )}
+            {datos.empresaNombre && <span style={{ fontSize: 15, fontWeight: 800 }}>{datos.empresaNombre}</span>}
+          </div>
+        )}
+
         <div>
           <div className="cifra" style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--ink-3)" }}>
             Orden #{datos.numero}
@@ -104,6 +168,12 @@ export default function PaginaSeguimiento() {
           <p className="cifra" style={{ margin: "4px 0 0", fontSize: 13, color: "var(--ink-2)" }}>
             {datos.producto.tipo} · {datos.producto.serial}
           </p>
+          {datos.motivo && (
+            <p style={{ margin: "10px 0 0", fontSize: 13, color: "var(--ink-2)" }}>
+              <span style={{ color: "var(--ink-3)" }}>Motivo reportado · </span>
+              {datos.motivo}
+            </p>
+          )}
         </div>
 
         <Tarjeta style={{ background: "var(--accent-suave)", borderColor: "var(--accent-linea)" }}>
@@ -112,6 +182,41 @@ export default function PaginaSeguimiento() {
           </div>
           <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.015em" }}>{datos.etiquetaEstado}</div>
         </Tarjeta>
+
+        {tieneDiagnostico(datos.diagnostico) && (
+          <section>
+            <h2 style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+              <Stethoscope size={18} strokeWidth={2} color="var(--ink-2)" aria-hidden />
+              Diagnóstico
+            </h2>
+            <Tarjeta style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {datos.diagnostico.hallazgos && (
+                <div>
+                  <div className="campo-etiqueta">Hallazgos</div>
+                  <p style={{ margin: 0, fontSize: 14 }}>{datos.diagnostico.hallazgos}</p>
+                </div>
+              )}
+              {datos.diagnostico.fallas && (
+                <div>
+                  <div className="campo-etiqueta">Fallas encontradas</div>
+                  <p style={{ margin: 0, fontSize: 14 }}>{datos.diagnostico.fallas}</p>
+                </div>
+              )}
+              {datos.diagnostico.recomendaciones && (
+                <div>
+                  <div className="campo-etiqueta">Recomendaciones</div>
+                  <p style={{ margin: 0, fontSize: 14 }}>{datos.diagnostico.recomendaciones}</p>
+                </div>
+              )}
+              {datos.diagnostico.observaciones && (
+                <div>
+                  <div className="campo-etiqueta">Observaciones</div>
+                  <p style={{ margin: 0, fontSize: 14 }}>{datos.diagnostico.observaciones}</p>
+                </div>
+              )}
+            </Tarjeta>
+          </section>
+        )}
 
         <section>
           <h2 style={{ marginBottom: 12 }}>Historial</h2>
@@ -216,6 +321,58 @@ export default function PaginaSeguimiento() {
           </section>
         )}
 
+        {datos.itemsPendientes.length > 0 && (
+          <section>
+            <h2 style={{ marginBottom: 12 }}>Costos adicionales</h2>
+            <Tarjeta relleno={false}>
+              {datos.itemsPendientes.map((it) => (
+                <div key={it.id} style={{ padding: "14px 16px", borderBottom: "1px solid var(--rule)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 14, marginBottom: 10 }}>
+                    <span>
+                      <span className="cifra" style={{ color: "var(--ink-3)" }}>
+                        {it.cantidad}×
+                      </span>{" "}
+                      {it.descripcion}
+                    </span>
+                    <span className="cifra" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>
+                      {fmt(it.cantidad * it.precioUnit)}
+                    </span>
+                  </div>
+                  {it.decision ? (
+                    <Etiqueta tono={it.decision === "aprobada" ? "ok" : "neutro"} punto>
+                      {it.decision === "aprobada" ? "Aprobado por ti" : "Rechazado por ti"}
+                    </Etiqueta>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      <Boton
+                        variante="primario"
+                        tamano="sm"
+                        icono={<Check size={15} strokeWidth={2.4} />}
+                        disabled={decidiendoItem === it.id}
+                        onClick={() => decidirItem(it.id, "aprobada")}
+                      >
+                        Aprobar
+                      </Boton>
+                      <Boton
+                        variante="contorno"
+                        tamano="sm"
+                        icono={<X size={15} strokeWidth={2.4} />}
+                        disabled={decidiendoItem === it.id}
+                        onClick={() => decidirItem(it.id, "rechazada")}
+                      >
+                        Rechazar
+                      </Boton>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </Tarjeta>
+            <p className="campo-ayuda" style={{ marginTop: 8 }}>
+              Se agregaron después de que aprobaste la cotización original -- por eso se piden aparte.
+            </p>
+          </section>
+        )}
+
         {datos.evidencias.length > 0 && (
           <section>
             <h2 style={{ marginBottom: 12 }}>Fotos y videos</h2>
@@ -243,6 +400,11 @@ export default function PaginaSeguimiento() {
             </div>
           </section>
         )}
+
+        <section>
+          <h2 style={{ marginBottom: 12 }}>Mensajes</h2>
+          <HiloMensajes mensajes={datos.mensajes} ladoPropio="cliente" onEnviar={enviarMensaje} />
+        </section>
       </div>
     </main>
   );

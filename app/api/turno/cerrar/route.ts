@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { calcularDiferencia, efectivoEsperado } from "@/lib/caja";
 import { encolarImpresion } from "@/lib/impresion";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { obtenerSedeActivaId } from "@/lib/perfil";
 
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as { efectivoContado?: number };
@@ -29,15 +30,16 @@ export async function POST(req: NextRequest) {
     .select("empresa_id, sede_id")
     .eq("id", user.id)
     .single();
+  const sedeActivaId = await obtenerSedeActivaId(supabase);
 
-  if (!perfil?.sede_id) {
-    return NextResponse.json({ error: "el usuario no tiene sede asignada" }, { status: 400 });
+  if (!perfil || !sedeActivaId) {
+    return NextResponse.json({ error: "elige la sede en la que estás trabajando" }, { status: 400 });
   }
 
   const { data: turno } = await supabase
     .from("turno_caja")
     .select("id, base_inicial, abierto_en")
-    .eq("sede_id", perfil.sede_id)
+    .eq("sede_id", sedeActivaId)
     .is("cerrado_en", null)
     .order("abierto_en", { ascending: false })
     .limit(1)
@@ -81,7 +83,7 @@ export async function POST(req: NextRequest) {
 
   await encolarImpresion(supabase, {
     empresaId: perfil.empresa_id,
-    sedeId: perfil.sede_id,
+    sedeId: sedeActivaId,
     tipo: "cierre_caja",
     creadoPor: user.id,
     carga: {

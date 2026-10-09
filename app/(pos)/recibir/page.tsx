@@ -11,13 +11,25 @@
  * tres tarjetas numeradas en una sola pantalla, sin asistente ni
  * pestañas: quien recibe ve de un vistazo lo que le falta.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Inbox, Search, Check, User, Wrench, FileText, Printer, ClipboardList } from "lucide-react";
+import { Inbox, Search, Check, User, Wrench, FileText, Printer, ClipboardList, Barcode, KeyRound } from "lucide-react";
+import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
+import { PatronGrid } from "@/componentes/patron-android/patron-grid";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+
+type TipoNegocio = "celular" | "computador" | "patineta" | "otro";
+
+/** El tipo de equipo que cada negocio ve primero al recibir -- ver /configuracion. */
+const TIPO_POR_NEGOCIO: Record<TipoNegocio, string> = {
+  celular: "celular",
+  computador: "computador",
+  patineta: "patineta",
+  otro: "patineta",
+};
 
 interface Cliente {
   id: string;
@@ -80,11 +92,33 @@ export default function PaginaRecibir() {
   const [producto, setProducto] = useState<Producto | null>(null);
   const [productoNuevo, setProductoNuevo] = useState({ tipo: "patineta", marca: "", modelo: "" });
   const [buscandoProducto, setBuscandoProducto] = useState(false);
+  const [escaneando, setEscaneando] = useState(false);
+
+  const [tipoAcceso, setTipoAcceso] = useState<"" | "pin3" | "pin4" | "pin6" | "patron" | "otro">("");
+  const [pinAcceso, setPinAcceso] = useState("");
+  const [patronAcceso, setPatronAcceso] = useState<number[]>([]);
+  const [otroAcceso, setOtroAcceso] = useState("");
+  const [notaAcceso, setNotaAcceso] = useState("");
 
   const [motivo, setMotivo] = useState("");
+  const [infoAdicional, setInfoAdicional] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [resultado, setResultado] = useState<{ numero: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // El tipo que la empresa configuró en /configuracion (ver
+  // tipo_negocio en empresa_config) decide qué aparece preseleccionado
+  // acá -- antes era siempre "patineta" sin importar el negocio.
+  useEffect(() => {
+    fetch("/api/configuracion")
+      .then((r) => r.json())
+      .then((config: { tipoNegocio?: TipoNegocio | null }) => {
+        if (config.tipoNegocio) {
+          setProductoNuevo((p) => ({ ...p, tipo: TIPO_POR_NEGOCIO[config.tipoNegocio as TipoNegocio] }));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   async function buscarCliente() {
     if (!documento.trim()) return;
@@ -95,10 +129,11 @@ export default function PaginaRecibir() {
     setBuscandoCliente(false);
   }
 
-  async function buscarProducto() {
-    if (!serial.trim()) return;
+  async function buscarProducto(valorSerial?: string) {
+    const valor = (valorSerial ?? serial).trim();
+    if (!valor) return;
     setBuscandoProducto(true);
-    const res = await fetch(`/api/productos?serial=${encodeURIComponent(serial.trim())}`);
+    const res = await fetch(`/api/productos?serial=${encodeURIComponent(valor)}`);
     const data = await res.json();
     setProducto(data);
     setBuscandoProducto(false);
@@ -108,7 +143,18 @@ export default function PaginaRecibir() {
     setGuardando(true);
     setError(null);
     try {
-      const body: Record<string, unknown> = { motivo: motivo.trim() };
+      const body: Record<string, unknown> = {
+        motivo: motivo.trim(),
+        infoAdicional: infoAdicional.trim() || undefined,
+      };
+
+      if (tipoAcceso) {
+        const valor =
+          tipoAcceso === "patron" ? patronAcceso.join("-") : tipoAcceso === "otro" ? otroAcceso.trim() : pinAcceso.trim();
+        if (valor) {
+          body.acceso = { tipo: tipoAcceso, valor, nota: notaAcceso.trim() || undefined };
+        }
+      }
 
       if (cliente) body.clienteId = cliente.id;
       else {
@@ -146,6 +192,12 @@ export default function PaginaRecibir() {
     setProducto(null);
     setProductoNuevo({ tipo: "patineta", marca: "", modelo: "" });
     setMotivo("");
+    setInfoAdicional("");
+    setTipoAcceso("");
+    setPinAcceso("");
+    setPatronAcceso([]);
+    setOtroAcceso("");
+    setNotaAcceso("");
     setResultado(null);
   }
 
@@ -273,7 +325,31 @@ export default function PaginaRecibir() {
             >
               Buscar
             </Boton>
+            <Boton
+              type="button"
+              variante="contorno"
+              icono={<Barcode size={17} strokeWidth={2} />}
+              onClick={() => setEscaneando(true)}
+            >
+              Escanear
+            </Boton>
           </form>
+
+          {escaneando && (
+            <div style={{ marginBottom: 14 }}>
+              <LectorCodigoBarras
+                formats={["code_128", "ean_13", "upc_a"]}
+                etiqueta="Ubica el código de barras del serial"
+                onDetectado={(valor) => {
+                  setEscaneando(false);
+                  setSerial(valor);
+                  setProducto(null);
+                  buscarProducto(valor);
+                }}
+                onCerrar={() => setEscaneando(false)}
+              />
+            </div>
+          )}
 
           {producto ? (
             <Aviso tono="ok" icono={<Check size={17} strokeWidth={2.4} />}>
@@ -310,9 +386,78 @@ export default function PaginaRecibir() {
               </Campo>
             </div>
           )}
+
+          <div style={{ marginTop: 14 }}>
+            <Campo etiqueta="Info adicional" ayuda="Lo que nota quien recibe, ej. &quot;trae cargador y forro&quot;. Opcional.">
+              <input
+                placeholder="Opcional"
+                value={infoAdicional}
+                onChange={(e) => setInfoAdicional(e.target.value)}
+              />
+            </Campo>
+          </div>
         </Paso>
 
-        <Paso n={3} titulo="Motivo" icono={<FileText size={18} strokeWidth={2} color="var(--ink-2)" />}>
+        <Paso n={3} titulo="Acceso" icono={<KeyRound size={18} strokeWidth={2} color="var(--ink-2)" />}>
+          <p className="campo-ayuda" style={{ marginTop: 0, marginBottom: 12 }}>
+            Opcional -- solo si el servicio necesita entrar al equipo. Se borra solo al entregarlo.
+          </p>
+          <div className="fila" style={{ gap: 8, marginBottom: 14 }}>
+            {(
+              [
+                { valor: "", etiqueta: "Sin acceso" },
+                { valor: "pin3", etiqueta: "PIN de 3" },
+                { valor: "pin4", etiqueta: "PIN de 4" },
+                { valor: "pin6", etiqueta: "PIN de 6" },
+                // Siempre visible: antes dependía de que el tipo fuera "celular",
+                // y con el tipo por defecto (patineta) el patrón no aparecía.
+                { valor: "patron", etiqueta: "Patrón" },
+                { valor: "otro", etiqueta: "Otro" },
+              ] as const
+            ).map((o) => (
+              <Boton
+                key={o.valor}
+                tamano="sm"
+                variante={tipoAcceso === o.valor ? "primario" : "contorno"}
+                onClick={() => setTipoAcceso(o.valor)}
+                aria-pressed={tipoAcceso === o.valor}
+              >
+                {o.etiqueta}
+              </Boton>
+            ))}
+          </div>
+
+          {(tipoAcceso === "pin3" || tipoAcceso === "pin4" || tipoAcceso === "pin6") && (
+            <Campo etiqueta="PIN">
+              <input
+                value={pinAcceso}
+                onChange={(e) => setPinAcceso(e.target.value.replace(/\D/g, ""))}
+                maxLength={tipoAcceso === "pin3" ? 3 : tipoAcceso === "pin4" ? 4 : 6}
+                inputMode="numeric"
+                className="cifra"
+                style={{ maxWidth: 140 }}
+              />
+            </Campo>
+          )}
+
+          {tipoAcceso === "patron" && <PatronGrid valor={patronAcceso} onChange={setPatronAcceso} />}
+
+          {tipoAcceso === "otro" && (
+            <Campo etiqueta="Contraseña o código de acceso">
+              <input value={otroAcceso} onChange={(e) => setOtroAcceso(e.target.value)} />
+            </Campo>
+          )}
+
+          {tipoAcceso && (
+            <div style={{ marginTop: 12 }}>
+              <Campo etiqueta="Nota" ayuda="Opcional, ej. &quot;solo huella, el PIN es de respaldo&quot;.">
+                <input value={notaAcceso} onChange={(e) => setNotaAcceso(e.target.value)} />
+              </Campo>
+            </div>
+          )}
+        </Paso>
+
+        <Paso n={4} titulo="Motivo" icono={<FileText size={18} strokeWidth={2} color="var(--ink-2)" />}>
           <Campo ayuda="Lo que el cliente reporta, con sus palabras. Es lo que lee el técnico al abrir la orden.">
             <textarea
               value={motivo}

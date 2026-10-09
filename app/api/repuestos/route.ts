@@ -7,6 +7,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { obtenerSedeActivaId } from "@/lib/perfil";
 
 export async function GET(req: NextRequest) {
   const buscar = req.nextUrl.searchParams.get("buscar")?.trim() ?? "";
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
-  const { data: perfil } = await supabase.from("perfil").select("sede_id").eq("id", user.id).single();
+  const sedeActivaId = await obtenerSedeActivaId(supabase);
 
   let consulta = supabase
     .from("repuesto")
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
     descripcion: r.descripcion,
     precioVenta: Number(r.precio_venta),
     imagenUrl: r.imagen_url,
-    existenciaAqui: r.existencia.find((e) => e.sede_id === perfil?.sede_id)?.cantidad ?? 0,
+    existenciaAqui: r.existencia.find((e) => e.sede_id === sedeActivaId)?.cantidad ?? 0,
   }));
 
   return NextResponse.json(resultado);

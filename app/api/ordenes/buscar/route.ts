@@ -1,8 +1,13 @@
 /**
- * GET /api/ordenes/buscar?numero=<n>
- * Lo que (pos)/entregar usa para encontrar la orden: estado, cotización
- * vigente y saldo pendiente ya calculado con lib/caja.ts, para no
- * repetir esa cuenta en el cliente.
+ * GET /api/ordenes/buscar?numero=<n>  |  ?token=<token_publico>
+ * Lo que (pos)/entregar usa para encontrar la orden: estado, lo que de
+ * verdad se usó (orden_item, Fase 5 del Plan 1) y el saldo pendiente ya
+ * calculado con lib/caja.ts -- orden.total reemplaza a cotizacion.total
+ * como base del saldo, porque es la realidad acumulada en orden_item,
+ * no la propuesta original.
+ *
+ * `token` es lo que trae el QR de la etiqueta (ver /escanear): resuelve
+ * igual que ?numero=, solo cambia cómo se busca la orden.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { saldoPendiente } from "@/lib/caja";
@@ -10,8 +15,9 @@ import { clienteServidor } from "@/lib/supabase/servidor";
 
 export async function GET(req: NextRequest) {
   const numero = req.nextUrl.searchParams.get("numero");
-  if (!numero) {
-    return NextResponse.json({ error: "falta el número de orden" }, { status: 400 });
+  const token = req.nextUrl.searchParams.get("token");
+  if (!numero && !token) {
+    return NextResponse.json({ error: "falta el número de orden o el token" }, { status: 400 });
   }
 
   const supabase = await clienteServidor();
@@ -22,43 +28,41 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
-  const { data: orden, error } = await supabase
-    .from("orden")
-    .select(
-      `
-      id, numero, estado,
+  let consulta = supabase.from("orden").select(
+    `
+      id, numero, estado, total,
       producto:producto_id ( marca, modelo, tipo, serial,
         cliente:cliente_id ( nombre ) )
     `,
-    )
-    .eq("numero", numero)
-    .maybeSingle();
+  );
+  consulta = token ? consulta.eq("token_publico", token) : consulta.eq("numero", numero);
+
+  const { data: orden, error } = await consulta.maybeSingle();
 
   if (error || !orden) {
-    return NextResponse.json({ error: "no existe una orden con ese número" }, { status: 404 });
+    return NextResponse.json({ error: "no existe una orden con ese dato" }, { status: 404 });
   }
 
-  const { data: cotizacion } = await supabase
-    .from("cotizacion")
-    .select("total")
-    .eq("orden_id", orden.id)
-    .eq("decision", "aprobada")
-    .order("decidida_en", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const [{ data: items }, { data: ventas }] = await Promise.all([
+    supabase
+      .from("orden_item")
+      .select("descripcion, cantidad, precio_unit, repuesto_id")
+      .eq("orden_id", orden.id),
+    supabase.from("venta").select("total").eq("orden_id", orden.id).eq("anulada", false),
+  ]);
 
-  const { data: ventas } = await supabase
-    .from("venta")
-    .select("total")
-    .eq("orden_id", orden.id)
-    .eq("anulada", false);
-
-  const totalCotizado = Number(cotizacion?.total ?? 0);
+  const total = Number(orden.total);
   const totalPagado = (ventas ?? []).reduce((s, v) => s + Number(v.total), 0);
 
   return NextResponse.json({
     ...orden,
-    saldoPendiente: saldoPendiente(totalCotizado, totalPagado),
-    totalCotizado,
+    total,
+    saldoPendiente: saldoPendiente(total, totalPagado),
+    items: (items ?? []).map((it) => ({
+      descripcion: it.descripcion,
+      cantidad: it.cantidad,
+      precioUnit: Number(it.precio_unit),
+      repuestoId: it.repuesto_id,
+    })),
   });
 }

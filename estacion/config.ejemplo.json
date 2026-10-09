@@ -1,6 +1,6 @@
 {
   "sedeId": "a1111111-0000-0000-0000-000000000001",
-  "apiBase": "https://taller-saas.example.com",
+  "apiBase": "https://taller-saas-mvp.vercel.app",
   "servicioClave": "REEMPLAZAR_CON_LA_CLAVE_DE_ESTA_ESTACION",
   "intervaloMs": 2000,
   "impresoras": {

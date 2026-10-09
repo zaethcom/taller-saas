@@ -22,7 +22,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     .from("orden")
     .select(
       `
-      id, numero, estado, motivo, abierta_en, cerrada_en,
+      id, empresa_id, numero, estado, motivo, abierta_en, cerrada_en,
       producto:producto_id ( serial, tipo, marca, modelo ),
       cliente:producto_id ( cliente:cliente_id ( nombre ) )
     `,
@@ -36,7 +36,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     return NextResponse.json({ error: "enlace no válido o vencido" }, { status: 404 });
   }
 
-  const [{ data: eventos }, { data: cotizacion }, { data: evidencias }] = await Promise.all([
+  const [
+    { data: eventos },
+    { data: cotizacion },
+    { data: evidencias },
+    { data: itemsPendientes },
+    { data: diagnostico },
+    { data: empresa },
+    { data: mensajes },
+  ] = await Promise.all([
     admin
       .from("orden_evento")
       .select("a_estado, ocurrio_en")
@@ -54,7 +62,36 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       .select("ruta, tipo, tomada_en")
       .eq("orden_id", orden.id)
       .eq("visible_cliente", true),
+    // Ítems agregados DESPUÉS de aprobada la cotización original --
+    // Fase F2 del Plan 3 -- que el cliente también tiene que decidir.
+    admin
+      .from("orden_item")
+      .select("id, descripcion, cantidad, precio_unit, decision")
+      .eq("orden_id", orden.id)
+      .eq("requiere_aprobacion", true)
+      .order("creado_en", { ascending: true }),
+    // El diagnóstico ya existe como paso propio (Fase 2 del Plan 1)
+    // pero nunca se mostraba en el seguimiento del cliente -- Fase F1
+    // del Plan 3.
+    admin
+      .from("diagnostico")
+      .select("hallazgos, fallas, observaciones, recomendaciones")
+      .eq("orden_id", orden.id)
+      .maybeSingle(),
+    admin.from("empresa").select("nombre").eq("id", orden.empresa_id).maybeSingle(),
+    // El hilo de mensajes cliente <-> taller -- Fase F3 del Plan 3.
+    admin
+      .from("orden_mensaje")
+      .select("autor_tipo, texto, creado_en")
+      .eq("orden_id", orden.id)
+      .order("creado_en", { ascending: true }),
   ]);
+
+  const { data: config } = await admin
+    .from("empresa_config")
+    .select("logo_url, color_principal")
+    .eq("empresa_id", orden.empresa_id)
+    .maybeSingle();
 
   // Se firman aquí, con service role, porque el visitante público no
   // tiene sesión -- la única autorización que tiene es haber llegado
@@ -76,6 +113,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     abiertaEn: orden.abierta_en,
     cerradaEn: orden.cerrada_en,
     producto: orden.producto,
+    empresaNombre: empresa?.nombre ?? "",
+    logoUrl: config?.logo_url ?? null,
+    colorPrincipal: config?.color_principal ?? null,
+    diagnostico,
     historial: (eventos ?? []).map((e) => ({
       estado: e.a_estado,
       etiqueta: ETIQUETA_ESTADO[e.a_estado as Estado],
@@ -83,5 +124,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     })),
     cotizacion,
     evidencias: evidenciasFirmadas,
+    itemsPendientes: (itemsPendientes ?? []).map((it) => ({
+      id: it.id,
+      descripcion: it.descripcion,
+      cantidad: it.cantidad,
+      precioUnit: Number(it.precio_unit),
+      decision: it.decision,
+    })),
+    mensajes: (mensajes ?? []).map((m) => ({
+      autorTipo: m.autor_tipo,
+      texto: m.texto,
+      creadoEn: m.creado_en,
+    })),
   });
 }

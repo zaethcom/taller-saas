@@ -1,13 +1,14 @@
 /**
  * La barra superior de las tres puertas: buscar una orden, saltar a
- * otra puerta, y quién tiene la sesión.
+ * otra puerta, en qué sede se está trabajando y quién tiene la sesión.
  *
  * Es la misma barra en las tres -- negra siempre, como el menú
  * lateral, aunque la empresa haya elegido tema claro. Que el marco de
  * la aplicación no cambie de color con el tema es lo que hace que el
  * color de la empresa signifique una sola cosa: la acción.
  */
-import { LogOut } from "lucide-react";
+import Link from "next/link";
+import { LogOut, MapPin } from "lucide-react";
 import { Buscador } from "@/componentes/ui/buscador";
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
 import { SelectorPuertas } from "@/componentes/ui/selector-puertas";
@@ -16,12 +17,36 @@ import type { Rol } from "@/lib/permisos";
 export function BarraSuperior({
   nombre,
   rol,
+  sedeNombre = null,
+  puedeCambiarSede = false,
   puerta,
 }: {
   nombre: string;
   rol: Rol;
+  sedeNombre?: string | null;
+  /** Con más de una sede permitida, la sede es un enlace a /elegir-sede. */
+  puedeCambiarSede?: boolean;
   puerta: "pos" | "taller" | "admin";
 }) {
+  const contenidoSede = (
+    <>
+      <MapPin size={15} strokeWidth={2} />
+      <span style={{ fontSize: 12, fontWeight: 700 }}>{sedeNombre}</span>
+    </>
+  );
+  const estiloSede: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    height: 42,
+    padding: "0 12px",
+    borderRadius: "var(--r-md)",
+    background: "var(--chrome-campo)",
+    border: "1px solid var(--chrome-linea)",
+    color: "var(--chrome-texto)",
+    textDecoration: "none",
+  };
+
   return (
     <header
       style={{
@@ -39,6 +64,14 @@ export function BarraSuperior({
 
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
         <SelectorPuertas rol={rol} actual={puerta} />
+        {sedeNombre &&
+          (puedeCambiarSede ? (
+            <Link href="/elegir-sede" title="Cambiar de sede" style={estiloSede}>
+              {contenidoSede}
+            </Link>
+          ) : (
+            <div style={estiloSede}>{contenidoSede}</div>
+          ))}
         <div
           style={{
             display: "flex",

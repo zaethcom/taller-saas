@@ -18,6 +18,7 @@ import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { PlantillasEtiqueta } from "@/componentes/etiquetas/plantillas-etiqueta";
 
 interface Config {
   logoUrl: string | null;
@@ -32,12 +33,20 @@ interface Config {
   prefijoEtiqueta: string;
   fondoLoginUrl: string | null;
   codigo: string | null;
+  tipoNegocio: "celular" | "computador" | "patineta" | "otro" | null;
 }
 
 const TEMAS: { valor: Config["tema"]; etiqueta: string }[] = [
   { valor: "claro", etiqueta: "Claro" },
   { valor: "oscuro", etiqueta: "Oscuro" },
   { valor: "alto_contraste", etiqueta: "Alto contraste" },
+];
+
+const TIPOS_NEGOCIO: { valor: NonNullable<Config["tipoNegocio"]>; etiqueta: string }[] = [
+  { valor: "celular", etiqueta: "Celulares" },
+  { valor: "computador", etiqueta: "Computadores" },
+  { valor: "patineta", etiqueta: "Patinetas" },
+  { valor: "otro", etiqueta: "Otro" },
 ];
 
 export default function PaginaConfiguracion() {
@@ -368,6 +377,26 @@ export default function PaginaConfiguracion() {
         </Tarjeta>
 
         <Tarjeta>
+          <h2 style={{ marginBottom: 12 }}>Tipo de negocio</h2>
+          <div className="fila" style={{ gap: 8 }}>
+            {TIPOS_NEGOCIO.map((t) => (
+              <Boton
+                key={t.valor}
+                variante={config.tipoNegocio === t.valor ? "primario" : "contorno"}
+                onClick={() => guardar({ tipoNegocio: t.valor })}
+                disabled={guardando}
+                aria-pressed={config.tipoNegocio === t.valor}
+              >
+                {t.etiqueta}
+              </Boton>
+            ))}
+          </div>
+          <p className="campo-ayuda">
+            Define qué tipo de equipo propone Recibir equipo por defecto, en vez de tener que elegirlo cada vez.
+          </p>
+        </Tarjeta>
+
+        <Tarjeta>
           <h2 style={{ marginBottom: 12 }}>Etiqueta de trazabilidad</h2>
           <Campo
             etiqueta="Prefijo del código de entrada"
@@ -384,19 +413,14 @@ export default function PaginaConfiguracion() {
           </Campo>
         </Tarjeta>
 
+        <PlantillasEtiqueta empresaId={empresaId} />
+
         <Tarjeta>
-          <h2 style={{ marginBottom: 12 }}>Compras</h2>
-          <Campo
-            etiqueta="WhatsApp del proveedor"
-            ayuda="A este número se manda la lista de faltantes desde /compras."
-          >
-            <input
-              placeholder="57300000000"
-              defaultValue={config.whatsappProveedor ?? ""}
-              onBlur={(e) => guardar({ whatsappProveedor: e.target.value || null })}
-              className="cifra"
-            />
-          </Campo>
+          <h2 style={{ marginBottom: 6 }}>Compras</h2>
+          <p style={{ margin: 0, fontSize: 13, color: "var(--ink-2)" }}>
+            Los números de WhatsApp para enviar pedidos (mensajero, almacén, proveedor…) se configuran ahora en{" "}
+            <a href="/compras">Compras</a>.
+          </p>
         </Tarjeta>
 
         {mensaje && (

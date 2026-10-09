@@ -30,7 +30,10 @@ interface OrdenContexto {
   marca: string | null;
   modelo: string | null;
   token_publico: string;
+  total: number;
 }
+
+const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
 interface Paso {
   href: string;
@@ -81,6 +84,14 @@ export function CabeceraOrden({
             </p>
           )}
         </div>
+        {orden && Number(orden.total) > 0 && (
+          <div style={{ textAlign: "right", flexShrink: 0 }}>
+            <div style={{ fontSize: 11, color: "var(--ink-3)" }}>Total</div>
+            <div className="cifra" style={{ fontSize: 16, fontWeight: 800 }}>
+              {fmt(Number(orden.total))}
+            </div>
+          </div>
+        )}
         <Boton
           variante="fantasma"
           tamano="sm"

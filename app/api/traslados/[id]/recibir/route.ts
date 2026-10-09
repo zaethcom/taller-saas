@@ -10,6 +10,7 @@
  */
 import { NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { obtenerSedeActivaId } from "@/lib/perfil";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,6 +24,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   }
 
   const { data: perfil } = await supabase.from("perfil").select("empresa_id, sede_id").eq("id", user.id).single();
+  const sedeActivaId = await obtenerSedeActivaId(supabase);
 
   const { data: traslado, error: errTraslado } = await supabase
     .from("traslado")
@@ -36,7 +38,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (traslado.estado !== "enviado") {
     return NextResponse.json({ error: "este traslado ya fue procesado" }, { status: 409 });
   }
-  if (traslado.sede_destino_id !== perfil?.sede_id) {
+  if (traslado.sede_destino_id !== sedeActivaId) {
     return NextResponse.json({ error: "este traslado no es para tu sede" }, { status: 403 });
   }
 

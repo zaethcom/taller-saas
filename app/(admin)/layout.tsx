@@ -47,6 +47,11 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
     );
   }
 
+  // Con varias sedes permitidas, nadie trabaja sin decir en cuál está
+  // (lib/sede-activa.ts) -- si no, la venta o el turno caerían en una
+  // sede adivinada.
+  if (!perfil.sedeId && perfil.sedesPermitidas.length > 1) redirect("/elegir-sede");
+
   const config = await obtenerConfiguracion(supabase, perfil.empresaId);
 
   const items: ItemNavLateral[] = [
@@ -65,7 +70,9 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
     { href: "/usuarios", etiqueta: "Usuarios", icono: <Users size={18} strokeWidth={2} /> },
     { href: "/metodos-pago", etiqueta: "Métodos de pago", icono: <CreditCard size={18} strokeWidth={2} /> },
     { href: "/clientes", etiqueta: "Clientes (CRM)", icono: <Contact size={18} strokeWidth={2} /> },
-    { href: "/reportes", etiqueta: "Reportes", icono: <BarChart3 size={18} strokeWidth={2} /> },
+    ...(puede(perfil.rol, "ver_reportes")
+      ? [{ href: "/reportes", etiqueta: "Reportes", icono: <BarChart3 size={18} strokeWidth={2} /> }]
+      : []),
     ...(puede(perfil.rol, "personalizar_empresa")
       ? [{ href: "/configuracion", etiqueta: "Configuración", icono: <Settings size={18} strokeWidth={2} /> }]
       : []),
@@ -81,7 +88,7 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
         pie={<BloqueMarca imagenUrl={config.imagenMarcaUrl} eslogan={config.eslogan} />}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <BarraSuperior nombre={perfil.nombre} rol={perfil.rol} puerta="admin" />
+        <BarraSuperior nombre={perfil.nombre} rol={perfil.rol} sedeNombre={perfil.sedeNombre} puedeCambiarSede={perfil.sedesPermitidas.length > 1} puerta="admin" />
         <main style={{ padding: 20, maxWidth: 1180, margin: "0 auto" }}>{children}</main>
       </div>
     </div>

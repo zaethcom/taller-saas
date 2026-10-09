@@ -1,7 +1,7 @@
 /**
  * POST /api/ventas
  * Body: { items: {repuestoId?, articuloId?, descripcion, cantidad, precioUnit}[],
- *          metodoPagoId, montoRecibido?, ordenId? }
+ *          metodoPagoId, montoRecibido?, ordenId?, imprimir? }
  *
  * Registra una venta de mostrador (o el cobro de una orden si se manda
  * ordenId). Cada item sale del inventario de una de dos maneras: un
@@ -18,6 +18,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { obtenerSedeActivaId } from "@/lib/perfil";
 import { encolarImpresion } from "@/lib/impresion";
 
 interface ItemVenta {
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
     metodoPagoId: string;
     montoRecibido?: number;
     ordenId?: string;
+    imprimir?: boolean;
   };
 
   if (!body.items?.length) {
@@ -56,9 +58,10 @@ export async function POST(req: NextRequest) {
     .select("empresa_id, sede_id, nombre, codigo")
     .eq("id", user.id)
     .single();
+  const sedeActivaId = await obtenerSedeActivaId(supabase);
 
-  if (!perfil?.sede_id) {
-    return NextResponse.json({ error: "el usuario no tiene sede asignada" }, { status: 400 });
+  if (!perfil || !sedeActivaId) {
+    return NextResponse.json({ error: "elige la sede en la que estás trabajando" }, { status: 400 });
   }
 
   const { data: metodo } = await supabase
@@ -74,7 +77,7 @@ export async function POST(req: NextRequest) {
   const { data: turno } = await supabase
     .from("turno_caja")
     .select("id")
-    .eq("sede_id", perfil.sede_id)
+    .eq("sede_id", sedeActivaId)
     .is("cerrado_en", null)
     .order("abierto_en", { ascending: false })
     .limit(1)
@@ -94,7 +97,7 @@ export async function POST(req: NextRequest) {
       .select("id")
       .eq("id", item.articuloId)
       .eq("estado", "en_stock")
-      .eq("sede_id", perfil.sede_id)
+      .eq("sede_id", sedeActivaId)
       .maybeSingle();
     if (!articulo) {
       return NextResponse.json(
@@ -114,7 +117,7 @@ export async function POST(req: NextRequest) {
     .from("venta")
     .insert({
       empresa_id: perfil.empresa_id,
-      sede_id: perfil.sede_id,
+      sede_id: sedeActivaId,
       turno_id: turno.id,
       orden_id: body.ordenId ?? null,
       tipo: body.ordenId ? "servicio" : "mostrador",
@@ -151,11 +154,17 @@ export async function POST(req: NextRequest) {
   // en esta sede, mover_existencia lanza -- se deja que falle: es
   // preferible una venta con un item sin descontar visible en logs a
   // fingir que el inventario cuadra cuando no cuadra.
+  //
+  // Cuando la venta trae ordenId, los items son orden_item (Fase 5 del
+  // Plan 1): ya se descontaron del inventario en el momento en que el
+  // técnico los consumió (POST /api/ordenes/[id]/repuestos, acción
+  // "consumir") -- esto solo cobra lo que ya se usó, no debe volver a
+  // mover existencia o se descuenta dos veces.
   for (const item of body.items) {
-    if (item.repuestoId) {
+    if (item.repuestoId && !body.ordenId) {
       await supabase.rpc("mover_existencia", {
         p_repuesto_id: item.repuestoId,
-        p_sede_id: perfil.sede_id,
+        p_sede_id: sedeActivaId,
         p_delta: -item.cantidad,
         p_tipo: "venta",
         p_referencia_id: venta.id,
@@ -168,13 +177,13 @@ export async function POST(req: NextRequest) {
         .update({ estado: "vendido" })
         .eq("id", item.articuloId)
         .eq("estado", "en_stock")
-        .eq("sede_id", perfil.sede_id)
+        .eq("sede_id", sedeActivaId)
         .select("id")
         .maybeSingle();
       if (articuloVendido) {
         await supabase.from("movimiento_inventario").insert({
           empresa_id: perfil.empresa_id,
-          sede_id: perfil.sede_id,
+          sede_id: sedeActivaId,
           articulo_id: item.articuloId,
           tipo: "venta",
           estado_anterior: "en_stock",
@@ -189,7 +198,7 @@ export async function POST(req: NextRequest) {
 
   await encolarImpresion(supabase, {
     empresaId: perfil.empresa_id,
-    sedeId: perfil.sede_id,
+    sedeId: sedeActivaId,
     tipo: "recibo_venta",
     creadoPor: user.id,
     carga: {
@@ -205,6 +214,7 @@ export async function POST(req: NextRequest) {
       cajero: perfil.codigo ? `${perfil.codigo} · ${perfil.nombre}` : perfil.nombre,
       montoRecibido: metodo.es_efectivo ? body.montoRecibido ?? null : null,
       cambio: metodo.es_efectivo && body.montoRecibido ? body.montoRecibido - total : null,
+      imprimir: body.imprimir ?? true,
     },
   });
 

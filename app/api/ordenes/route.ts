@@ -3,7 +3,7 @@
  * Body: {
  *   clienteId?: string, clienteNuevo?: {nombre, documento?, telefono?, correo?},
  *   productoId?: string, productoNuevo?: {serial, tipo, marca?, modelo?},
- *   motivo: string,
+ *   motivo: string, infoAdicional?: string,
  * }
  *
  * El punto de entrada de todo el sistema: recibir un equipo. Reutiliza
@@ -14,6 +14,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { obtenerSedeActivaId } from "@/lib/perfil";
 import { encolarImpresion } from "@/lib/impresion";
 import { notificarCliente } from "@/lib/mensajeria/notificar";
 
@@ -31,12 +32,20 @@ interface ProductoNuevo {
   modelo?: string;
 }
 
+interface AccesoDispositivo {
+  tipo: "pin3" | "pin4" | "pin6" | "patron" | "otro";
+  valor: string;
+  nota?: string;
+}
+
 interface CuerpoOrden {
   clienteId?: string;
   clienteNuevo?: ClienteNuevo;
   productoId?: string;
   productoNuevo?: ProductoNuevo;
   motivo: string;
+  infoAdicional?: string;
+  acceso?: AccesoDispositivo;
 }
 
 export async function POST(req: NextRequest) {
@@ -65,9 +74,10 @@ export async function POST(req: NextRequest) {
     .select("empresa_id, sede_id")
     .eq("id", user.id)
     .single();
+  const sedeActivaId = await obtenerSedeActivaId(supabase);
 
-  if (!perfil?.sede_id) {
-    return NextResponse.json({ error: "el usuario no tiene sede asignada" }, { status: 400 });
+  if (!perfil || !sedeActivaId) {
+    return NextResponse.json({ error: "elige la sede en la que estás trabajando" }, { status: 400 });
   }
 
   let clienteId = body.clienteId;
@@ -107,9 +117,10 @@ export async function POST(req: NextRequest) {
     .from("orden")
     .insert({
       empresa_id: perfil.empresa_id,
-      sede_id: perfil.sede_id,
+      sede_id: sedeActivaId,
       producto_id: productoId,
       motivo: body.motivo.trim(),
+      info_adicional: body.infoAdicional?.trim() || null,
     })
     .select("id, numero, token_publico")
     .single();
@@ -125,6 +136,17 @@ export async function POST(req: NextRequest) {
     autor_id: user.id,
     nota: "Recepción inicial",
   });
+
+  if (body.acceso?.valor?.trim()) {
+    await supabase.from("orden_acceso").insert({
+      empresa_id: perfil.empresa_id,
+      orden_id: orden.id,
+      tipo: body.acceso.tipo,
+      valor: body.acceso.valor.trim(),
+      nota: body.acceso.nota?.trim() || null,
+      creado_por: user.id,
+    });
+  }
 
   const [{ data: producto }, { data: config }] = await Promise.all([
     supabase
@@ -153,7 +175,7 @@ export async function POST(req: NextRequest) {
 
   await encolarImpresion(supabase, {
     empresaId: perfil.empresa_id,
-    sedeId: perfil.sede_id,
+    sedeId: sedeActivaId,
     tipo: "comprobante_recepcion",
     creadoPor: user.id,
     carga: {
@@ -171,7 +193,7 @@ export async function POST(req: NextRequest) {
 
   await encolarImpresion(supabase, {
     empresaId: perfil.empresa_id,
-    sedeId: perfil.sede_id,
+    sedeId: sedeActivaId,
     tipo: "etiqueta_qr",
     creadoPor: user.id,
     ordenId: orden.id,
@@ -179,8 +201,9 @@ export async function POST(req: NextRequest) {
     // código de entrada) y el mismo código en texto grande como respaldo
     // si el QR no se puede leer. El resto de los datos (empresa, serial,
     // marca/modelo, número de orden) ya van en el comprobante impreso
-    // arriba, que sí tiene espacio.
-    carga: { codigoEntrada },
+    // arriba, que sí tiene espacio. `producto` solo lo imprime una
+    // plantilla de etiqueta más grande que lo pida (0046).
+    carga: { codigoEntrada, producto: nombreProducto },
   });
 
   const esCelular = /cel|tel[eé]fono|smartphone/i.test(producto?.tipo ?? "");

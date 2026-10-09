@@ -12,12 +12,121 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Camera, Wrench, Package, ChevronRight, ArrowRight } from "lucide-react";
+import { Camera, Wrench, Package, ChevronRight, ArrowRight, KeyRound, Eye, Clock, Check } from "lucide-react";
 import { ETIQUETA_ESTADO, siguientesEstados, type Estado } from "@/lib/estados";
+import { puede, type Rol } from "@/lib/permisos";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Aviso } from "@/componentes/ui/campo";
 import { EstadoOrden } from "@/componentes/ui/estado-orden";
+import { HiloMensajes, type Mensaje } from "@/componentes/mensajeria/hilo-mensajes";
+
+const ETIQUETA_TIPO_ACCESO: Record<string, string> = {
+  pin3: "PIN de 3",
+  pin4: "PIN de 4",
+  pin6: "PIN de 6",
+  patron: "Patrón",
+  otro: "Otro",
+};
+
+/** Panel con el PIN/patrón del equipo -- se carga solo al tocar "Ver",
+ *  nunca automático con el resto de la orden, para no exponerlo sin
+ *  necesidad en una pantalla que puede estar a la vista del cliente. */
+function PanelAcceso({ ordenId }: { ordenId: string }) {
+  const [acceso, setAcceso] = useState<{ tipo: string; valor: string; nota: string | null } | null | undefined>(
+    undefined,
+  );
+  const [cargando, setCargando] = useState(false);
+
+  async function verAcceso() {
+    setCargando(true);
+    try {
+      const res = await fetch(`/api/ordenes/${ordenId}/acceso`);
+      setAcceso(res.ok ? await res.json() : null);
+    } catch {
+      setAcceso(null);
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  return (
+    <Tarjeta>
+      <h2 style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
+        <KeyRound size={19} strokeWidth={2} color="var(--ink-2)" aria-hidden />
+        Acceso al equipo
+      </h2>
+      {acceso === undefined ? (
+        <Boton variante="contorno" icono={<Eye size={16} strokeWidth={2} />} onClick={verAcceso} disabled={cargando}>
+          {cargando ? "Cargando…" : "Ver código de acceso"}
+        </Boton>
+      ) : acceso === null ? (
+        <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>No se registró información de acceso.</p>
+      ) : (
+        <div>
+          <div className="campo-etiqueta">{ETIQUETA_TIPO_ACCESO[acceso.tipo] ?? acceso.tipo}</div>
+          <div className="cifra" style={{ fontSize: 20, fontWeight: 800 }}>
+            {acceso.tipo === "patron" ? acceso.valor.split("-").join(" → ") : acceso.valor}
+          </div>
+          {acceso.nota && (
+            <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--ink-2)" }}>{acceso.nota}</p>
+          )}
+        </div>
+      )}
+    </Tarjeta>
+  );
+}
+
+interface Evento {
+  estado: string;
+  etiqueta: string;
+  nota: string | null;
+  fecha: string;
+}
+
+/** Mismo formato de timeline que ya usa app/(publico)/seguimiento/[token]/page.tsx,
+ *  del lado del técnico/admin -- Fase 8 del Plan 1. La nota (si hay)
+ *  solo se muestra acá, no en el enlace público del cliente. */
+function Historial({ eventos }: { eventos: Evento[] }) {
+  if (eventos.length === 0) return null;
+  return (
+    <section>
+      <h2 style={{ marginBottom: 12 }}>Historial</h2>
+      <Tarjeta>
+        <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 14 }}>
+          {eventos.map((e, i) => (
+            <li key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 26,
+                  height: 26,
+                  borderRadius: "50%",
+                  background: i === eventos.length - 1 ? "var(--accent)" : "var(--surface-2)",
+                  color: i === eventos.length - 1 ? "var(--accent-texto)" : "var(--ink-3)",
+                  flexShrink: 0,
+                }}
+              >
+                {i === eventos.length - 1 ? <Clock size={14} strokeWidth={2.4} /> : <Check size={14} strokeWidth={2.6} />}
+              </span>
+              <span>
+                <span style={{ display: "block", fontSize: 14, fontWeight: 700 }}>{e.etiqueta}</span>
+                <span className="cifra" style={{ display: "block", fontSize: 12, color: "var(--ink-3)" }}>
+                  {new Date(e.fecha).toLocaleString("es-CO")}
+                </span>
+                {e.nota && (
+                  <span style={{ display: "block", fontSize: 13, color: "var(--ink-2)", marginTop: 2 }}>{e.nota}</span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </Tarjeta>
+    </section>
+  );
+}
 
 interface OrdenTecnico {
   id: string;
@@ -29,7 +138,10 @@ interface OrdenTecnico {
   marca: string | null;
   modelo: string | null;
   cliente_nombre: string;
+  total: number;
 }
+
+const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
 function Acceso({ href, icono, titulo, descripcion }: { href: string; icono: React.ReactNode; titulo: string; descripcion: string }) {
   return (
@@ -73,15 +185,42 @@ export default function PaginaOrdenTecnico() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [orden, setOrden] = useState<OrdenTecnico | null>(null);
+  const [rol, setRol] = useState<Rol | null>(null);
   const [cambiando, setCambiando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mensajes, setMensajes] = useState<Mensaje[]>([]);
+  const [eventos, setEventos] = useState<Evento[]>([]);
 
   useEffect(() => {
     fetch(`/api/ordenes/${id}`)
       .then((r) => r.json())
       .then(setOrden)
       .catch(() => setError("No se pudo cargar la orden"));
+    fetch("/api/perfil")
+      .then((r) => r.json())
+      .then((p) => setRol(p.rol ?? null))
+      .catch(() => {});
+    fetch(`/api/ordenes/${id}/eventos`)
+      .then((r) => r.json())
+      .then((data) => setEventos(Array.isArray(data) ? data : []))
+      .catch(() => {});
+    cargarMensajes();
   }, [id]);
+
+  async function cargarMensajes() {
+    const res = await fetch(`/api/ordenes/${id}/mensajes`);
+    if (res.ok) setMensajes(await res.json());
+  }
+
+  async function enviarMensaje(texto: string) {
+    const res = await fetch(`/api/ordenes/${id}/mensajes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+    await cargarMensajes();
+  }
 
   async function avanzar(aEstado: Estado) {
     setCambiando(true);
@@ -95,6 +234,10 @@ export default function PaginaOrdenTecnico() {
       if (!res.ok) throw new Error((await res.json()).error);
       router.refresh();
       setOrden((prev) => (prev ? { ...prev, estado: aEstado } : prev));
+      fetch(`/api/ordenes/${id}/eventos`)
+        .then((r) => r.json())
+        .then((data) => setEventos(Array.isArray(data) ? data : []))
+        .catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo cambiar el estado");
     } finally {
@@ -128,8 +271,16 @@ export default function PaginaOrdenTecnico() {
             <span style={{ color: "var(--ink-3)" }}>Motivo · </span>
             {orden.motivo}
           </div>
+          {Number(orden.total) > 0 && (
+            <div>
+              <span style={{ color: "var(--ink-3)" }}>Total · </span>
+              <strong className="cifra">{fmt(Number(orden.total))}</strong>
+            </div>
+          )}
         </div>
       </Tarjeta>
+
+      {rol && puede(rol, "ver_acceso_dispositivo") && <PanelAcceso ordenId={id} />}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <Acceso
@@ -172,6 +323,13 @@ export default function PaginaOrdenTecnico() {
           </div>
         </Tarjeta>
       )}
+
+      <Historial eventos={eventos} />
+
+      <div>
+        <h2 style={{ marginBottom: 12 }}>Mensajes</h2>
+        <HiloMensajes mensajes={mensajes} ladoPropio="staff" onEnviar={enviarMensaje} placeholder="Responder al cliente…" />
+      </div>
 
       {error && <Aviso tono="peligro">{error}</Aviso>}
     </div>
