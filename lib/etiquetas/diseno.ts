@@ -23,6 +23,8 @@ export interface SvgEtiqueta {
   altoDots: number;
   /** Problemas que no impiden imprimir pero que conviene ver en la vista previa. */
   avisos: string[];
+  /** Dónde va el logo de la empresa (renderizar.ts lo baja y lo pega ahí). */
+  logo?: { url: string; x: number; y: number; ancho: number; alto: number };
 }
 
 export function mmADots(mm: number, dpi: number): number {
@@ -55,6 +57,10 @@ interface Linea {
   negrita: boolean;
   /** El código en texto: se achica en vez de recortarse. */
   entero?: boolean;
+  /** Eslogan: una raya a cada lado, como en el diseño de marca. */
+  conRayas?: boolean;
+  /** Código en recuadro negro con «CÓDIGO:» (diseño de marca con QR). */
+  enCaja?: boolean;
 }
 
 function ajustar(l: Linea, anchoDots: number): Linea {
@@ -65,6 +71,49 @@ function ajustar(l: Linea, anchoDots: number): Linea {
 
 function texto(x: number, y: number, l: Linea, ancla: "start" | "middle"): string {
   return textoEnPixeles(l.texto, x, y, l.fuente, ancla, l.negrita, escaparXml);
+}
+
+const ETIQUETA_CAJA = "CÓDIGO:";
+
+/** «CÓDIGO:» va más chico que los demás textos, para dejarle el espacio al código. */
+function fuenteCaja(fuenteChica: number): number {
+  return Math.max(13, Math.round(fuenteChica * 0.7));
+}
+
+/** Ancho de la parte negra de la caja del código (donde va «CÓDIGO:»). */
+function anchoCaja(fuenteChica: number): number {
+  const f = fuenteCaja(fuenteChica);
+  return anchoTexto(ETIQUETA_CAJA, f) + f * 2;
+}
+
+/** Una raya a cada lado del eslogan, centrada en la altura de la letra. */
+function rayas(l: Linea, x0: number, w: number, yMedio: number, trazo: number, separacion: number): string {
+  const ancho = anchoTexto(l.texto, l.fuente);
+  const centro = x0 + w / 2;
+  const grosor = Math.max(1, Math.round(trazo / 2));
+  const largo = Math.max(0, Math.round((w - ancho) / 2 - separacion * 2));
+  if (largo < separacion) return "";
+  const y = yMedio - Math.floor(grosor / 2);
+  const izq = Math.round(centro - ancho / 2 - separacion * 2 - largo);
+  const der = Math.round(centro + ancho / 2 + separacion * 2);
+  return `<rect x="${izq}" y="${y}" width="${largo}" height="${grosor}" fill="black"/><rect x="${der}" y="${y}" width="${largo}" height="${grosor}" fill="black"/>`;
+}
+
+/** Recuadro negro con «CÓDIGO:» en blanco y el código en negro dentro de una caja blanca. */
+function cajaCodigo(l: Linea, x0: number, y: number, w: number, alto: number, fuenteChica: number, trazo: number): string {
+  const radio = Math.round(alto / 4);
+  const negro = anchoCaja(fuenteChica);
+  const f = fuenteCaja(fuenteChica);
+  const etiqueta = textoEnPixeles(ETIQUETA_CAJA, x0 + f, y + Math.round((alto + f) / 2), f, "start", true, escaparXml, "white");
+  const bx = x0 + negro;
+  const bw = w - negro - trazo;
+  const codigo = texto(bx + bw / 2, y + Math.round((alto + l.fuente) / 2), l, "middle");
+  return (
+    `<rect x="${x0}" y="${y}" width="${w}" height="${alto}" rx="${radio}" fill="black"/>` +
+    etiqueta +
+    `<rect x="${bx}" y="${y + trazo}" width="${bw}" height="${alto - trazo * 2}" rx="${Math.max(1, radio - trazo)}" fill="white"/>` +
+    codigo
+  );
 }
 
 function qrSvg(contenido: string, x: number, y: number, lado: number): { svg: string; modulo: number } {
@@ -137,6 +186,11 @@ export function disenarEtiqueta(p: DisenoEtiqueta, datos: DatosEtiqueta, conFond
   const empresa = quiere("empresa") && datos.empresa ? datos.empresa : null;
   const descripcion = quiere("descripcion") && datos.descripcion ? datos.descripcion : null;
   const textoCodigo = quiere("texto_codigo") ? datos.codigo : null;
+  const logoUrl = quiere("logo") && datos.logoUrl ? datos.logoUrl : null;
+  const eslogan = quiere("eslogan") && datos.eslogan ? datos.eslogan : null;
+  if (quiere("logo") && !datos.logoUrl) avisos.push("La empresa no tiene logo cargado: súbalo en Configuración > Marca.");
+  if (quiere("eslogan") && !datos.eslogan) avisos.push("La empresa no tiene eslogan: escríbalo en Configuración > Marca.");
+  let logo: SvgEtiqueta["logo"];
 
   const partes: string[] = [];
   if (!conFondo) partes.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="white"/>`);
@@ -151,7 +205,8 @@ export function disenarEtiqueta(p: DisenoEtiqueta, datos: DatosEtiqueta, conFond
   if (textoCodigo) textosLaterales.push({ texto: textoCodigo, fuente: fuenteCodigo, negrita: true, entero: true });
   if (descripcion) textosLaterales.push({ texto: descripcion, fuente: fuenteChica, negrita: false });
 
-  const apaisadoConQr = p.codigo === "qr" && textosLaterales.length > 0 && w >= h * 1.6;
+  // Con logo o eslogan es el diseño de marca, siempre apilado.
+  const apaisadoConQr = p.codigo === "qr" && !logoUrl && !eslogan && textosLaterales.length > 0 && w >= h * 1.6;
   let moduloCodigo = 0;
 
   if (apaisadoConQr) {
@@ -172,22 +227,39 @@ export function disenarEtiqueta(p: DisenoEtiqueta, datos: DatosEtiqueta, conFond
       ty += l.fuente * 0.25;
     }
   } else {
-    // Apilado: empresa arriba; código; código en texto y descripción abajo.
-    const arriba: Linea[] = empresa ? [ajustar({ texto: empresa, fuente: fuenteChica, negrita: true }, w)] : [];
+    // Apilado: logo, eslogan y empresa arriba; código; código en texto y
+    // descripción abajo.
+    const altoLogo = logoUrl ? Math.round(h * 0.27) : 0;
+    const arriba: Linea[] = [];
+    if (eslogan) arriba.push({ texto: eslogan, fuente: fuenteChica, negrita: false, conRayas: true, entero: true });
+    if (empresa) arriba.push({ texto: empresa, fuente: fuenteChica, negrita: true });
     const abajo: Linea[] = [];
-    if (textoCodigo) abajo.push({ texto: textoCodigo, fuente: fuenteCodigo, negrita: true, entero: true });
+    if (textoCodigo) {
+      const enCaja = Boolean(logoUrl || eslogan) && p.codigo === "qr";
+      abajo.push({ texto: textoCodigo, fuente: fuenteCodigo, negrita: true, entero: true, enCaja });
+    }
     if (descripcion) abajo.push({ texto: descripcion, fuente: fuenteChica, negrita: false });
-    const abajoAjustado = abajo.map((l) => ajustar(l, w));
+    const anchoUtil = (l: Linea) => (l.conRayas ? w - separacion * 8 : l.enCaja ? w - anchoCaja(fuenteChica) - separacion * 2 : w);
+    const arribaAjustado = arriba.map((l) => ajustar(l, anchoUtil(l)));
+    const abajoAjustado = abajo.map((l) => ajustar(l, anchoUtil(l)));
 
-    const altoLinea = (l: Linea) => Math.round(l.fuente * 1.2);
-    const altoArriba = arriba.reduce((s, l) => s + altoLinea(l), 0) + (arriba.length ? separacion : 0);
+    const altoLinea = (l: Linea) => Math.round(l.fuente * (l.enCaja ? 2 : 1.2));
+    const altoArriba =
+      (logoUrl ? altoLogo + separacion : 0) +
+      arribaAjustado.reduce((s, l) => s + altoLinea(l), 0) +
+      (arribaAjustado.length ? separacion : 0);
     const altoAbajo = abajoAjustado.reduce((s, l) => s + altoLinea(l), 0) + (abajoAjustado.length ? separacion : 0);
     const altoCodigo = Math.max(0, h - altoArriba - altoAbajo);
 
     let ty = y0;
-    for (const l of arriba) {
+    if (logoUrl) {
+      logo = { url: logoUrl, x: x0, y: y0, ancho: w, alto: altoLogo };
+      ty += altoLogo + separacion;
+    }
+    for (const l of arribaAjustado) {
       ty += l.fuente;
       partes.push(texto(W / 2, Math.round(ty), l, "middle"));
+      if (l.conRayas) partes.push(rayas(l, x0, w, Math.round(ty - l.fuente / 2), trazo, separacion));
       ty += altoLinea(l) - l.fuente;
     }
     const yCodigo = y0 + altoArriba;
@@ -212,6 +284,11 @@ export function disenarEtiqueta(p: DisenoEtiqueta, datos: DatosEtiqueta, conFond
 
     ty = yCodigo + altoCodigo + separacion;
     for (const l of abajoAjustado) {
+      if (l.enCaja) {
+        partes.push(cajaCodigo(l, x0, Math.round(ty), w, altoLinea(l), fuenteChica, trazo));
+        ty += altoLinea(l);
+        continue;
+      }
       ty += l.fuente;
       partes.push(texto(W / 2, Math.round(ty), l, "middle"));
       ty += altoLinea(l) - l.fuente;
@@ -223,5 +300,5 @@ export function disenarEtiqueta(p: DisenoEtiqueta, datos: DatosEtiqueta, conFond
   }
 
   const svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${partes.join("")}</svg>`;
-  return { svg, anchoDots: W, altoDots: H, avisos };
+  return { svg, anchoDots: W, altoDots: H, avisos, logo };
 }

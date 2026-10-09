@@ -7,7 +7,7 @@
 
 export type UsoEtiqueta = "orden" | "articulo" | "repuesto";
 export type TipoCodigo = "qr" | "barras";
-export type CampoEtiqueta = "empresa" | "texto_codigo" | "descripcion" | "marco";
+export type CampoEtiqueta = "logo" | "eslogan" | "empresa" | "texto_codigo" | "descripcion" | "marco";
 
 export interface DisenoEtiqueta {
   anchoMm: number;
@@ -32,6 +32,9 @@ export interface DatosEtiqueta {
   codigo: string;
   empresa?: string | null;
   descripcion?: string | null;
+  /** Logo y eslogan de la empresa (Configuración > Marca), para las plantillas que los piden. */
+  logoUrl?: string | null;
+  eslogan?: string | null;
 }
 
 export const USOS: { valor: UsoEtiqueta; etiqueta: string; ayuda: string }[] = [
@@ -41,6 +44,8 @@ export const USOS: { valor: UsoEtiqueta; etiqueta: string; ayuda: string }[] = [
 ];
 
 export const CAMPOS: { valor: Exclude<CampoEtiqueta, "marco">; etiqueta: string }[] = [
+  { valor: "logo", etiqueta: "Logo de la empresa" },
+  { valor: "eslogan", etiqueta: "Eslogan de la empresa" },
   { valor: "texto_codigo", etiqueta: "Código en texto" },
   { valor: "empresa", etiqueta: "Nombre de la empresa" },
   { valor: "descripcion", etiqueta: "Descripción (equipo, artículo o repuesto)" },
@@ -57,7 +62,7 @@ export const DATOS_EJEMPLO: Record<UsoEtiqueta, DatosEtiqueta> = {
 export const ETIQUETA_DE_FABRICA: Record<UsoEtiqueta, string> = {
   orden: "QR de 30 × 25 mm con el código de entrada",
   articulo: "código de barras con el código y la marca/modelo",
-  repuesto: "código de barras con la empresa y la descripción",
+  repuesto: "código de barras con la empresa, el código interno y la descripción",
 };
 
 /**
@@ -85,6 +90,12 @@ export const MODELOS: { id: string; nombre: string; uso: UsoEtiqueta; diseno: Om
     diseno: { anchoMm: 40, altoMm: 40, dpi: 203, codigo: "qr", campos: ["empresa", "texto_codigo"] },
   },
   {
+    id: "orden-55x60-logo",
+    nombre: "Equipo 55 × 60 QR con logo",
+    uso: "orden",
+    diseno: { anchoMm: 55, altoMm: 60, dpi: 203, codigo: "qr", campos: ["logo", "eslogan", "texto_codigo", "marco"] },
+  },
+  {
     id: "articulo-50x30",
     nombre: "Artículo 50 × 30 código de barras",
     uso: "articulo",
@@ -102,12 +113,18 @@ export const MODELOS: { id: string; nombre: string; uso: UsoEtiqueta; diseno: Om
     uso: "repuesto",
     diseno: { anchoMm: 50, altoMm: 25, dpi: 203, codigo: "barras", campos: ["empresa", "texto_codigo", "descripcion"] },
   },
+  {
+    id: "repuesto-55x60-logo",
+    nombre: "Repuesto 55 × 60 código de barras con logo",
+    uso: "repuesto",
+    diseno: { anchoMm: 55, altoMm: 60, dpi: 203, codigo: "barras", campos: ["logo", "eslogan", "texto_codigo", "descripcion", "marco"] },
+  },
 ];
 
 export const LIMITES = { anchoMin: 15, anchoMax: 104, altoMin: 10, altoMax: 150 } as const;
 
 const USOS_VALIDOS = new Set<string>(USOS.map((u) => u.valor));
-const CAMPOS_VALIDOS = new Set<string>(["empresa", "texto_codigo", "descripcion", "marco"]);
+const CAMPOS_VALIDOS = new Set<string>(["logo", "eslogan", "empresa", "texto_codigo", "descripcion", "marco"]);
 
 export type ResultadoValidacion =
   | { ok: true; valor: Omit<PlantillaEtiqueta, "id" | "activa"> }

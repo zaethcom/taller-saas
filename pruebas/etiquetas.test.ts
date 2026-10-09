@@ -100,8 +100,42 @@ describe("disenarEtiqueta", () => {
 
   it("no avisa nada con los modelos de fábrica", () => {
     for (const m of MODELOS) {
-      expect(disenarEtiqueta({ ...m.diseno, fondoUrl: null, girar: false }, DATOS_EJEMPLO[m.uso]).avisos).toEqual([]);
+      const datos = { ...DATOS_EJEMPLO[m.uso], logoUrl: "https://ejemplo.test/logo.png", eslogan: "Calidad en movimiento" };
+      expect(disenarEtiqueta({ ...m.diseno, fondoUrl: null, girar: false }, datos).avisos).toEqual([]);
     }
+  });
+});
+
+describe("diseño de marca (logo y eslogan)", () => {
+  const modelo = (id: string): DisenoEtiqueta => ({ ...MODELOS.find((m) => m.id === id)!.diseno, fondoUrl: null, girar: false });
+  const marca = { logoUrl: "https://ejemplo.test/logo.png", eslogan: "Calidad en movimiento" };
+
+  it("deja una caja arriba para el logo, del ancho útil", () => {
+    const r = disenarEtiqueta(modelo("orden-55x60-logo"), { codigo: "PS001234", ...marca });
+    expect(r.logo?.url).toBe(marca.logoUrl);
+    expect(r.logo!.y).toBeLessThan(r.altoDots / 4);
+    expect(r.logo!.ancho).toBeGreaterThan(r.anchoDots * 0.8);
+    expect(r.avisos).toEqual([]);
+  });
+
+  it("con QR, el código va en el recuadro «CÓDIGO:»", () => {
+    const r = disenarEtiqueta(modelo("orden-55x60-logo"), { codigo: "PS001234", ...marca });
+    expect(r.svg).toContain('aria-label="CÓDIGO:"');
+    expect(r.svg).toContain('aria-label="PS001234"');
+  });
+
+  it("el repuesto con logo lleva el código interno en texto y la descripción", () => {
+    const r = disenarEtiqueta(modelo("repuesto-55x60-logo"), { codigo: "REP-0042", descripcion: "Espejos laterales", ...marca });
+    expect(r.svg).toContain('aria-label="REP-0042"');
+    expect(r.svg).toContain('aria-label="Espejos laterales"');
+    expect(r.svg).not.toContain("CÓDIGO:");
+  });
+
+  it("avisa si la empresa no tiene logo ni eslogan, y la etiqueta sale igual", () => {
+    const r = disenarEtiqueta(modelo("orden-55x60-logo"), { codigo: "PS001234" });
+    expect(r.logo).toBeUndefined();
+    expect(r.avisos.join(" ")).toMatch(/logo/);
+    expect(r.avisos.join(" ")).toMatch(/eslogan/);
   });
 });
 
