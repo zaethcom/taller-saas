@@ -19,6 +19,7 @@ import { obtenerSedeActivaId } from "@/lib/perfil";
 import { encolarImpresion } from "@/lib/impresion";
 import { notificarCliente } from "@/lib/mensajeria/notificar";
 import { generarSerialEquipo } from "@/lib/serial-equipo";
+import { codigoEntrada as calcularCodigoEntrada } from "@/lib/codigo-entrada";
 
 interface ClienteNuevo {
   nombre: string;
@@ -178,10 +179,7 @@ export async function POST(req: NextRequest) {
 
   const urlSeguimiento = `${process.env.NEXT_PUBLIC_APP_URL}/seguimiento/${orden.token_publico}`;
   const nombreProducto = [producto?.marca, producto?.modelo].filter(Boolean).join(" ") || producto?.tipo || "";
-  // El "código de entrada" que se ve en la etiqueta: el prefijo que la
-  // empresa configuró (ej. "PS") + el número de orden, siempre
-  // recalculable desde ahí -- nunca se guarda en `orden`.
-  const codigoEntrada = `${config?.prefijo_etiqueta ?? "OR"}${String(orden.numero).padStart(6, "0")}`;
+  const codigoEntrada = calcularCodigoEntrada(config?.prefijo_etiqueta, orden.numero);
   // El join de Supabase infiere `cliente` como arreglo aunque la relación
   // sea 1:1.
   const cliente = producto?.cliente as unknown as

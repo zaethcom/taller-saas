@@ -12,7 +12,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Camera, Wrench, Package, ChevronRight, ArrowRight, KeyRound, Eye, Clock, Check } from "lucide-react";
+import { Camera, Wrench, Package, ChevronRight, ArrowRight, KeyRound, Eye, Clock, Check, Printer } from "lucide-react";
 import { ETIQUETA_ESTADO, siguientesEstados, type Estado } from "@/lib/estados";
 import { puede, type Rol } from "@/lib/permisos";
 import { Boton } from "@/componentes/ui/boton";
@@ -190,6 +190,8 @@ export default function PaginaOrdenTecnico() {
   const [error, setError] = useState<string | null>(null);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [eventos, setEventos] = useState<Evento[]>([]);
+  const [imprimiendo, setImprimiendo] = useState(false);
+  const [avisoEtiqueta, setAvisoEtiqueta] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/ordenes/${id}`)
@@ -220,6 +222,20 @@ export default function PaginaOrdenTecnico() {
     });
     if (!res.ok) throw new Error((await res.json()).error);
     await cargarMensajes();
+  }
+
+  async function reimprimirEtiqueta() {
+    setImprimiendo(true);
+    setAvisoEtiqueta(null);
+    try {
+      const res = await fetch(`/api/ordenes/${id}/etiqueta`, { method: "POST" });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setAvisoEtiqueta("Etiqueta enviada a la etiquetadora de esta sede.");
+    } catch (e) {
+      setAvisoEtiqueta(e instanceof Error ? e.message : "No se pudo reimprimir la etiqueta");
+    } finally {
+      setImprimiendo(false);
+    }
   }
 
   async function avanzar(aEstado: Estado) {
@@ -278,6 +294,21 @@ export default function PaginaOrdenTecnico() {
             </div>
           )}
         </div>
+        {rol && puede(rol, "reimprimir_etiqueta_orden") && (
+          <div style={{ marginTop: 14 }}>
+            <Boton
+              variante="contorno"
+              icono={<Printer size={16} strokeWidth={2} />}
+              onClick={reimprimirEtiqueta}
+              disabled={imprimiendo}
+            >
+              {imprimiendo ? "Enviando…" : "Reimprimir etiqueta"}
+            </Boton>
+            {avisoEtiqueta && (
+              <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--ink-2)" }}>{avisoEtiqueta}</p>
+            )}
+          </div>
+        )}
       </Tarjeta>
 
       {rol && puede(rol, "ver_acceso_dispositivo") && <PanelAcceso ordenId={id} />}
