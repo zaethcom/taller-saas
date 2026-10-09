@@ -2,7 +2,8 @@
  * POST /api/ordenes
  * Body: {
  *   clienteId?: string, clienteNuevo?: {nombre, documento?, telefono?, correo?},
- *   productoId?: string, productoNuevo?: {serial, tipo, marca?, modelo?},
+ *   productoId?: string, productoNuevo?: {serial?, tipo, marca?, modelo?},
+ *     (serial vacío: se genera uno, ver lib/serial-equipo.ts)
  *   motivo: string, infoAdicional?: string,
  * }
  *
@@ -17,6 +18,7 @@ import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
 import { encolarImpresion } from "@/lib/impresion";
 import { notificarCliente } from "@/lib/mensajeria/notificar";
+import { generarSerialEquipo } from "@/lib/serial-equipo";
 
 interface ClienteNuevo {
   nombre: string;
@@ -26,7 +28,7 @@ interface ClienteNuevo {
 }
 
 interface ProductoNuevo {
-  serial: string;
+  serial?: string;
   tipo: string;
   marca?: string;
   modelo?: string;
@@ -94,12 +96,25 @@ export async function POST(req: NextRequest) {
   }
 
   let productoId = body.productoId;
+  let serialGenerado: string | undefined;
   if (!productoId && body.productoNuevo) {
-    const { data: producto, error: errProducto } = await supabase
-      .from("producto")
-      .insert({ empresa_id: perfil.empresa_id, cliente_id: clienteId, ...body.productoNuevo })
-      .select("id")
-      .single();
+    const serialEscrito = body.productoNuevo.serial?.trim();
+    const insertarProducto = (serial: string) =>
+      supabase
+        .from("producto")
+        .insert({ empresa_id: perfil.empresa_id, cliente_id: clienteId, ...body.productoNuevo, serial })
+        .select("id")
+        .single();
+
+    let serial = serialEscrito || generarSerialEquipo();
+    let { data: producto, error: errProducto } = await insertarProducto(serial);
+    // Un serial generado que justo choca con otro (23505): se prueba con
+    // otro. Uno escrito a mano que choca sí es un error para quien recibe.
+    for (let intento = 0; !serialEscrito && errProducto?.code === "23505" && intento < 3; intento++) {
+      serial = generarSerialEquipo();
+      ({ data: producto, error: errProducto } = await insertarProducto(serial));
+    }
+    if (!serialEscrito && producto) serialGenerado = serial;
     if (errProducto || !producto) {
       // El error más probable: el serial ya existe en esta empresa
       // (unique (empresa_id, serial) en 0001_base.sql) -- el llamador
@@ -220,5 +235,5 @@ export async function POST(req: NextRequest) {
     usarWhatsappSecundario: esCelular,
   });
 
-  return NextResponse.json({ ok: true, ordenId: orden.id, numero: orden.numero });
+  return NextResponse.json({ ok: true, ordenId: orden.id, numero: orden.numero, serialGenerado });
 }
