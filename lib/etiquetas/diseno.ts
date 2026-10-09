@@ -70,7 +70,10 @@ function texto(x: number, y: number, l: Linea, ancla: "start" | "middle"): strin
 function qrSvg(contenido: string, x: number, y: number, lado: number): { svg: string; modulo: number } {
   const qr = QRCode.create(contenido, { errorCorrectionLevel: "M" });
   const n = qr.modules.size;
-  const modulo = Math.max(1, Math.floor(lado / n));
+  // El módulo se calcula dejando 2 módulos de silencio a cada lado dentro
+  // de `lado`: si no, el fondo blanco de abajo se sale del área del código
+  // y tapa el marco (pasaba en stickers donde el QR llena el ancho).
+  const modulo = Math.max(1, Math.floor(lado / (n + 4)));
   const real = modulo * n;
   const ox = x + Math.floor((lado - real) / 2);
   const oy = y + Math.floor((lado - real) / 2);
