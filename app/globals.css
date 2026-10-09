@@ -704,3 +704,23 @@ textarea.invalido {
   background: var(--ground);
   color: var(--ink);
 }
+
+/* Línea del carrito en /vender: en pantallas angostas el nombre va en su
+   propia fila y la cantidad, el total y el botón de quitar debajo, para
+   que el control de cantidad nunca tape el nombre. */
+.linea-carrito {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.linea-carrito-nombre {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+  .linea-carrito-nombre {
+    flex-basis: 100%;
+  }
+}
