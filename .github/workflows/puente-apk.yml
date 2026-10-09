@@ -45,6 +45,27 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('puente/**/*.gradle.kts', 'puente/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: gradle-${{ runner.os }}-
 
+      # Firma fija: sin ella cada APK sale con una llave distinta y Android
+      # obliga a desinstalar para actualizar, lo que borra la vinculación y
+      # las impresoras. PUENTE_KEYSTORE_B64 es el .jks (alias "puente") en
+      # base64; PUENTE_KEYSTORE_CLAVE, su contraseña.
+      - name: Llave de firma
+        env:
+          LLAVE_B64: ${{ secrets.PUENTE_KEYSTORE_B64 }}
+          LLAVE_CLAVE: ${{ secrets.PUENTE_KEYSTORE_CLAVE }}
+          EVENTO: ${{ github.event_name }}
+        run: |
+          if [ -n "$LLAVE_B64" ]; then
+            echo "$LLAVE_B64" | base64 -d > "$RUNNER_TEMP/puente.jks"
+            echo "PUENTE_KEYSTORE=$RUNNER_TEMP/puente.jks" >> "$GITHUB_ENV"
+            echo "PUENTE_KEYSTORE_CLAVE=$LLAVE_CLAVE" >> "$GITHUB_ENV"
+          elif [ "$EVENTO" = "workflow_dispatch" ]; then
+            echo "::error::Falta el secreto PUENTE_KEYSTORE_B64. Sin él el APK publicado no se instala encima del anterior."
+            exit 1
+          else
+            echo "::warning::Sin PUENTE_KEYSTORE_B64: se firma con una llave temporal de depuración."
+          fi
+
       - name: Compilar APK de depuración
         env:
           # Quedan dentro del APK: la versión se ve en la cabecera de la app,

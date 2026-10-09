@@ -33,7 +33,37 @@ android {
         versionName = "0.1.0-$revisionPuente"
     }
 
+    /*
+     * Firma FIJA para las compilaciones de CI.
+     *
+     * Sin esto cada ejecución del workflow firmaba con una llave de
+     * depuración nueva (el runner la genera de cero). Android no deja
+     * instalar encima de una app firmada con otra llave, así que cada
+     * actualización obligaba a desinstalar, y desinstalar borra la
+     * vinculación y las impresoras elegidas. Con una sola llave el APK
+     * nuevo se instala encima y conserva todo.
+     *
+     * La llave llega por los secretos PUENTE_KEYSTORE_B64 y
+     * PUENTE_KEYSTORE_CLAVE (ver el workflow). En local, sin ellos,
+     * queda la llave de depuración de la máquina.
+     */
+    val llavePuente = System.getenv("PUENTE_KEYSTORE")?.let { file(it) }?.takeIf { it.exists() }
+    val claveLlavePuente = System.getenv("PUENTE_KEYSTORE_CLAVE") ?: ""
+    signingConfigs {
+        if (llavePuente != null) {
+            create("puente") {
+                storeFile = llavePuente
+                storePassword = claveLlavePuente
+                keyAlias = "puente"
+                keyPassword = claveLlavePuente
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            if (llavePuente != null) signingConfig = signingConfigs.getByName("puente")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
