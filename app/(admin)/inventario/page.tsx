@@ -9,6 +9,7 @@ import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { FormularioRecepcion } from "@/componentes/inventario/formulario-recepcion";
 import { AjusteExistencia } from "@/componentes/inventario/ajuste-existencia";
+import { InterruptorEnVenta } from "@/componentes/inventario/interruptor-en-venta";
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
@@ -44,8 +45,10 @@ export default async function PaginaInventario() {
   const [{ data: existencias }, { data: articulos }] = await Promise.all([
     supabase
       .from("existencia")
+      // repuesto ( * ) y no la lista de columnas: en_venta (0044) puede no
+      // existir todavía en la base, y pedirla por nombre rompería la página.
       .select(
-        "cantidad, sede_id, repuesto:repuesto_id ( id, codigo, descripcion, precio_venta, imagen_url ), sede:sede_id ( nombre )",
+        "cantidad, sede_id, repuesto:repuesto_id ( * ), sede:sede_id ( nombre )",
       )
       .order("cantidad", { ascending: true }),
     supabase
@@ -71,7 +74,7 @@ export default async function PaginaInventario() {
           <div className="rejilla-catalogo">
             {(existencias ?? []).map((e, i) => {
               // @ts-expect-error -- join inferido como array
-              const repuesto = e.repuesto as { id: string; codigo: string; descripcion: string; precio_venta: number; imagen_url: string | null };
+              const repuesto = e.repuesto as { id: string; codigo: string; descripcion: string; precio_venta: number; imagen_url: string | null; en_venta?: boolean };
               if (!repuesto) return null;
               const bajo = e.cantidad <= 2;
               return (
@@ -104,6 +107,11 @@ export default async function PaginaInventario() {
                       <span className="cifra">{e.cantidad <= 0 ? "Agotado" : e.cantidad}</span>
                     </Etiqueta>
                   </div>
+                  {editable ? (
+                    <InterruptorEnVenta repuestoId={repuesto.id} enVenta={repuesto.en_venta ?? true} />
+                  ) : (
+                    repuesto.en_venta === false && <Etiqueta tono="neutro">No en venta</Etiqueta>
+                  )}
                 </Tarjeta>
               );
             })}
