@@ -20,6 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
 import { encolarImpresion } from "@/lib/impresion";
+import { saldoPendiente } from "@/lib/caja";
 
 interface ItemVenta {
   repuestoId?: string;
@@ -108,6 +109,32 @@ export async function POST(req: NextRequest) {
   }
 
   const total = body.items.reduce((s, i) => s + i.cantidad * i.precioUnit, 0);
+
+  // Cobrar una orden nunca puede pasar de su saldo pendiente. Sin esto,
+  // reintentar una entrega que falló después de cobrar volvía a cobrar
+  // la orden completa cada vez (la orden #14 quedó cobrada tres veces).
+  if (body.ordenId) {
+    const { data: orden } = await supabase.from("orden").select("total").eq("id", body.ordenId).maybeSingle();
+    if (!orden) {
+      return NextResponse.json({ error: "orden no encontrada" }, { status: 404 });
+    }
+    const { data: ventasOrden } = await supabase
+      .from("venta")
+      .select("total")
+      .eq("orden_id", body.ordenId)
+      .eq("anulada", false);
+    const pagado = (ventasOrden ?? []).reduce((s, v) => s + Number(v.total), 0);
+    const pendiente = saldoPendiente(Number(orden.total), pagado);
+    if (pendiente === 0) {
+      return NextResponse.json({ error: "esta orden ya está pagada" }, { status: 409 });
+    }
+    if (total > pendiente) {
+      return NextResponse.json(
+        { error: `el cobro supera el saldo pendiente de la orden ($${Math.round(pendiente).toLocaleString("es-CO")})` },
+        { status: 409 },
+      );
+    }
+  }
 
   if (metodo.es_efectivo && (body.montoRecibido ?? 0) < total) {
     return NextResponse.json({ error: "el efectivo recibido no alcanza el total" }, { status: 400 });

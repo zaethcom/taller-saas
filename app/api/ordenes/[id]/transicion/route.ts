@@ -19,10 +19,12 @@ import {
 import { saldoEnCero } from "@/lib/caja";
 import { buscarPrimeraFase } from "@/lib/fases";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { obtenerSedeActivaId } from "@/lib/perfil";
+import { encolarImpresion } from "@/lib/impresion";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const body = (await req.json()) as { aEstado?: Estado };
+  const body = (await req.json()) as { aEstado?: Estado; imprimirComprobante?: boolean };
   if (!body.aEstado) {
     return NextResponse.json({ error: "falta aEstado" }, { status: 400 });
   }
@@ -152,7 +154,63 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Plan 3, supabase/migrations/0038_orden_acceso.sql).
   if (body.aEstado === "entregada") {
     await supabase.from("orden_acceso").delete().eq("orden_id", id);
+    if (body.imprimirComprobante) {
+      await imprimirComprobanteEntrega(supabase, id, orden.empresa_id, user.id);
+    }
   }
 
   return NextResponse.json({ ok: true, estado: body.aEstado });
+}
+
+/**
+ * Cuando la orden ya estaba pagada antes de entregarse (anticipo, o se
+ * cobró en otro turno), la entrega no crea venta nueva -- el dinero ya
+ * entró a las cuentas del día en que se pagó -- pero quien entrega igual
+ * necesita el recibo para el cliente. Se reimprime con el número de la
+ * última venta de la orden y lo que de verdad se usó (orden_item).
+ */
+async function imprimirComprobanteEntrega(
+  supabase: Awaited<ReturnType<typeof clienteServidor>>,
+  ordenId: string,
+  empresaId: string,
+  userId: string,
+) {
+  const sedeId = await obtenerSedeActivaId(supabase);
+  if (!sedeId) return;
+
+  const [{ data: items }, { data: ventas }, { data: perfil }] = await Promise.all([
+    supabase.from("orden_item").select("descripcion, cantidad, precio_unit").eq("orden_id", ordenId),
+    supabase
+      .from("venta")
+      .select("numero, total, pago ( medio )")
+      .eq("orden_id", ordenId)
+      .eq("anulada", false)
+      .order("creada_en", { ascending: true }),
+    supabase.from("perfil").select("nombre, codigo").eq("id", userId).maybeSingle(),
+  ]);
+  if (!ventas?.length) return;
+
+  const medios = [
+    ...new Set(ventas.flatMap((v) => ((v.pago ?? []) as { medio: string }[]).map((p) => p.medio))),
+  ];
+
+  await encolarImpresion(supabase, {
+    empresaId,
+    sedeId,
+    tipo: "recibo_venta",
+    creadoPor: userId,
+    carga: {
+      numeroVenta: ventas[ventas.length - 1]!.numero,
+      items: (items ?? []).map((it) => ({
+        descripcion: it.descripcion,
+        cantidad: it.cantidad,
+        precioUnit: Number(it.precio_unit),
+      })),
+      total: (items ?? []).reduce((s, it) => s + it.cantidad * Number(it.precio_unit), 0),
+      medioPago: medios.length ? `${medios.join(" + ")} (pagado)` : "Pagado",
+      abreCajon: false,
+      cajero: perfil ? (perfil.codigo ? `${perfil.codigo} · ${perfil.nombre}` : perfil.nombre) : null,
+      imprimir: true,
+    },
+  });
 }
