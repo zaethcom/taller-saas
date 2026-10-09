@@ -28,7 +28,12 @@ import {
   type UsoEtiqueta,
 } from "@/lib/etiquetas/plantilla";
 
-type Borrador = Omit<PlantillaEtiqueta, "id" | "activa"> & { id?: string };
+/**
+ * `usar`: el borrador nace de "Editar" sobre la etiqueta de fábrica --
+ * al guardarlo queda en uso de una vez, porque eso es lo que se estaba
+ * editando.
+ */
+type Borrador = Omit<PlantillaEtiqueta, "id" | "activa"> & { id?: string; usar?: boolean };
 
 const CASILLA = { width: 18, height: 18, padding: 0, accentColor: "var(--accent)", cursor: "pointer" } as const;
 
@@ -119,10 +124,16 @@ export function PlantillasEtiqueta({ empresaId }: { empresaId: string | null }) 
 
   async function guardar() {
     if (!borrador) return;
-    const { id, ...datos } = borrador;
+    const { id, usar, ...datos } = borrador;
     const ok = id
       ? await pedir(`/api/etiquetas/plantillas/${id}`, { method: "PATCH", body: JSON.stringify(datos) }, "Plantilla guardada.")
-      : await pedir("/api/etiquetas/plantillas", { method: "POST", body: JSON.stringify(datos) }, "Plantilla creada. Imprima una prueba y póngala en uso.");
+      : usar
+        ? await pedir(
+            "/api/etiquetas/plantillas",
+            { method: "POST", body: JSON.stringify({ ...datos, activa: true }) },
+            "Etiqueta guardada y en uso.",
+          )
+        : await pedir("/api/etiquetas/plantillas", { method: "POST", body: JSON.stringify(datos) }, "Plantilla creada. Imprima una prueba y póngala en uso.");
     if (ok) setBorrador(null);
   }
 
@@ -169,8 +180,28 @@ export function PlantillasEtiqueta({ empresaId }: { empresaId: string | null }) 
               <div key={uso.valor}>
                 <div style={{ fontWeight: 700, fontSize: 14 }}>{uso.etiqueta}</div>
                 {!delUso.some((p) => p.activa) && (
-                  <div style={{ fontSize: 13, color: "var(--ink-3)", marginTop: 2 }}>
-                    En uso: la de fábrica ({ETIQUETA_DE_FABRICA[uso.valor]}).
+                  <div
+                    className="fila"
+                    style={{ padding: "8px 0", borderBottom: "1px solid var(--rule)", justifyContent: "space-between" }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div className="fila" style={{ gap: 8 }}>
+                        <span style={{ fontWeight: 600 }}>De fábrica</span>
+                        <Etiqueta tono="ok">En uso</Etiqueta>
+                      </div>
+                      <div style={{ fontSize: 13, color: "var(--ink-3)" }}>{ETIQUETA_DE_FABRICA[uso.valor]}</div>
+                    </div>
+                    <Boton
+                      tamano="sm"
+                      variante="contorno"
+                      icono={<Pencil size={16} />}
+                      disabled={ocupado}
+                      onClick={() =>
+                        setBorrador({ ...borradorDesdeModelo(uso.valor), nombre: `${uso.etiqueta} (editada)`, usar: true })
+                      }
+                    >
+                      Editar
+                    </Boton>
                   </div>
                 )}
                 {delUso.map((p) => (
@@ -233,14 +264,15 @@ export function PlantillasEtiqueta({ empresaId }: { empresaId: string | null }) 
                         tamano="sm"
                         variante="fantasma"
                         icono={<Pencil size={16} />}
-                        aria-label="Editar"
                         disabled={ocupado}
                         onClick={() => {
                           const { activa: _activa, ...resto } = p;
                           void _activa;
                           setBorrador(resto);
                         }}
-                      />
+                      >
+                        Editar
+                      </Boton>
                       <Boton
                         tamano="sm"
                         variante="fantasma"
@@ -454,7 +486,7 @@ export function PlantillasEtiqueta({ empresaId }: { empresaId: string | null }) 
 
           <div className="fila" style={{ gap: 8 }}>
             <Boton variante="primario" disabled={ocupado || subiendo} onClick={guardar}>
-              {borrador.id ? "Guardar cambios" : "Crear plantilla"}
+              {borrador.id ? "Guardar cambios" : borrador.usar ? "Guardar y usar" : "Crear plantilla"}
             </Boton>
             <Boton variante="fantasma" disabled={ocupado} onClick={() => setBorrador(null)}>
               Cancelar
