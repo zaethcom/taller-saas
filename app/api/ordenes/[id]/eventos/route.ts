@@ -8,7 +8,7 @@
  * nunca se escribe desde acá.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
+import { etiquetaEvento } from "@/lib/fases";
 import { clienteServidor } from "@/lib/supabase/servidor";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -23,7 +23,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: eventos, error } = await supabase
     .from("orden_evento")
-    .select("a_estado, nota, autor_id, ocurrio_en")
+    .select("de_estado, a_estado, de_fase, a_fase, nota, autor_id, ocurrio_en")
     .eq("orden_id", id)
     .order("ocurrio_en", { ascending: true });
 
@@ -34,8 +34,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   return NextResponse.json(
     (eventos ?? []).map((e) => ({
       estado: e.a_estado,
-      etiqueta: ETIQUETA_ESTADO[e.a_estado as Estado],
-      nota: e.nota,
+      // Un cambio de fase (0050_fase_orden.sql) se lee como "Estado · Fase";
+      // la fase anterior va en la nota para que se vea de dónde venía.
+      etiqueta: etiquetaEvento(e),
+      fase: e.a_fase,
+      nota:
+        e.de_estado === e.a_estado && e.de_fase
+          ? [`Antes: ${e.de_fase}`, e.nota].filter(Boolean).join(" · ")
+          : e.nota,
       fecha: e.ocurrio_en,
     })),
   );
