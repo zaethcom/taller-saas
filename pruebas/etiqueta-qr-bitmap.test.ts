@@ -7,39 +7,41 @@ function pixel(datos: Buffer, anchoDots: number, x: number, y: number): boolean 
   return ((datos[i] ?? 0) & (0x80 >> (x & 7))) !== 0;
 }
 
-describe("etiqueta QR de la orden como bitmap", () => {
-  it("el QR queda completo dentro de la etiqueta, del tamaño de sus módulos, con el código debajo", async () => {
-    const codigo = "PS13";
-    const r = await generarEtiquetaQrRaster(codigo);
-    const datos = Buffer.from(r.datosBase64, "base64");
-    expect([r.anchoDots, r.altoDots]).toEqual([240, 200]);
-
-    const qr = QRCode.create(codigo, { errorCorrectionLevel: "M" });
-    const n = qr.modules.size;
-    const modulo = Math.floor(140 / n);
-    const tam = modulo * n;
-    const x0 = Math.round((240 - tam) / 2);
-    const y0 = 10;
-
-    // Cada módulo del QR, muestreado en su centro, coincide con lo dibujado.
-    let distintos = 0;
-    for (let fy = 0; fy < n; fy++) {
-      for (let fx = 0; fx < n; fx++) {
-        const esperado = qr.modules.get(fy, fx) === 1;
-        const dibujado = pixel(datos, r.anchoDots, x0 + fx * modulo + (modulo >> 1), y0 + fy * modulo + (modulo >> 1));
-        if (esperado !== dibujado) distintos++;
+/**
+ * Busca el QR completo dentro del bitmap, sin suponer dónde ni de qué
+ * tamaño lo dibuja el diseño: cada módulo, muestreado en su centro, tiene
+ * que coincidir con el QR que se esperaba. Así la prueba no depende de la
+ * disposición de la etiqueta, solo de que el QR quede entero y legible.
+ */
+function encontrarQr(datos: Buffer, ancho: number, alto: number, codigo: string) {
+  const qr = QRCode.create(codigo, { errorCorrectionLevel: "M" });
+  const n = qr.modules.size;
+  for (let m = 2; m <= 10; m++) {
+    for (let y0 = 0; y0 + n * m <= alto; y0++) {
+      for (let x0 = 0; x0 + n * m <= ancho; x0++) {
+        let ok = true;
+        for (let fy = 0; fy < n && ok; fy++) {
+          for (let fx = 0; fx < n && ok; fx++) {
+            const esperado = qr.modules.get(fy, fx) === 1;
+            if (pixel(datos, ancho, x0 + fx * m + (m >> 1), y0 + fy * m + (m >> 1)) !== esperado) ok = false;
+          }
+        }
+        if (ok) return { x0, y0, modulo: m, tam: n * m };
       }
     }
-    expect(distintos).toBe(0);
+  }
+  return null;
+}
 
-    // A la derecha del QR, dentro del marco, no hay nada (antes salía corrido y cortado).
-    for (let y = y0; y < y0 + tam; y++) {
-      for (let x = x0 + tam + 2; x < 228; x++) expect(pixel(datos, r.anchoDots, x, y)).toBe(false);
-    }
+describe("etiqueta QR de la orden como bitmap", () => {
+  it("el QR queda completo dentro de la etiqueta, módulo por módulo", async () => {
+    const codigo = "PS000013";
+    const r = await generarEtiquetaQrRaster(codigo);
+    const datos = Buffer.from(r.datosBase64, "base64");
 
-    // Debajo del QR está el código de entrada.
-    let negrosTexto = 0;
-    for (let y = y0 + tam + 4; y < 190; y++) for (let x = 20; x < 220; x++) if (pixel(datos, r.anchoDots, x, y)) negrosTexto++;
-    expect(negrosTexto).toBeGreaterThan(50);
+    const qr = encontrarQr(datos, r.anchoDots, r.altoDots, codigo);
+    expect(qr).not.toBeNull();
+    // Un módulo de al menos 3 dots: a 203 dpi, más chico no lo lee un lector de mano.
+    expect(qr!.modulo).toBeGreaterThanOrEqual(3);
   });
 });

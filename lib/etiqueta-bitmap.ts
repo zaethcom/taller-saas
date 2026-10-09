@@ -1,89 +1,22 @@
 /**
- * Renderiza la etiqueta de una orden (QR + código de entrada, con un
- * marco simple) como una sola imagen -- en vez de mandarle a la
- * impresora comandos de texto/QR nativos sueltos (que se probó que se
- * amontonan si algo altera la calibración de la impresora entre
- * trabajos, y dependen de qué tan bien la impresora dibuje texto/QR
- * por su cuenta).
+ * La etiqueta de una orden (QR + código de entrada, con marco) cuando la
+ * empresa no tiene plantilla activa para "orden" en /configuracion. Se
+ * dibuja con el mismo diseñador que las plantillas (lib/etiquetas/), con
+ * el modelo de fábrica de 30x25mm, y sale como una sola imagen de 1 bit
+ * que estacion/ embebe tal cual (PPLB `GW` o ZPL `^GFA`).
  *
- * Mismo patrón que ya usa lib/logo-bitmap.ts: se compone en el
- * servidor con `sharp` (nunca en estacion/, que corre en Android/
- * Termux) y se manda como bitmap ya empacado a 1 bit -- estacion/
- * solo lo embebe en el comando PPLB `GW`, sin decodificar nada.
- *
- * Inspirado en com.smartfoodlabel.app.printer.engine.DulganiLabelRenderer
- * (mismo principio: la app dibuja el diseño completo como imagen, la
- * impresora solo reproduce píxeles) -- acá con SVG + sharp en vez de
- * android.graphics.Canvas, porque esto corre en Node, no en Android.
- *
- * Tamaño asumido: etiqueta de 30x25mm a 8 dots/mm (203dpi), igual que
- * el resto de estacion/etiqueta.ts -- sin confirmar con una ficha
- * técnica real, ver ese archivo.
+ * Antes esto tenía su propio SVG, con el QR insertado sin tamaño: salía
+ * de 210 dots en vez de 140, se salía del marco y tapaba el código en
+ * texto -- en papel (Zebra ZP 500, Local 1) el QR quedaba cortado y no
+ * escaneaba. Ahora el QR va con módulos de un número entero de dots y la
+ * letra no depende de fuentes del servidor (ver lib/etiquetas/fuente-pixel.ts).
  */
-import sharp from "sharp";
-import QRCode from "qrcode";
 import type { LogoRaster } from "./logo-bitmap";
+import { MODELOS } from "./etiquetas/plantilla";
+import { rasterEtiqueta } from "./etiquetas/renderizar";
 
-const ANCHO_DOTS = 240;
-const ALTO_DOTS = 200;
-/** Lo que cabe del QR sobre el código de entrada, dentro del marco. */
-const QR_MAX_DOTS = 140;
+const MODELO_ORDEN = MODELOS.find((m) => m.id === "orden-30x25")!.diseno;
 
 export async function generarEtiquetaQrRaster(codigoEntrada: string): Promise<LogoRaster> {
-  const qrSvg = await QRCode.toString(codigoEntrada, {
-    type: "svg",
-    margin: 0,
-    errorCorrectionLevel: "M",
-    color: { dark: "#000000", light: "#0000" },
-  });
-  // El SVG de QRCode.toString trae viewBox pero no width/height: anidado
-  // así, ocupa toda la etiqueta y sale corrido y cortado (pasó en la
-  // Zebra de Local 1 -- el lector no lo leía). Se le pone tamaño
-  // explícito, múltiplo exacto de los módulos para que cada cuadrito
-  // tenga los mismos dots.
-  const modulos = QRCode.create(codigoEntrada, { errorCorrectionLevel: "M" }).modules.size;
-  const qrTam = Math.floor(QR_MAX_DOTS / modulos) * modulos;
-  const qrX = Math.round((ANCHO_DOTS - qrTam) / 2);
-  const qrY = 10;
-  const qrSvgConTamano = qrSvg.replace("<svg ", `<svg width="${qrTam}" height="${qrTam}" `);
-
-  const svg = `
-    <svg width="${ANCHO_DOTS}" height="${ALTO_DOTS}" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="${ANCHO_DOTS}" height="${ALTO_DOTS}" fill="white" />
-      <rect x="4" y="4" width="${ANCHO_DOTS - 8}" height="${ALTO_DOTS - 8}"
-            fill="none" stroke="black" stroke-width="4" rx="10" />
-      <g transform="translate(${qrX}, ${qrY})">${qrSvgConTamano}</g>
-      <text x="${ANCHO_DOTS / 2}" y="${qrY + qrTam + 32}" text-anchor="middle"
-            font-family="sans-serif" font-weight="bold" font-size="26">${escaparXml(codigoEntrada)}</text>
-    </svg>
-  `;
-
-  const { data, info } = await sharp(Buffer.from(svg))
-    .resize(ANCHO_DOTS, ALTO_DOTS)
-    .flatten({ background: "#ffffff" })
-    .greyscale()
-    .threshold(160)
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const anchoDots = info.width;
-  const altoDots = info.height;
-  const anchoBytes = Math.ceil(anchoDots / 8);
-  const datos = Buffer.alloc(anchoBytes * altoDots);
-
-  for (let y = 0; y < altoDots; y++) {
-    for (let x = 0; x < anchoDots; x++) {
-      const negro = data.readUInt8(y * anchoDots + x) < 128;
-      if (negro) {
-        const i = y * anchoBytes + (x >> 3);
-        datos.writeUInt8(datos.readUInt8(i) | (0x80 >> (x & 7)), i);
-      }
-    }
-  }
-
-  return { anchoDots, altoDots, datosBase64: datos.toString("base64") };
-}
-
-function escaparXml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return rasterEtiqueta({ ...MODELO_ORDEN, fondoUrl: null, girar: false }, { codigo: codigoEntrada });
 }
