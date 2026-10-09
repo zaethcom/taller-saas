@@ -26,6 +26,8 @@ import type { LogoRaster } from "./logo-bitmap";
 
 const ANCHO_DOTS = 240;
 const ALTO_DOTS = 200;
+/** Lo que cabe del QR sobre el código de entrada, dentro del marco. */
+const QR_MAX_DOTS = 140;
 
 export async function generarEtiquetaQrRaster(codigoEntrada: string): Promise<LogoRaster> {
   const qrSvg = await QRCode.toString(codigoEntrada, {
@@ -34,18 +36,23 @@ export async function generarEtiquetaQrRaster(codigoEntrada: string): Promise<Lo
     errorCorrectionLevel: "M",
     color: { dark: "#000000", light: "#0000" },
   });
-  // El QR de QRCode.toString ya trae su propio viewBox cuadrado -- se
-  // reescala con width/height al insertarlo, sin tocar su contenido.
-  const qrTam = 140;
-  const qrX = (ANCHO_DOTS - qrTam) / 2;
+  // El SVG de QRCode.toString trae viewBox pero no width/height: anidado
+  // así, ocupa toda la etiqueta y sale corrido y cortado (pasó en la
+  // Zebra de Local 1 -- el lector no lo leía). Se le pone tamaño
+  // explícito, múltiplo exacto de los módulos para que cada cuadrito
+  // tenga los mismos dots.
+  const modulos = QRCode.create(codigoEntrada, { errorCorrectionLevel: "M" }).modules.size;
+  const qrTam = Math.floor(QR_MAX_DOTS / modulos) * modulos;
+  const qrX = Math.round((ANCHO_DOTS - qrTam) / 2);
   const qrY = 10;
+  const qrSvgConTamano = qrSvg.replace("<svg ", `<svg width="${qrTam}" height="${qrTam}" `);
 
   const svg = `
     <svg width="${ANCHO_DOTS}" height="${ALTO_DOTS}" xmlns="http://www.w3.org/2000/svg">
       <rect x="0" y="0" width="${ANCHO_DOTS}" height="${ALTO_DOTS}" fill="white" />
       <rect x="4" y="4" width="${ANCHO_DOTS - 8}" height="${ALTO_DOTS - 8}"
             fill="none" stroke="black" stroke-width="4" rx="10" />
-      <g transform="translate(${qrX}, ${qrY})">${qrSvg}</g>
+      <g transform="translate(${qrX}, ${qrY})">${qrSvgConTamano}</g>
       <text x="${ANCHO_DOTS / 2}" y="${qrY + qrTam + 32}" text-anchor="middle"
             font-family="sans-serif" font-weight="bold" font-size="26">${escaparXml(codigoEntrada)}</text>
     </svg>
