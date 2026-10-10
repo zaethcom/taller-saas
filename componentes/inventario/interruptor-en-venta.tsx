@@ -39,10 +39,9 @@ export function InterruptorEnVenta({ repuestoId, enVenta }: { repuestoId: string
 
   return (
     <div>
-      <label
-        style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--ink-2)", cursor: "pointer" }}
-      >
+      <label className="interruptor" title={valor ? "Se muestra en Vender" : "No se muestra en Vender"}>
         <input type="checkbox" checked={valor} onChange={cambiar} disabled={guardando} />
+        <span className="interruptor-pista" aria-hidden />
         {valor ? "En venta" : "No en venta"}
       </label>
       {error && <div style={{ fontSize: 11, color: "var(--peligro)", marginTop: 2 }}>{error}</div>}

@@ -110,11 +110,13 @@ export default async function PaginaInventario() {
                     </Etiqueta>
                   </div>
                   {editable ? (
-                    <InterruptorEnVenta repuestoId={repuesto.id} enVenta={repuesto.en_venta ?? true} />
+                    <div className="fila" style={{ justifyContent: "space-between", gap: 6 }}>
+                      <InterruptorEnVenta repuestoId={repuesto.id} enVenta={repuesto.en_venta ?? true} />
+                      <ImprimirEtiqueta repuestoId={repuesto.id} />
+                    </div>
                   ) : (
                     repuesto.en_venta === false && <Etiqueta tono="neutro">No en venta</Etiqueta>
                   )}
-                  {editable && <ImprimirEtiqueta repuestoId={repuesto.id} />}
                 </Tarjeta>
               );
             })}
@@ -133,7 +135,11 @@ export default async function PaginaInventario() {
         ) : (
           <div className="rejilla-catalogo">
             {(articulos ?? []).map((a) => (
-              <Tarjeta key={a.id} relleno={false} style={{ padding: 11, display: "flex", flexDirection: "column", gap: 8 }}>
+              <Tarjeta
+                key={a.id}
+                relleno={false}
+                style={{ padding: 11, display: "flex", flexDirection: "column", gap: 8, position: "relative" }}
+              >
                 <FotoProducto
                   tipo="articulo"
                   id={a.id}
@@ -153,11 +159,13 @@ export default async function PaginaInventario() {
                   <span className="cifra" style={{ fontSize: 15, fontWeight: 800 }}>
                     {fmt(a.precio_venta ?? 0)}
                   </span>
-                  <Etiqueta tono={a.estado === "disponible" ? "ok" : "neutro"}>
-                    <span style={{ textTransform: "capitalize" }}>{a.estado}</span>
-                  </Etiqueta>
+                  <div className="fila" style={{ gap: 6 }}>
+                    <Etiqueta tono={a.estado === "disponible" ? "ok" : "neutro"}>
+                      <span style={{ textTransform: "capitalize" }}>{a.estado}</span>
+                    </Etiqueta>
+                    {editable && <ImprimirEtiqueta articuloId={a.id} />}
+                  </div>
                 </div>
-                {editable && <ImprimirEtiqueta articuloId={a.id} />}
               </Tarjeta>
             ))}
           </div>
