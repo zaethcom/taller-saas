@@ -25,7 +25,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
 import { encolarImpresion } from "@/lib/impresion";
-import { saldoPendiente } from "@/lib/caja";
+import { obtenerCuentaOrden } from "@/lib/cuenta-orden";
 
 export async function GET(req: NextRequest) {
   const supabase = await clienteServidor();
@@ -158,18 +158,19 @@ export async function POST(req: NextRequest) {
   // Cobrar una orden nunca puede pasar de su saldo pendiente. Sin esto,
   // reintentar una entrega que falló después de cobrar volvía a cobrar
   // la orden completa cada vez (la orden #14 quedó cobrada tres veces).
+  // El saldo es el de lib/cuenta-orden.ts: lo usado o lo cotizado, lo
+  // mayor, menos abonos y cobros anteriores.
+  let cuentaOrden: { numeroOrden: number; valor: number; abonadoAntes: number; estePago: number; saldo: number } | null =
+    null;
   if (body.ordenId) {
-    const { data: orden } = await supabase.from("orden").select("total").eq("id", body.ordenId).maybeSingle();
-    if (!orden) {
+    const [{ data: orden }, cuenta] = await Promise.all([
+      supabase.from("orden").select("numero").eq("id", body.ordenId).maybeSingle(),
+      obtenerCuentaOrden(supabase, body.ordenId),
+    ]);
+    if (!orden || !cuenta) {
       return NextResponse.json({ error: "orden no encontrada" }, { status: 404 });
     }
-    const { data: ventasOrden } = await supabase
-      .from("venta")
-      .select("total")
-      .eq("orden_id", body.ordenId)
-      .eq("anulada", false);
-    const pagado = (ventasOrden ?? []).reduce((s, v) => s + Number(v.total), 0);
-    const pendiente = saldoPendiente(Number(orden.total), pagado);
+    const pendiente = cuenta.saldo;
     if (pendiente === 0) {
       return NextResponse.json({ error: "esta orden ya está pagada" }, { status: 409 });
     }
@@ -179,6 +180,13 @@ export async function POST(req: NextRequest) {
         { status: 409 },
       );
     }
+    cuentaOrden = {
+      numeroOrden: orden.numero,
+      valor: cuenta.valor,
+      abonadoAntes: cuenta.pagado,
+      estePago: total,
+      saldo: pendiente - total,
+    };
   }
 
   if (metodo.es_efectivo && (body.montoRecibido ?? 0) < total) {
@@ -286,6 +294,8 @@ export async function POST(req: NextRequest) {
       cajero: perfil.codigo ? `${perfil.codigo} · ${perfil.nombre}` : perfil.nombre,
       montoRecibido: metodo.es_efectivo ? body.montoRecibido ?? null : null,
       cambio: metodo.es_efectivo && body.montoRecibido ? body.montoRecibido - total : null,
+      // Solo si hubo abonos antes: un cobro de una sola vez ya se lee completo en los ítems.
+      cuentaOrden: cuentaOrden && cuentaOrden.abonadoAntes > 0 ? cuentaOrden : null,
       imprimir: body.imprimir ?? true,
     },
   });

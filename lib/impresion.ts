@@ -67,6 +67,18 @@ interface CargaReciboVenta extends CargaMarcaEmpresa {
   montoRecibido?: number | null;
   cambio?: number | null;
   imprimir?: boolean;
+  /** "TOTAL" por defecto; "ABONO" en el recibo de un abono a una orden. */
+  etiquetaTotal?: string;
+  /** Cobro ligado a una orden: valor, lo abonado antes y el saldo que queda. */
+  cuentaOrden?: CuentaOrdenImpresa | null;
+}
+
+interface CuentaOrdenImpresa {
+  numeroOrden: number;
+  valor: number;
+  abonadoAntes: number;
+  estePago?: number | null;
+  saldo: number;
 }
 
 interface CargaComprobanteRecepcion extends CargaMarcaEmpresa {
@@ -80,6 +92,10 @@ interface CargaComprobanteRecepcion extends CargaMarcaEmpresa {
   fecha: string;
   urlSeguimiento: string;
   qrRaster?: LogoRaster;
+  /** Valor del servicio acordado al recibir; con abono, también el saldo. */
+  valorServicio?: number | null;
+  abono?: { monto: number; medio: string } | null;
+  saldo?: number | null;
 }
 
 interface CargaCierreCaja extends CargaMarcaEmpresa {

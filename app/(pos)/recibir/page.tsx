@@ -13,13 +13,15 @@
  */
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Inbox, Search, Check, User, Wrench, FileText, Printer, ClipboardList, Barcode, KeyRound, Camera } from "lucide-react";
+import { Inbox, Search, Check, User, Wrench, FileText, Printer, ClipboardList, Barcode, KeyRound, Camera, Wallet } from "lucide-react";
 import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
 import { PatronGrid } from "@/componentes/patron-android/patron-grid";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { PanelCobro, formatearMoneda } from "@/componentes/cobro/panel-cobro";
+import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-turno";
 import { EvidenciaIngreso, subirEvidenciaIngreso, type ArchivoIngreso } from "@/componentes/recepcion/evidencia-ingreso";
 import type { MarcaConModelos } from "@/lib/modelos-equipo";
 
@@ -47,6 +49,12 @@ interface Producto {
   tipo: string;
   marca: string | null;
   modelo: string | null;
+}
+
+interface Metodo {
+  id: string;
+  nombre: string;
+  es_efectivo: boolean;
 }
 
 /** Valor del desplegable para escribir una marca o un modelo que no está en la lista. */
@@ -117,12 +125,25 @@ export default function PaginaRecibir() {
 
   const [motivo, setMotivo] = useState("");
   const [infoAdicional, setInfoAdicional] = useState("");
+  // Valor del servicio y abono (lib/abono.ts): el abono entra a la caja
+  // como venta de la orden y descuenta el saldo que se cobra al entregar.
+  const [valorServicio, setValorServicio] = useState(0);
+  const [abono, setAbono] = useState(0);
+  const [metodos, setMetodos] = useState<Metodo[]>([]);
+  const [metodoPagoId, setMetodoPagoId] = useState("");
+  const [montoRecibido, setMontoRecibido] = useState(0);
+  const turnoAbierto = useTurnoAbierto();
+  const metodo = metodos.find((m) => m.id === metodoPagoId);
+  const saldo = Math.max(0, valorServicio - abono);
   const [guardando, setGuardando] = useState(false);
   const [resultado, setResultado] = useState<{
     ordenId: string;
     numero: number;
     serialGenerado?: string;
     evidenciaFallida: number;
+    valorServicio: number;
+    abono: number;
+    abonoFallido: boolean;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -140,6 +161,14 @@ export default function PaginaRecibir() {
         if (config.tipoNegocio) {
           setProductoNuevo((p) => ({ ...p, tipo: TIPO_POR_NEGOCIO[config.tipoNegocio as TipoNegocio] }));
         }
+      })
+      .catch(() => {});
+    fetch("/api/metodos-pago")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!Array.isArray(data)) return;
+        setMetodos(data);
+        if (data[0]) setMetodoPagoId(data[0].id);
       })
       .catch(() => {});
     fetch("/api/productos/modelos")
@@ -174,7 +203,15 @@ export default function PaginaRecibir() {
       const body: Record<string, unknown> = {
         motivo: motivo.trim(),
         infoAdicional: infoAdicional.trim() || undefined,
+        valorServicio: valorServicio || undefined,
       };
+      if (abono > 0) {
+        body.abono = {
+          monto: abono,
+          metodoPagoId,
+          montoRecibido: metodo?.es_efectivo ? montoRecibido : undefined,
+        };
+      }
 
       if (tipoAcceso) {
         const valor =
@@ -215,6 +252,9 @@ export default function PaginaRecibir() {
         numero: data.numero,
         serialGenerado: data.serialGenerado,
         evidenciaFallida,
+        valorServicio,
+        abono: data.abonoFallido ? 0 : abono,
+        abonoFallido: Boolean(data.abonoFallido),
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo registrar la recepción");
@@ -237,6 +277,9 @@ export default function PaginaRecibir() {
     setModeloOtro(false);
     setMotivo("");
     setInfoAdicional("");
+    setValorServicio(0);
+    setAbono(0);
+    setMontoRecibido(0);
     setTipoAcceso("");
     setPinAcceso("");
     setPatronAcceso([]);
@@ -252,7 +295,13 @@ export default function PaginaRecibir() {
     ? "Falta la foto del equipo recibido."
     : !motivo.trim()
       ? "Falta el motivo para poder guardar."
-      : null;
+      : abono > valorServicio
+        ? "El abono no puede ser mayor al valor del servicio."
+        : abono > 0 && turnoAbierto === false
+          ? "Para recibir un abono, abre el turno de caja."
+          : abono > 0 && metodo?.es_efectivo && montoRecibido < abono
+            ? "El efectivo recibido no alcanza el abono."
+            : null;
 
   if (resultado) {
     return (
@@ -284,6 +333,20 @@ export default function PaginaRecibir() {
           <Printer size={17} strokeWidth={2} aria-hidden />
           El comprobante y la etiqueta se están imprimiendo en la estación de esta sede.
         </p>
+        {resultado.valorServicio > 0 && (
+          <p className="cifra" style={{ margin: "0 0 16px", color: "var(--ink-2)" }}>
+            Valor {formatearMoneda(resultado.valorServicio)}
+            {resultado.abono > 0 ? ` · Abono ${formatearMoneda(resultado.abono)}` : ""} · Saldo{" "}
+            <strong>{formatearMoneda(resultado.valorServicio - resultado.abono)}</strong>
+          </p>
+        )}
+        {resultado.abonoFallido && (
+          <div style={{ marginBottom: 20, textAlign: "left" }}>
+            <Aviso tono="peligro">
+              La orden quedó creada pero el abono no se registró. Regístralo desde Abonos.
+            </Aviso>
+          </div>
+        )}
         {resultado.evidenciaFallida > 0 && (
           <div style={{ marginBottom: 20, textAlign: "left" }}>
             <Aviso tono="peligro">
@@ -587,23 +650,78 @@ export default function PaginaRecibir() {
         </Paso>
 
         <Paso n={5} titulo="Motivo" icono={<FileText size={18} strokeWidth={2} color="var(--ink-2)" />}>
-          <Campo ayuda="Lo que el cliente reporta, con sus palabras. Es lo que lee el técnico al abrir la orden.">
+          <Campo ayuda="El servicio que se va a realizar. Es lo que lee el técnico al abrir la orden.">
             <textarea
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
-              placeholder="Por qué deja el equipo…"
               rows={3}
               aria-label="Motivo de la recepción"
             />
           </Campo>
+          <div style={{ marginTop: 14 }}>
+            <Campo etiqueta="Valor del servicio" ayuda="Opcional. Queda en la cuenta de la orden y en el comprobante.">
+              <input
+                type="number"
+                min={0}
+                inputMode="numeric"
+                className="cifra"
+                value={valorServicio || ""}
+                onChange={(e) => {
+                  const valor = Math.max(0, Number(e.target.value) || 0);
+                  setValorServicio(valor);
+                  if (!valor) setAbono(0);
+                }}
+                placeholder="0"
+                style={{ maxWidth: 200 }}
+              />
+            </Campo>
+          </div>
         </Paso>
+
+        {valorServicio > 0 && (
+          <Paso n={6} titulo="Abono" icono={<Wallet size={18} strokeWidth={2} color="var(--ink-2)" />}>
+            <div className="fila" style={{ gap: 12, alignItems: "flex-end", marginBottom: 14 }}>
+              <Campo etiqueta="Abono del cliente" ayuda="Opcional. Entra a la caja y a la cuenta de este equipo.">
+                <input
+                  type="number"
+                  min={0}
+                  max={valorServicio}
+                  inputMode="numeric"
+                  className="cifra"
+                  value={abono || ""}
+                  onChange={(e) => setAbono(Math.max(0, Number(e.target.value) || 0))}
+                  placeholder="0"
+                  style={{ maxWidth: 200 }}
+                />
+              </Campo>
+              <div className="cifra" style={{ paddingBottom: 10 }}>
+                Saldo restante: <strong>{formatearMoneda(saldo)}</strong>
+              </div>
+            </div>
+            {abono > 0 && turnoAbierto === false && <AvisoTurnoCerrado />}
+            {abono > 0 && metodos.length > 0 && (
+              <PanelCobro
+                total={abono}
+                metodos={metodos}
+                metodoPagoId={metodoPagoId}
+                onCambiarMetodo={setMetodoPagoId}
+                montoRecibido={montoRecibido}
+                onCambiarMontoRecibido={setMontoRecibido}
+                // El abono sale en el comprobante de recepción, no lleva ticket aparte.
+                ocultarImprimir
+                imprimir={false}
+                onCambiarImprimir={() => {}}
+              />
+            )}
+          </Paso>
+        )}
 
         <div className="fila">
           <Boton
             variante="primario"
             tamano="lg"
             icono={<Printer size={19} strokeWidth={2} />}
-            disabled={guardando || !motivo.trim() || !tieneFoto}
+            disabled={guardando || Boolean(faltante)}
             onClick={guardar}
           >
             {guardando ? "Guardando…" : "Recibir e imprimir"}

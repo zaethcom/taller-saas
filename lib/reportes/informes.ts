@@ -115,7 +115,11 @@ const ROLES: Record<string, string> = {
   cajero: "Cajero",
 };
 
-const TIPO_VENTA: Record<string, string> = { mostrador: "Mostrador", servicio: "Servicio (orden)" };
+const TIPO_VENTA: Record<string, string> = {
+  mostrador: "Mostrador",
+  servicio: "Servicio (orden)",
+  anticipo: "Abono a orden",
+};
 
 function etiquetaTipoMovimiento(tipo: string): string {
   const fijo: Record<string, string> = {
@@ -218,7 +222,7 @@ export function ventasPorVendedor(ventas: VentaFila[], c: Catalogos): Informe {
     const g = grupos.get(k) ?? { cantidad: 0, total: 0, mostrador: 0, servicio: 0 };
     g.cantidad += 1;
     g.total += Number(v.total);
-    if (v.tipo === "servicio") g.servicio += Number(v.total);
+    if (v.tipo === "servicio" || v.tipo === "anticipo") g.servicio += Number(v.total);
     else g.mostrador += Number(v.total);
     grupos.set(k, g);
   }

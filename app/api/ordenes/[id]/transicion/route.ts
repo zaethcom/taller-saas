@@ -16,7 +16,7 @@ import {
   type Estado,
   type Requisito,
 } from "@/lib/estados";
-import { saldoEnCero } from "@/lib/caja";
+import { obtenerCuentaOrden } from "@/lib/cuenta-orden";
 import { buscarPrimeraFase } from "@/lib/fases";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
@@ -100,12 +100,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (cotizacion) cumplidos.add("tiene_cotizacion");
   if (cotizacion?.decision === "aprobada") cumplidos.add("cotizacion_aprobada");
 
-  // orden.total (Fase 5 del Plan 1, lo que de verdad se usó/hizo) es la
-  // base del saldo, no cotizacion.total (la propuesta original) -- si
-  // se agregó un repuesto después de aprobar, el saldo real lo refleja.
-  const { data: ventas } = await supabase.from("venta").select("total").eq("orden_id", id).eq("anulada", false);
-  const totalPagado = (ventas ?? []).reduce((s, v) => s + Number(v.total), 0);
-  if (saldoEnCero(Number(orden.total), totalPagado)) cumplidos.add("saldo_en_cero");
+  // El saldo sale de la misma cuenta que ven /abonos y /entregar
+  // (lib/cuenta-orden.ts): lo usado o lo cotizado, lo mayor, menos los
+  // abonos y cobros.
+  const cuenta = await obtenerCuentaOrden(supabase, id);
+  if (cuenta && cuenta.saldo === 0) cumplidos.add("saldo_en_cero");
 
   try {
     transicionar(orden.estado as Estado, body.aEstado, cumplidos);
@@ -178,7 +177,7 @@ async function imprimirComprobanteEntrega(
   const sedeId = await obtenerSedeActivaId(supabase);
   if (!sedeId) return;
 
-  const [{ data: items }, { data: ventas }, { data: perfil }] = await Promise.all([
+  const [{ data: items }, { data: ventas }, { data: perfil }, { data: orden }, cuenta] = await Promise.all([
     supabase.from("orden_item").select("descripcion, cantidad, precio_unit").eq("orden_id", ordenId),
     supabase
       .from("venta")
@@ -187,8 +186,11 @@ async function imprimirComprobanteEntrega(
       .eq("anulada", false)
       .order("creada_en", { ascending: true }),
     supabase.from("perfil").select("nombre, codigo").eq("id", userId).maybeSingle(),
+    supabase.from("orden").select("numero").eq("id", ordenId).maybeSingle(),
+    obtenerCuentaOrden(supabase, ordenId),
   ]);
   if (!ventas?.length) return;
+  const totalItems = (items ?? []).reduce((s, it) => s + it.cantidad * Number(it.precio_unit), 0);
 
   const medios = [
     ...new Set(ventas.flatMap((v) => ((v.pago ?? []) as { medio: string }[]).map((p) => p.medio))),
@@ -206,8 +208,13 @@ async function imprimirComprobanteEntrega(
         cantidad: it.cantidad,
         precioUnit: Number(it.precio_unit),
       })),
-      total: (items ?? []).reduce((s, it) => s + it.cantidad * Number(it.precio_unit), 0),
+      total: cuenta?.valor ?? totalItems,
       medioPago: medios.length ? `${medios.join(" + ")} (pagado)` : "Pagado",
+      // Valor, lo pagado (abonos + cobros) y el saldo con que se entrega.
+      cuentaOrden:
+        cuenta && orden
+          ? { numeroOrden: orden.numero, valor: cuenta.valor, abonadoAntes: cuenta.pagado, saldo: cuenta.saldo }
+          : null,
       abreCajon: false,
       cajero: perfil ? (perfil.codigo ? `${perfil.codigo} · ${perfil.nombre}` : perfil.nombre) : null,
       imprimir: true,

@@ -12,7 +12,7 @@
  * lib/codigo-entrada.ts), que es lo que lee el escáner.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { saldoPendiente } from "@/lib/caja";
+import { obtenerCuentaOrden } from "@/lib/cuenta-orden";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { numeroDesdeCodigoEntrada } from "@/lib/codigo-entrada";
 
@@ -52,9 +52,9 @@ export async function GET(req: NextRequest) {
 
   let consulta = supabase.from("orden").select(
     `
-      id, numero, estado, total,
+      id, numero, estado, total, motivo, token_publico,
       producto:producto_id ( marca, modelo, tipo, serial,
-        cliente:cliente_id ( nombre ) )
+        cliente:cliente_id ( nombre, telefono ) )
     `,
   );
   consulta = token ? consulta.eq("token_publico", token) : consulta.eq("numero", numeroOrden);
@@ -65,21 +65,23 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "no existe una orden con ese dato" }, { status: 404 });
   }
 
-  const [{ data: items }, { data: ventas }] = await Promise.all([
+  const [{ data: items }, cuenta] = await Promise.all([
     supabase
       .from("orden_item")
       .select("descripcion, cantidad, precio_unit, repuesto_id")
       .eq("orden_id", orden.id),
-    supabase.from("venta").select("total").eq("orden_id", orden.id).eq("anulada", false),
+    obtenerCuentaOrden(supabase, orden.id),
   ]);
-
-  const total = Number(orden.total);
-  const totalPagado = (ventas ?? []).reduce((s, v) => s + Number(v.total), 0);
 
   return NextResponse.json({
     ...orden,
-    total,
-    saldoPendiente: saldoPendiente(total, totalPagado),
+    total: Number(orden.total),
+    // Valor de la orden (lo usado o lo cotizado, lo mayor), lo pagado
+    // en abonos y cobros, y lo que falta -- ver lib/cuenta-orden.ts.
+    valor: cuenta?.valor ?? Number(orden.total),
+    pagado: cuenta?.pagado ?? 0,
+    pagos: cuenta?.pagos ?? [],
+    saldoPendiente: cuenta?.saldo ?? 0,
     items: (items ?? []).map((it) => ({
       descripcion: it.descripcion,
       cantidad: it.cantidad,
