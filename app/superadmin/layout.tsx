@@ -60,6 +60,9 @@ export default async function LayoutSuperadmin({ children }: { children: React.R
           <Link href="/superadmin/empresas" className="btn btn-oscuro btn-sm">
             Empresas
           </Link>
+          <Link href="/superadmin/tipos" className="btn btn-oscuro btn-sm">
+            Tipos de empresa
+          </Link>
           <CerrarSesion icono={<LogOut size={15} strokeWidth={2} />} />
         </nav>
       </header>

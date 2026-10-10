@@ -14,6 +14,11 @@
  * próximos días. Vencer no suspende nada solo: suspender sigue siendo
  * decisión de quien está aquí. Editar la empresa, registrar pagos y
  * editar o eliminar sus sedes se hace en /superadmin/empresas/<id>.
+ *
+ * Al crearla se puede elegir su tipo (celulares, computadores,
+ * patinetas... -- 0053): le copia de una vez las fases, categorías y
+ * tipo de equipo de ese estándar. Los tipos se editan en
+ * /superadmin/tipos.
  */
 import { useEffect, useState } from "react";
 import { Building2, Plus, Check, AlertTriangle, Settings2 } from "lucide-react";
@@ -41,6 +46,13 @@ interface Empresa {
   servicio_fin: string | null;
   usuarios: number;
   sedes: number;
+  tipo_empresa: { nombre: string } | null;
+}
+
+interface TipoResumen {
+  id: string;
+  nombre: string;
+  activo: boolean;
 }
 
 export default function PaginaSuperadminEmpresas() {
@@ -56,6 +68,8 @@ export default function PaginaSuperadminEmpresas() {
   const [adminClave, setAdminClave] = useState("");
   const [mesesPagados, setMesesPagados] = useState("");
   const [valorPagado, setValorPagado] = useState("");
+  const [tipoEmpresaId, setTipoEmpresaId] = useState("");
+  const [tipos, setTipos] = useState<TipoResumen[]>([]);
   const [creando, setCreando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -77,6 +91,10 @@ export default function PaginaSuperadminEmpresas() {
 
   useEffect(() => {
     cargar();
+    fetch("/api/superadmin/tipos")
+      .then((r) => r.json())
+      .then((data) => setTipos(Array.isArray(data) ? data.filter((t: TipoResumen) => t.activo) : []))
+      .catch(() => {});
   }, []);
 
   async function crearEmpresa(e: React.FormEvent) {
@@ -97,12 +115,14 @@ export default function PaginaSuperadminEmpresas() {
           adminClave,
           mesesPagados: mesesPagados ? Number(mesesPagados) : undefined,
           valorPagado: valorPagado ? Number(valorPagado) : undefined,
+          tipoEmpresaId: tipoEmpresaId || undefined,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       const data = await res.json();
       setMensaje(`Empresa "${data.empresa.nombre}" creada. Admin: ${data.admin.correo}`);
-      if (data.avisoPago) setError(data.avisoPago);
+      const avisos = [data.avisoPago, data.avisoTipo].filter(Boolean);
+      if (avisos.length > 0) setError(avisos.join(" "));
       setNombreEmpresa("");
       setNit("");
       setNombreSede("");
@@ -111,6 +131,7 @@ export default function PaginaSuperadminEmpresas() {
       setAdminClave("");
       setMesesPagados("");
       setValorPagado("");
+      setTipoEmpresaId("");
       await cargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo crear la empresa");
@@ -178,6 +199,7 @@ export default function PaginaSuperadminEmpresas() {
               <thead>
                 <tr>
                   <th>Nombre</th>
+                  <th>Tipo</th>
                   <th>NIT</th>
                   <th>Usuarios</th>
                   <th>Sedes</th>
@@ -190,6 +212,7 @@ export default function PaginaSuperadminEmpresas() {
                 {conEstado.map((e) => (
                   <tr key={e.id}>
                     <td style={{ fontWeight: 700 }}>{e.nombre}</td>
+                    <td style={{ color: "var(--ink-2)" }}>{e.tipo_empresa?.nombre ?? "—"}</td>
                     <td className="cifra" style={{ color: "var(--ink-2)" }}>
                       {e.nit ?? "—"}
                     </td>
@@ -250,6 +273,16 @@ export default function PaginaSuperadminEmpresas() {
                 <input placeholder="Ej. Principal" value={nombreSede} onChange={(e) => setNombreSede(e.target.value)} />
               </Campo>
             </div>
+            <Campo etiqueta="Tipo de empresa" ayuda="Le carga las fases, categorías y tipo de equipo de ese tipo.">
+              <select value={tipoEmpresaId} onChange={(e) => setTipoEmpresaId(e.target.value)}>
+                <option value="">Sin tipo</option>
+                {tipos.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre}
+                  </option>
+                ))}
+              </select>
+            </Campo>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
               <Campo etiqueta="Meses pagados" ayuda="Opcional. El servicio corre desde hoy.">
