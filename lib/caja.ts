@@ -7,11 +7,32 @@
 export interface ResumenTurno {
   baseInicial: number;
   ventasEfectivo: number;
-  aperturasManualesEfectivo: number;
+  /** Dinero metido a la caja sin venta (0054_movimiento_caja.sql). */
+  ingresosEfectivo: number;
+  /** Dinero sacado de la caja sin venta: pagos, retiros. */
+  salidasEfectivo: number;
 }
 
 export function efectivoEsperado(resumen: ResumenTurno): number {
-  return resumen.baseInicial + resumen.ventasEfectivo;
+  return resumen.baseInicial + resumen.ventasEfectivo + resumen.ingresosEfectivo - resumen.salidasEfectivo;
+}
+
+export type TipoMovimientoCaja = "ingreso" | "salida";
+
+export interface MovimientoCaja {
+  tipo: TipoMovimientoCaja;
+  monto: number;
+}
+
+/** Cuánto entró y cuánto salió de la caja en los movimientos de un turno. */
+export function totalesMovimientos(movimientos: MovimientoCaja[]): { ingresos: number; salidas: number } {
+  let ingresos = 0;
+  let salidas = 0;
+  for (const m of movimientos) {
+    if (m.tipo === "ingreso") ingresos += Number(m.monto);
+    else salidas += Number(m.monto);
+  }
+  return { ingresos, salidas };
 }
 
 export function calcularDiferencia(resumen: ResumenTurno, efectivoContado: number): number {

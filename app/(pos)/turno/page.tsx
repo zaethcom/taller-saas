@@ -7,9 +7,13 @@
  *
  * El efectivo esperado se muestra en grande y aparte del resto de las
  * cifras: es el único número contra el que se cuenta la caja.
+ *
+ * Gestión de dinero: con el turno abierto se puede meter o sacar
+ * efectivo con un motivo obligatorio (/api/turno/movimiento); cada
+ * movimiento abre el cajón y entra al efectivo esperado.
  */
 import { useEffect, useState } from "react";
-import { Clock, LockOpen, Lock, Check } from "lucide-react";
+import { Clock, LockOpen, Lock, Check, Wallet, Plus, Minus } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
@@ -23,7 +27,19 @@ interface TurnoActual {
   abiertoEn?: string;
   ventasEfectivo?: number;
   totalVentas?: number;
+  ingresos?: number;
+  salidas?: number;
+  movimientos?: Movimiento[];
   efectivoEsperado?: number;
+}
+
+interface Movimiento {
+  id: string;
+  tipo: "ingreso" | "salida";
+  monto: number;
+  motivo: string;
+  autor: string | null;
+  creadoEn: string;
 }
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
@@ -46,6 +62,11 @@ export default function PaginaTurno() {
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tipoMovimiento, setTipoMovimiento] = useState<"ingreso" | "salida" | null>(null);
+  const [montoMovimiento, setMontoMovimiento] = useState("");
+  const [motivoMovimiento, setMotivoMovimiento] = useState("");
+  const [errorMovimiento, setErrorMovimiento] = useState<string | null>(null);
+  const [avisoMovimiento, setAvisoMovimiento] = useState<string | null>(null);
 
   async function cargar() {
     const res = await fetch("/api/turno/actual");
@@ -70,6 +91,47 @@ export default function PaginaTurno() {
       await cargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo abrir el turno");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  function elegirMovimiento(tipo: "ingreso" | "salida") {
+    setTipoMovimiento(tipo);
+    setErrorMovimiento(null);
+    setAvisoMovimiento(null);
+  }
+
+  async function registrarMovimiento() {
+    const monto = Number(montoMovimiento);
+    if (!monto || monto <= 0) {
+      setErrorMovimiento("Escribe el monto.");
+      return;
+    }
+    if (!motivoMovimiento.trim()) {
+      setErrorMovimiento(
+        tipoMovimiento === "ingreso" ? "Escribe por qué entra el dinero." : "Escribe para qué sale el dinero.",
+      );
+      return;
+    }
+    setEnviando(true);
+    setErrorMovimiento(null);
+    try {
+      const res = await fetch("/api/turno/movimiento", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo: tipoMovimiento, monto, motivo: motivoMovimiento }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setAvisoMovimiento(
+        `${tipoMovimiento === "ingreso" ? "Ingreso" : "Salida"} de ${fmt(monto)} registrado. Se abrió el cajón.`,
+      );
+      setTipoMovimiento(null);
+      setMontoMovimiento("");
+      setMotivoMovimiento("");
+      await cargar();
+    } catch (e) {
+      setErrorMovimiento(e instanceof Error ? e.message : "No se pudo registrar el movimiento");
     } finally {
       setEnviando(false);
     }
@@ -164,6 +226,8 @@ export default function PaginaTurno() {
             <Renglon etiqueta="Base inicial" valor={turno.baseInicial!} />
             <Renglon etiqueta="Ventas en efectivo" valor={turno.ventasEfectivo!} />
             <Renglon etiqueta="Ventas totales (todos los medios)" valor={turno.totalVentas!} />
+            {!!turno.ingresos && <Renglon etiqueta="Ingresos de caja" valor={turno.ingresos} />}
+            {!!turno.salidas && <Renglon etiqueta="Salidas de caja" valor={-turno.salidas} />}
             <div style={{ height: 1, background: "var(--rule)", margin: "4px 0" }} />
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16 }}>
               <span style={{ fontSize: 16, fontWeight: 800 }}>Efectivo esperado</span>
@@ -172,6 +236,123 @@ export default function PaginaTurno() {
               </span>
             </div>
           </div>
+        </Tarjeta>
+
+        <Tarjeta>
+          <h2 style={{ marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+            <Wallet size={20} strokeWidth={2} /> Gestión de dinero
+          </h2>
+          <p style={{ color: "var(--ink-3)", fontSize: 14, marginBottom: 12 }}>
+            Meter o sacar efectivo de la caja sin una venta. Queda registrado con su motivo y abre el cajón.
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Boton
+              variante={tipoMovimiento === "ingreso" ? "oscuro" : "contorno"}
+              icono={<Plus size={18} strokeWidth={2.2} />}
+              onClick={() => elegirMovimiento("ingreso")}
+              disabled={enviando}
+            >
+              Ingresar dinero
+            </Boton>
+            <Boton
+              variante={tipoMovimiento === "salida" ? "oscuro" : "contorno"}
+              icono={<Minus size={18} strokeWidth={2.2} />}
+              onClick={() => elegirMovimiento("salida")}
+              disabled={enviando}
+            >
+              Sacar dinero
+            </Boton>
+          </div>
+
+          {tipoMovimiento && (
+            <div className="pila" style={{ marginTop: 16 }}>
+              <Campo etiqueta={tipoMovimiento === "ingreso" ? "Monto que entra" : "Monto que sale"}>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  placeholder="0"
+                  value={montoMovimiento}
+                  onChange={(e) => setMontoMovimiento(e.target.value)}
+                  className="cifra"
+                  autoFocus
+                />
+              </Campo>
+              <Campo
+                etiqueta="Motivo"
+                ayuda={
+                  tipoMovimiento === "ingreso"
+                    ? "Por qué entra: cambio para la caja, aporte del dueño…"
+                    : "Para qué sale: pago a proveedor, domicilio, retiro…"
+                }
+              >
+                <input
+                  type="text"
+                  value={motivoMovimiento}
+                  onChange={(e) => setMotivoMovimiento(e.target.value)}
+                  maxLength={200}
+                />
+              </Campo>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Boton
+                  variante="secundario"
+                  icono={<LockOpen size={18} strokeWidth={2} />}
+                  onClick={registrarMovimiento}
+                  disabled={enviando}
+                >
+                  {enviando ? "Registrando…" : "Registrar y abrir cajón"}
+                </Boton>
+                <Boton variante="fantasma" onClick={() => setTipoMovimiento(null)} disabled={enviando}>
+                  Cancelar
+                </Boton>
+              </div>
+            </div>
+          )}
+
+          {errorMovimiento && (
+            <div style={{ marginTop: 12 }}>
+              <Aviso tono="peligro">{errorMovimiento}</Aviso>
+            </div>
+          )}
+          {avisoMovimiento && (
+            <div style={{ marginTop: 12 }}>
+              <Aviso tono="ok" icono={<Check size={17} strokeWidth={2.4} />}>
+                {avisoMovimiento}
+              </Aviso>
+            </div>
+          )}
+
+          {!!turno.movimientos?.length && (
+            <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+              {turno.movimientos.map((m) => (
+                <div
+                  key={m.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    fontSize: 14,
+                    paddingTop: 8,
+                    borderTop: "1px solid var(--rule)",
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{m.motivo}</div>
+                    <div style={{ color: "var(--ink-3)", fontSize: 12 }}>
+                      {new Date(m.creadoEn).toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" })}
+                      {m.autor ? ` · ${m.autor}` : ""}
+                    </div>
+                  </div>
+                  <span
+                    className="cifra"
+                    style={{ fontWeight: 700, whiteSpace: "nowrap", color: m.tipo === "salida" ? "var(--peligro)" : undefined }}
+                  >
+                    {m.tipo === "salida" ? "−" : "+"}
+                    {fmt(m.monto)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </Tarjeta>
 
         <Tarjeta>

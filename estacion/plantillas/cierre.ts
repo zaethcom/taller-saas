@@ -6,6 +6,8 @@ export interface CargaCierreCaja extends CargaMarcaEmpresa {
   cierreEn: string;
   baseInicial: number;
   totalVentas: number;
+  ingresos?: number;
+  salidas?: number;
   efectivoEsperado: number;
   efectivoContado: number;
   diferencia: number;
@@ -31,6 +33,9 @@ export function cierreCaja(c: CargaCierreCaja): Buffer {
     salto(),
     texto(`Ventas del turno:  ${fmt(c.totalVentas)}`),
     salto(),
+    // Ingresos/salidas de la gestión de dinero, solo si hubo.
+    ...(c.ingresos ? [texto(`Ingresos de caja:  ${fmt(c.ingresos)}`), salto()] : []),
+    ...(c.salidas ? [texto(`Salidas de caja:  -${fmt(c.salidas)}`), salto()] : []),
     texto(`Efectivo esperado: ${fmt(c.efectivoEsperado)}`),
     salto(),
     texto(`Efectivo contado:  ${fmt(c.efectivoContado)}`),

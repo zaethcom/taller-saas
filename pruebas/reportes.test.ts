@@ -164,6 +164,31 @@ describe("cierres de caja", () => {
     expect(inf.tablas[0]!.filas[0]).toMatchObject({ ventas: 180000, efectivo: 100000, esperado: 150000, contado: 145000, diferencia: -5000 });
     expect(inf.resumen.find((c) => c.rotulo === "Turnos con descuadre")?.valor).toBe(1);
   });
+
+  it("suma los ingresos y resta las salidas de caja en el efectivo esperado", () => {
+    const inf = cierresDeCaja(
+      [
+        {
+          id: "t1",
+          sede_id: "s1",
+          abierto_por: "u1",
+          abierto_en: "2026-10-01T13:00:00Z",
+          base_inicial: 50000,
+          cerrado_por: null,
+          cerrado_en: null,
+          efectivo_contado: null,
+          diferencia: null,
+        },
+      ],
+      [{ turno_id: "t1", monto: 100000, es_efectivo: true }],
+      cat,
+      [
+        { turno_id: "t1", tipo: "ingreso", monto: 20000 },
+        { turno_id: "t1", tipo: "salida", monto: 30000 },
+      ],
+    );
+    expect(inf.tablas[0]!.filas[0]).toMatchObject({ ingresos: 20000, salidas: 30000, esperado: 140000 });
+  });
 });
 
 describe("filtros de la URL", () => {
