@@ -5,7 +5,15 @@
  *   productoId?: string, productoNuevo?: {serial?, tipo, marca?, modelo?},
  *     (serial vacío: se genera uno, ver lib/serial-equipo.ts)
  *   motivo: string, infoAdicional?: string,
+ *   valorServicio?: number,
+ *   abono?: {monto, metodoPagoId, montoRecibido?},
  * }
+ *
+ * `valorServicio` queda como un orden_item tipo servicio con el motivo
+ * como descripción (el servicio que se va a realizar), así entra a
+ * orden.total y a la cuenta de la orden. `abono` es plata que el cliente
+ * deja a cuenta (lib/abono.ts): se valida antes de crear nada y sale en
+ * el comprobante junto con el saldo.
  *
  * El punto de entrada de todo el sistema: recibir un equipo. Reutiliza
  * cliente y producto si ya existen (buscados antes con /api/clientes y
@@ -22,6 +30,8 @@ import { generarSerialEquipo } from "@/lib/serial-equipo";
 import { codigoEntrada as calcularCodigoEntrada } from "@/lib/codigo-entrada";
 import { ESTADO_INICIAL } from "@/lib/estados";
 import { buscarPrimeraFase } from "@/lib/fases";
+import { recalcularTotalOrden } from "@/lib/orden-total";
+import { registrarAbono, validarAbono, type AbonoValidado, type DatosAbono } from "@/lib/abono";
 
 interface ClienteNuevo {
   nombre: string;
@@ -51,6 +61,8 @@ interface CuerpoOrden {
   motivo: string;
   infoAdicional?: string;
   acceso?: AccesoDispositivo;
+  valorServicio?: number;
+  abono?: DatosAbono;
 }
 
 export async function POST(req: NextRequest) {
@@ -76,13 +88,28 @@ export async function POST(req: NextRequest) {
 
   const { data: perfil } = await supabase
     .from("perfil")
-    .select("empresa_id, sede_id")
+    .select("empresa_id, sede_id, nombre, codigo")
     .eq("id", user.id)
     .single();
   const sedeActivaId = await obtenerSedeActivaId(supabase);
 
   if (!perfil || !sedeActivaId) {
     return NextResponse.json({ error: "elige la sede en la que estás trabajando" }, { status: 400 });
+  }
+
+  const valorServicio = Math.max(0, Math.round(Number(body.valorServicio) || 0));
+  // El abono se valida antes de crear cliente, equipo u orden: sin turno
+  // abierto o con un monto mayor al valor, no se crea nada a medias.
+  let abono: AbonoValidado | null = null;
+  if (body.abono && Number(body.abono.monto) > 0) {
+    if (valorServicio <= 0) {
+      return NextResponse.json({ error: "para recibir un abono, pon el valor del servicio" }, { status: 400 });
+    }
+    const validacion = await validarAbono(supabase, sedeActivaId, body.abono, valorServicio);
+    if (!validacion.ok) {
+      return NextResponse.json({ error: validacion.error }, { status: validacion.status });
+    }
+    abono = validacion.abono;
   }
 
   let clienteId = body.clienteId;
@@ -161,6 +188,39 @@ export async function POST(req: NextRequest) {
     nota: "Recepción inicial",
   });
 
+  if (valorServicio > 0) {
+    await supabase.from("orden_item").insert({
+      empresa_id: perfil.empresa_id,
+      orden_id: orden.id,
+      tipo: "servicio",
+      descripcion: body.motivo.trim(),
+      cantidad: 1,
+      precio_unit: valorServicio,
+      subtotal: valorServicio,
+      creado_por: user.id,
+    });
+    await recalcularTotalOrden(supabase, orden.id);
+  }
+
+  // El abono no imprime su propio ticket (solo abre el cajón si es
+  // efectivo): ya sale en el comprobante de recepción.
+  let abonoRegistrado = false;
+  if (abono) {
+    const r = await registrarAbono(supabase, {
+      abono,
+      empresaId: perfil.empresa_id,
+      sedeId: sedeActivaId,
+      userId: user.id,
+      ordenId: orden.id,
+      numeroOrden: orden.numero,
+      valorOrden: valorServicio,
+      pagadoAntes: 0,
+      cajero: perfil.codigo ? `${perfil.codigo} · ${perfil.nombre}` : perfil.nombre,
+      imprimir: false,
+    });
+    abonoRegistrado = r.ok;
+  }
+
   if (body.acceso?.valor?.trim()) {
     await supabase.from("orden_acceso").insert({
       empresa_id: perfil.empresa_id,
@@ -209,6 +269,9 @@ export async function POST(req: NextRequest) {
       motivo: body.motivo.trim(),
       fecha: new Date().toLocaleDateString("es-CO"),
       urlSeguimiento,
+      valorServicio: valorServicio || null,
+      abono: abono && abonoRegistrado ? { monto: abono.monto, medio: abono.metodo.nombre } : null,
+      saldo: valorServicio ? valorServicio - (abono && abonoRegistrado ? abono.monto : 0) : null,
     },
   });
 
@@ -241,5 +304,11 @@ export async function POST(req: NextRequest) {
     usarWhatsappSecundario: esCelular,
   });
 
-  return NextResponse.json({ ok: true, ordenId: orden.id, numero: orden.numero, serialGenerado });
+  return NextResponse.json({
+    ok: true,
+    ordenId: orden.id,
+    numero: orden.numero,
+    serialGenerado,
+    abonoFallido: Boolean(abono && !abonoRegistrado),
+  });
 }

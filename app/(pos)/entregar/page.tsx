@@ -20,6 +20,7 @@ import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-b
 import { PanelCobro } from "@/componentes/cobro/panel-cobro";
 import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-turno";
 import { subirEvidencia } from "@/lib/subir-evidencia";
+import { extraerTokenDeSeguimiento } from "@/lib/token-seguimiento";
 import { ETIQUETA_ESTADO, puedeTransicionar, type Estado } from "@/lib/estados";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
@@ -39,22 +40,12 @@ interface OrdenEncontrada {
   numero: number;
   estado: string;
   saldoPendiente: number;
+  /** Valor de la orden y lo ya pagado en abonos o cobros (lib/cuenta-orden.ts). */
+  valor: number;
+  pagado: number;
+  pagos: { numero: number; tipo: string; monto: number; medio: string | null; fecha: string }[];
   items: ItemOrden[];
   producto: { marca: string | null; modelo: string | null; tipo: string; serial: string };
-}
-
-/** El QR de la etiqueta trae la URL completa de seguimiento (ver
- *  app/api/ordenes/route.ts) -- se extrae el token igual que en
- *  /escanear, no el número de orden en sí. */
-function extraerTokenDeSeguimiento(valor: string): string | null {
-  try {
-    const url = new URL(valor);
-    const partes = url.pathname.split("/").filter(Boolean);
-    const i = partes.indexOf("seguimiento");
-    return i >= 0 ? (partes[i + 1] ?? null) : null;
-  } catch {
-    return null;
-  }
 }
 
 interface Metodo {
@@ -166,6 +157,20 @@ export default function PaginaEntregar() {
       // para estos items porque manda ordenId -- ya se descontó al
       // consumirlos durante la reparación.
       if (cobraAhora) {
+        // Se cobra ítem por ítem solo si los ítems suman justo el saldo.
+        // Con abonos antes (o una cotización mayor que lo registrado), se
+        // cobra una sola línea por el saldo: /api/ventas no deja cobrar
+        // más de lo que falta.
+        const totalItems = orden.items.reduce((s, it) => s + it.cantidad * it.precioUnit, 0);
+        const itemsCobro =
+          totalItems === orden.saldoPendiente
+            ? orden.items.map((it) => ({
+                descripcion: it.descripcion,
+                cantidad: it.cantidad,
+                precioUnit: it.precioUnit,
+                repuestoId: it.repuestoId ?? undefined,
+              }))
+            : [{ descripcion: `Saldo orden #${orden.numero}`, cantidad: 1, precioUnit: orden.saldoPendiente }];
         const resVenta = await fetch("/api/ventas", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -174,12 +179,7 @@ export default function PaginaEntregar() {
             metodoPagoId,
             montoRecibido: metodo?.es_efectivo ? montoRecibido : undefined,
             imprimir,
-            items: orden.items.map((it) => ({
-              descripcion: it.descripcion,
-              cantidad: it.cantidad,
-              precioUnit: it.precioUnit,
-              repuestoId: it.repuestoId ?? undefined,
-            })),
+            items: itemsCobro,
           }),
         });
         if (!resVenta.ok) throw new Error((await resVenta.json()).error);
@@ -354,6 +354,29 @@ export default function PaginaEntregar() {
                     <span className="cifra">{fmt(it.cantidad * it.precioUnit)}</span>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {orden.pagos.length > 0 && (
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--rule)" }}>
+                <div className="campo-etiqueta">Cuenta del equipo</div>
+                <div className="fila" style={{ justifyContent: "space-between", fontSize: 13, padding: "4px 0" }}>
+                  <span>Valor de la orden</span>
+                  <span className="cifra">{fmt(orden.valor)}</span>
+                </div>
+                {orden.pagos.map((p) => (
+                  <div key={p.numero} className="fila" style={{ justifyContent: "space-between", fontSize: 13, padding: "4px 0", color: "var(--ink-2)" }}>
+                    <span>
+                      {p.tipo === "anticipo" ? "Abono" : "Pago"} · {new Date(p.fecha).toLocaleDateString("es-CO")}
+                      {p.medio ? ` · ${p.medio}` : ""}
+                    </span>
+                    <span className="cifra">−{fmt(p.monto)}</span>
+                  </div>
+                ))}
+                <div className="fila" style={{ justifyContent: "space-between", fontSize: 14, fontWeight: 800, padding: "4px 0" }}>
+                  <span>Saldo</span>
+                  <span className="cifra">{fmt(orden.saldoPendiente)}</span>
+                </div>
               </div>
             )}
 

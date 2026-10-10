@@ -25,6 +25,17 @@ export interface CargaReciboVenta extends CargaMarcaEmpresa {
   // por acá) nunca manda este campo. El cajón se abre igual: abrirlo o
   // no depende solo de abreCajon, nunca de esto.
   imprimir?: boolean;
+  /** "TOTAL" por defecto; "ABONO" en el recibo de un abono a una orden. */
+  etiquetaTotal?: string;
+  /** Cobro ligado a una orden: valor, lo abonado antes y el saldo que queda. */
+  cuentaOrden?: {
+    numeroOrden: number;
+    valor: number;
+    abonadoAntes: number;
+    /** Lo pagado en este recibo; sin él (reimpresión al entregar), solo valor, abonado y saldo. */
+    estePago?: number | null;
+    saldo: number;
+  } | null;
 }
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
@@ -58,7 +69,7 @@ export function reciboVenta(c: CargaReciboVenta): Buffer {
     salto(),
     negrita(true),
     alinear("derecha"),
-    texto(`TOTAL ${fmt(c.total)}`),
+    texto(`${c.etiquetaTotal ?? "TOTAL"} ${fmt(c.total)}`),
     salto(),
     negrita(false),
     texto(`Pagado con ${c.medioPago}`),
@@ -70,6 +81,17 @@ export function reciboVenta(c: CargaReciboVenta): Buffer {
   }
   if (c.cambio != null && c.cambio > 0) {
     partes.push(texto(`Cambio ${fmt(c.cambio)}`), salto());
+  }
+  if (c.cuentaOrden) {
+    const cuenta = c.cuentaOrden;
+    partes.push(salto(), alinear("izquierda"), negrita(true), texto(`Cuenta orden #${cuenta.numeroOrden}`), negrita(false), salto());
+    partes.push(texto(`Valor del servicio ${fmt(cuenta.valor)}`), salto());
+    const conPago = cuenta.estePago != null;
+    if (cuenta.abonadoAntes > 0) {
+      partes.push(texto(`${conPago ? "Abonado antes" : "Pagado"} ${fmt(cuenta.abonadoAntes)}`), salto());
+    }
+    if (conPago) partes.push(texto(`Este pago ${fmt(cuenta.estePago!)}`), salto());
+    partes.push(negrita(true), texto(`SALDO ${fmt(cuenta.saldo)}`), negrita(false), salto(), alinear("derecha"));
   }
   if (c.cajero) {
     partes.push(texto(`Atendió: ${c.cajero}`), salto());
