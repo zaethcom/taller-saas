@@ -3,7 +3,8 @@
 /**
  * La ficha de una empresa para el superadmin: corregir sus datos,
  * llevar las fechas del servicio (registrar pagos de N meses o ajustar
- * las fechas a mano) y editar o eliminar sus sedes. Eliminar una sede
+ * las fechas a mano), administrar los correos y contraseñas de sus
+ * usuarios, y editar o eliminar sus sedes. Eliminar una sede
  * sigue la misma regla que /sedes dentro de la empresa: solo si no
  * tiene historial y nunca la única.
  */
@@ -14,6 +15,7 @@ import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { UsuariosEmpresa } from "@/componentes/superadmin/usuarios-empresa";
 import {
   estadoServicio,
   formatearFecha,
@@ -338,6 +340,8 @@ export default function PaginaEmpresaSuperadmin({ params }: { params: Promise<{ 
             </div>
           </form>
         </Tarjeta>
+
+        <UsuariosEmpresa empresaId={empresa.id} />
 
         <Tarjeta>
           <h2 style={{ marginBottom: 6 }}>Sedes</h2>
