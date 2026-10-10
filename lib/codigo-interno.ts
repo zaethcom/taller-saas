@@ -27,3 +27,19 @@ export function copiasValidas(valor: unknown): number | null {
   if (!Number.isInteger(n) || n < 1 || n > 100) return null;
   return n;
 }
+
+/**
+ * Lo que entrega un lector (cámara o USB) tal como llega: sin espacios
+ * ni caracteres de control alrededor (algunos lectores agregan \r, \n,
+ * \t o el separador GS1 \x1d) y en mayúsculas, que es como se guardan
+ * los códigos.
+ */
+export function normalizarCodigoEscaneado(valor: string): string {
+  return valor.replace(/[\x00-\x1f\x7f]/g, "").trim().toUpperCase();
+}
+
+/** El número de un ART-000123 (también ART123), o null si no es un código de artículo. */
+export function numeroDeCodigoArticulo(codigo: string): number | null {
+  const m = /^ART-?(\d+)$/i.exec(codigo.trim());
+  return m ? Number(m[1]) : null;
+}
