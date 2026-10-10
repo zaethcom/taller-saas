@@ -4,7 +4,7 @@
  *   clienteId?: string, clienteNuevo?: {nombre, documento?, telefono?, correo?},
  *   productoId?: string, productoNuevo?: {serial?, tipo, marca?, modelo?},
  *     (serial vacío: se genera uno, ver lib/serial-equipo.ts)
- *   motivo: string, infoAdicional?: string,
+ *   motivo: string, infoAdicional?: string, telefonoAlterno?: string,
  *   valorServicio?: number,
  *   abono?: {monto, metodoPagoId, montoRecibido?},
  * }
@@ -60,6 +60,8 @@ interface CuerpoOrden {
   productoNuevo?: ProductoNuevo;
   motivo: string;
   infoAdicional?: string;
+  /** Otro número para escribirle al cliente (0054_orden_telefono_alterno.sql). */
+  telefonoAlterno?: string;
   acceso?: AccesoDispositivo;
   valorServicio?: number;
   abono?: DatosAbono;
@@ -170,6 +172,7 @@ export async function POST(req: NextRequest) {
       producto_id: productoId,
       motivo: body.motivo.trim(),
       info_adicional: body.infoAdicional?.trim() || null,
+      telefono_alterno: body.telefonoAlterno?.trim() || null,
       fase_id: faseInicial?.id ?? null,
     })
     .select("id, numero, token_publico")

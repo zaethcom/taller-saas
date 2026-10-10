@@ -21,6 +21,7 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { CabeceraOrden } from "@/componentes/taller/cabecera-orden";
+import { BotonWhatsappOrden } from "@/componentes/taller/boton-whatsapp-orden";
 
 type Origen = "repuesto" | "servicio" | "mano_obra" | "libre";
 
@@ -240,6 +241,7 @@ export default function PaginaCotizacion() {
             >
               {copiado ? "¡Copiado!" : "Copiar enlace"}
             </Boton>
+            <BotonWhatsappOrden ordenId={id} tamano="md" variante="contorno" />
             <Boton
               variante="contorno"
               icono={<ArrowLeft size={17} strokeWidth={2} />}
