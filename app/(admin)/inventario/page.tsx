@@ -8,7 +8,7 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { FormularioRecepcion } from "@/componentes/inventario/formulario-recepcion";
-import { AjusteExistencia } from "@/componentes/inventario/ajuste-existencia";
+import { EditarProducto, type RepuestoEditable, type ArticuloEditable } from "@/componentes/inventario/editar-producto";
 import { InterruptorEnVenta } from "@/componentes/inventario/interruptor-en-venta";
 import { ImprimirEtiqueta } from "@/componentes/inventario/imprimir-etiqueta";
 import { codigoArticulo } from "@/lib/codigo-interno";
@@ -55,7 +55,9 @@ export default async function PaginaInventario() {
       .order("cantidad", { ascending: true }),
     supabase
       .from("articulo")
-      .select("id, numero, tipo, marca, modelo, precio_venta, imagen_url, estado, sede:sede_id ( nombre )")
+      .select(
+        "id, numero, tipo, marca, modelo, numero_serie, costo, precio_venta, condicion, categoria_id, imagen_url, estado, sede:sede_id ( nombre )",
+      )
       .order("numero", { ascending: false }),
   ]);
 
@@ -76,7 +78,7 @@ export default async function PaginaInventario() {
           <div className="rejilla-catalogo">
             {(existencias ?? []).map((e, i) => {
               // @ts-expect-error -- join inferido como array
-              const repuesto = e.repuesto as { id: string; codigo: string; descripcion: string; precio_venta: number; imagen_url: string | null; en_venta?: boolean };
+              const repuesto = e.repuesto as RepuestoEditable & { imagen_url: string | null; en_venta?: boolean };
               if (!repuesto) return null;
               const bajo = e.cantidad <= 2;
               return (
@@ -86,7 +88,11 @@ export default async function PaginaInventario() {
                   style={{ padding: 11, display: "flex", flexDirection: "column", gap: 8, position: "relative" }}
                 >
                   {editable && (
-                    <AjusteExistencia repuestoId={repuesto.id} sedeId={e.sede_id} cantidadActual={e.cantidad} />
+                    <EditarProducto
+                      repuesto={repuesto}
+                      // @ts-expect-error -- join inferido como array
+                      existencia={{ sedeId: e.sede_id, sedeNombre: e.sede?.nombre, cantidad: e.cantidad }}
+                    />
                   )}
                   <FotoProducto
                     tipo="repuesto"
@@ -140,6 +146,7 @@ export default async function PaginaInventario() {
                 relleno={false}
                 style={{ padding: 11, display: "flex", flexDirection: "column", gap: 8, position: "relative" }}
               >
+                {editable && <EditarProducto articulo={a as ArticuloEditable} />}
                 <FotoProducto
                   tipo="articulo"
                   id={a.id}
