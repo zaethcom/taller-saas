@@ -10,6 +10,8 @@ import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { FormularioRecepcion } from "@/componentes/inventario/formulario-recepcion";
 import { AjusteExistencia } from "@/componentes/inventario/ajuste-existencia";
 import { InterruptorEnVenta } from "@/componentes/inventario/interruptor-en-venta";
+import { ImprimirEtiqueta } from "@/componentes/inventario/imprimir-etiqueta";
+import { codigoArticulo } from "@/lib/codigo-interno";
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
@@ -112,6 +114,7 @@ export default async function PaginaInventario() {
                   ) : (
                     repuesto.en_venta === false && <Etiqueta tono="neutro">No en venta</Etiqueta>
                   )}
+                  {editable && <ImprimirEtiqueta repuestoId={repuesto.id} />}
                 </Tarjeta>
               );
             })}
@@ -142,7 +145,7 @@ export default async function PaginaInventario() {
                   {[a.marca, a.modelo].filter(Boolean).join(" ") || a.tipo}
                 </div>
                 <div className="cifra" style={{ fontSize: 11, color: "var(--ink-3)", marginTop: -4 }}>
-                  ART-{String(a.numero).padStart(6, "0")}
+                  {codigoArticulo(a.numero)}
                   {/* @ts-expect-error -- join inferido como array */}
                   {a.sede?.nombre ? ` · ${a.sede.nombre}` : ""}
                 </div>
@@ -154,6 +157,7 @@ export default async function PaginaInventario() {
                     <span style={{ textTransform: "capitalize" }}>{a.estado}</span>
                   </Etiqueta>
                 </div>
+                {editable && <ImprimirEtiqueta articuloId={a.id} />}
               </Tarjeta>
             ))}
           </div>
