@@ -15,12 +15,57 @@
  * contra el catálogo de la empresa (metodo_pago, 0019) y su nombre +
  * es_efectivo quedan grabados en `pago` como snapshot: si el catálogo
  * cambia después, un pago ya hecho no debe cambiar de categoría.
+ *
+ * GET /api/ventas
+ * Los últimos recibos de la sede activa (5 por defecto, ?limite= hasta
+ * 20), sin las anuladas, con sus items y medio de pago para poder
+ * verlos en /vender sin otra consulta.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
 import { encolarImpresion } from "@/lib/impresion";
 import { saldoPendiente } from "@/lib/caja";
+
+export async function GET(req: NextRequest) {
+  const supabase = await clienteServidor();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "no autenticado" }, { status: 401 });
+  }
+  const sedeActivaId = await obtenerSedeActivaId(supabase);
+  if (!sedeActivaId) {
+    return NextResponse.json({ error: "elige la sede en la que estás trabajando" }, { status: 400 });
+  }
+
+  const limite = Math.min(Math.max(Number(req.nextUrl.searchParams.get("limite")) || 5, 1), 20);
+  const { data, error } = await supabase
+    .from("venta")
+    .select("id, numero, total, tipo, creada_en, venta_item(descripcion, cantidad, precio_unit), pago(medio)")
+    .eq("sede_id", sedeActivaId)
+    .eq("anulada", false)
+    .order("creada_en", { ascending: false })
+    .limit(limite);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json(
+    (data ?? []).map((v) => ({
+      id: v.id,
+      numero: v.numero,
+      total: Number(v.total),
+      tipo: v.tipo,
+      creadaEn: v.creada_en,
+      medioPago: (v.pago as { medio: string }[] | null)?.[0]?.medio ?? null,
+      items: ((v.venta_item as { descripcion: string; cantidad: number; precio_unit: number }[] | null) ?? []).map(
+        (i) => ({ descripcion: i.descripcion, cantidad: i.cantidad, precioUnit: Number(i.precio_unit) }),
+      ),
+    })),
+  );
+}
 
 interface ItemVenta {
   repuestoId?: string;

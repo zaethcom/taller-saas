@@ -33,6 +33,7 @@ import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { PanelCobro } from "@/componentes/cobro/panel-cobro";
 import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-turno";
 import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
+import { UltimosRecibos } from "@/componentes/cobro/ultimos-recibos";
 
 interface LineaRepuesto {
   kind: "repuesto";
@@ -99,6 +100,7 @@ export default function PaginaVender() {
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [fallo, setFallo] = useState(false);
   const [ventaResultado, setVentaResultado] = useState<{ id: string; numero: number } | null>(null);
+  const [ventasHechas, setVentasHechas] = useState(0);
   const turnoAbierto = useTurnoAbierto();
 
   const [buscarRepuesto, setBuscarRepuesto] = useState("");
@@ -326,6 +328,7 @@ export default function PaginaVender() {
       setCarrito([]);
       setMontoRecibido(0);
       setVentaResultado({ id: data.ventaId, numero: data.numero });
+      setVentasHechas((n) => n + 1);
       // Un artículo vendido deja de estar disponible: la rejilla que
       // quedó en pantalla ya no dice la verdad hasta volver a pedirla.
       buscarArticulos();
@@ -804,6 +807,8 @@ export default function PaginaVender() {
               )}
             </div>
           </Tarjeta>
+
+          <UltimosRecibos recarga={ventasHechas} />
         </div>
       </div>
     </div>
