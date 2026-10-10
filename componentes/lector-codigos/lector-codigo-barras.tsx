@@ -3,9 +3,13 @@
 /**
  * Panel de cámara para leer un código con useLectorCodigos() -- a
  * diferencia de app/(taller)/escanear/page.tsx (pantalla completa,
- * cámara siempre activa), esto se monta solo mientras se necesita: la
- * cámara no debe pedirse ni encenderse hasta que alguien toque
- * "Escanear" en la pantalla que lo use.
+ * cámara siempre activa), esto se monta solo mientras se necesita: cada
+ * pantalla decide cuándo montarlo (al tocar "Escanear", o de entrada en
+ * /entregar, donde casi siempre se llega con la etiqueta en la mano).
+ *
+ * `proporcion` y `maxAlto` agrandan el visor donde la cámara es lo
+ * principal de la pantalla; `sinMarco` evita la tarjeta dentro de otra
+ * tarjeta cuando quien lo usa ya está dentro de una.
  */
 import { useLectorCodigos } from "./use-lector-codigos";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
@@ -16,20 +20,28 @@ export function LectorCodigoBarras({
   etiqueta = "Ubica el código dentro del recuadro",
   onDetectado,
   onCerrar,
+  proporcion = "16 / 9",
+  maxAlto,
+  sinMarco = false,
 }: {
   formats: string[];
   etiqueta?: string;
+  proporcion?: string;
+  maxAlto?: string;
+  sinMarco?: boolean;
   onDetectado: (valor: string) => void;
   onCerrar: () => void;
 }) {
   const { videoRef, camaraDisponible, camaraActiva } = useLectorCodigos(formats, onDetectado);
 
-  return (
-    <Tarjeta>
+  const contenido = (
+    <>
       <div
         style={{
           position: "relative",
-          aspectRatio: "16 / 9",
+          aspectRatio: proporcion,
+          maxHeight: maxAlto,
+          width: "100%",
           background: "var(--surface)",
           borderRadius: "var(--r-md)",
           overflow: "hidden",
@@ -85,6 +97,8 @@ export function LectorCodigoBarras({
           Cancelar
         </Boton>
       </div>
-    </Tarjeta>
+    </>
   );
+
+  return sinMarco ? <div>{contenido}</div> : <Tarjeta>{contenido}</Tarjeta>;
 }
