@@ -76,7 +76,10 @@ export default function PaginaEntregar() {
 
   const [numero, setNumero] = useState("");
   const [orden, setOrden] = useState<OrdenEncontrada | null>(null);
-  const [escaneando, setEscaneando] = useState(false);
+  // La cámara se abre sola al entrar: casi siempre se llega a entregar
+  // con la etiqueta QR en la mano. Si el navegador no deja abrirla, el
+  // lector muestra el aviso y el campo de número sigue debajo.
+  const [escaneando, setEscaneando] = useState(true);
   const [foto, setFoto] = useState<File | null>(null);
   const [metodos, setMetodos] = useState<Metodo[]>([]);
   const [metodoPagoId, setMetodoPagoId] = useState("");
@@ -273,6 +276,32 @@ export default function PaginaEntregar() {
 
       {!orden ? (
         <Tarjeta>
+          {escaneando ? (
+            <div style={{ marginBottom: 14 }}>
+              <LectorCodigoBarras
+                formats={["qr_code"]}
+                etiqueta="Ubica el QR de la etiqueta"
+                proporcion="3 / 4"
+                maxAlto="62vh"
+                sinMarco
+                onDetectado={procesarQr}
+                onCerrar={() => setEscaneando(false)}
+              />
+            </div>
+          ) : (
+            <div style={{ marginBottom: 14 }}>
+              <Boton
+                type="button"
+                variante="contorno"
+                icono={<QrCode size={17} strokeWidth={2} />}
+                onClick={() => setEscaneando(true)}
+                ancho
+              >
+                Escanear QR
+              </Boton>
+            </div>
+          )}
+
           <form
             className="fila"
             style={{ gap: 8, flexWrap: "wrap" }}
@@ -292,26 +321,7 @@ export default function PaginaEntregar() {
             <Boton type="submit" variante="primario" icono={<Search size={17} strokeWidth={2} />} disabled={!numero.trim()}>
               Buscar
             </Boton>
-            <Boton
-              type="button"
-              variante="contorno"
-              icono={<QrCode size={17} strokeWidth={2} />}
-              onClick={() => setEscaneando(true)}
-            >
-              Escanear QR
-            </Boton>
           </form>
-
-          {escaneando && (
-            <div style={{ marginTop: 14 }}>
-              <LectorCodigoBarras
-                formats={["qr_code"]}
-                etiqueta="Ubica el QR de la etiqueta"
-                onDetectado={procesarQr}
-                onCerrar={() => setEscaneando(false)}
-              />
-            </div>
-          )}
 
           {error && (
             <div style={{ marginTop: 14 }}>
