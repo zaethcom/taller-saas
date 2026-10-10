@@ -1,15 +1,12 @@
 "use client";
 
 /**
- * Los últimos recibos de venta de la sede activa, debajo del carrito en
- * /vender. Sirve para lo que pasa en el mostrador justo después de
- * cobrar: el cliente vuelve por el papel, o quien cobró quiere revisar
+ * Los últimos recibos de venta de la sede activa, en su propia pantalla
+ * del POS (/recibos, debajo de Vender en el menú). Sirve para lo que
+ * pasa en el mostrador justo después de cobrar: el cliente vuelve por el papel, o quien cobró quiere revisar
  * qué se le vendió. Cada fila se despliega para ver los items y tiene
  * su botón de reimprimir (POST /api/ventas/<id>/reimprimir, que no
  * toca inventario ni caja).
- *
- * `recarga` cambia cada vez que /vender registra una venta, así la
- * lista no espera a que alguien recargue la página.
  */
 import { useEffect, useState } from "react";
 import { ChevronDown, Printer, Receipt } from "lucide-react";
@@ -36,7 +33,7 @@ function hora(iso: string) {
   return mismoDia ? h : `${d.toLocaleDateString("es-CO", { day: "numeric", month: "short" })} ${h}`;
 }
 
-export function UltimosRecibos({ recarga }: { recarga: number }) {
+export function UltimosRecibos() {
   const [recibos, setRecibos] = useState<Recibo[] | null>(null);
   const [abierto, setAbierto] = useState<string | null>(null);
   const [aviso, setAviso] = useState<{ id: string; texto: string } | null>(null);
@@ -46,7 +43,7 @@ export function UltimosRecibos({ recarga }: { recarga: number }) {
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => setRecibos(Array.isArray(data) ? data : []))
       .catch(() => setRecibos([]));
-  }, [recarga]);
+  }, []);
 
   async function reimprimir(id: string) {
     try {
@@ -59,7 +56,7 @@ export function UltimosRecibos({ recarga }: { recarga: number }) {
   }
 
   return (
-    <Tarjeta relleno={false} style={{ overflow: "hidden", marginTop: 14 }}>
+    <Tarjeta relleno={false} style={{ overflow: "hidden" }}>
       <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--rule)" }}>
         <h2 style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 15 }}>
           <Receipt size={18} strokeWidth={2} color="var(--accent)" aria-hidden />
