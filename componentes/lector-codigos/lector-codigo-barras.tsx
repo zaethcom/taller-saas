@@ -42,7 +42,7 @@ export function LectorCodigoBarras({
           <video ref={videoRef} playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         ) : (
           <span style={{ padding: 24, textAlign: "center", color: "var(--ink-3)", fontSize: 14 }}>
-            Este navegador no lee códigos con la cámara. Escríbelo a mano.
+            No se pudo abrir la cámara (revisa el permiso del navegador). Escríbelo a mano.
           </span>
         )}
 

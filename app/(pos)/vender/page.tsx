@@ -15,9 +15,15 @@
  * Los dos catálogos siguen separados a propósito: un repuesto se vende
  * por cantidad y un artículo por unidad, y mezclarlos en una sola
  * rejilla obligaría a explicar esa diferencia en cada tarjeta.
+ *
+ * Al lado de cada lupa hay un botón que abre la cámara y lee el código
+ * de barras (o QR) de la etiqueta. Lo leído, igual que un código exacto
+ * escrito a mano o tecleado por un lector USB seguido de Enter, va
+ * directo al carrito; si no coincide exacto con ningún código, queda
+ * como búsqueda normal.
  */
 import { useEffect, useState } from "react";
-import { Trash2, Plus, Minus, Search, ShoppingCart, Lock, Check, ChevronDown, Tags, Printer, PlusCircle } from "lucide-react";
+import { Trash2, Plus, Minus, Search, ShoppingCart, Lock, Check, ChevronDown, Tags, Printer, PlusCircle, ScanBarcode } from "lucide-react";
 import { FotoProducto } from "@/componentes/ui/foto-producto";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
@@ -26,6 +32,7 @@ import { Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { PanelCobro } from "@/componentes/cobro/panel-cobro";
 import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-turno";
+import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
 
 interface LineaRepuesto {
   kind: "repuesto";
@@ -75,6 +82,11 @@ interface Categoria {
   nombre: string;
 }
 
+/** Lo que imprimen las etiquetas (Code 128) y lo que traen los productos de fábrica. */
+const FORMATOS_ESCANEO = ["code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code"];
+
+const mismoCodigo = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
 export default function PaginaVender() {
@@ -96,6 +108,8 @@ export default function PaginaVender() {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [categoriaId, setCategoriaId] = useState("");
   const [categoriasAbiertas, setCategoriasAbiertas] = useState(false);
+  const [escaneando, setEscaneando] = useState<"repuesto" | "articulo" | null>(null);
+  const [avisoCodigo, setAvisoCodigo] = useState<{ texto: string; fallo: boolean; donde: Linea["kind"] } | null>(null);
 
   const total = carrito.reduce((s, l) => s + (l.kind === "repuesto" ? l.cantidad : 1) * l.precioUnit, 0);
   const unidades = carrito.reduce((s, l) => s + (l.kind === "repuesto" ? l.cantidad : 1), 0);
@@ -134,18 +148,116 @@ export default function PaginaVender() {
     return categoriaId ? `${url}&categoriaId=${categoriaId}` : url;
   }
 
-  async function buscarRepuestos() {
-    const res = await fetch(conCategoria(`/api/repuestos?venta=1&buscar=${encodeURIComponent(buscarRepuesto)}`));
+  async function buscarRepuestos(texto = buscarRepuesto): Promise<Repuesto[]> {
+    const res = await fetch(conCategoria(`/api/repuestos?venta=1&buscar=${encodeURIComponent(texto)}`));
     const data = await res.json();
-    setResultadosRepuesto(res.ok && Array.isArray(data) ? data : []);
+    const lista: Repuesto[] = res.ok && Array.isArray(data) ? data : [];
+    setResultadosRepuesto(lista);
+    return lista;
   }
 
-  async function buscarArticulos() {
+  async function buscarArticulos(texto = buscarArticulo): Promise<Articulo[]> {
     const res = await fetch(
-      conCategoria(`/api/inventario/articulos?disponibles=1&buscar=${encodeURIComponent(buscarArticulo)}`),
+      conCategoria(`/api/inventario/articulos?disponibles=1&buscar=${encodeURIComponent(texto)}`),
     );
     const data = await res.json();
-    setResultadosArticulo(res.ok && Array.isArray(data) ? data : []);
+    const lista: Articulo[] = res.ok && Array.isArray(data) ? data : [];
+    setResultadosArticulo(lista);
+    return lista;
+  }
+
+  /**
+   * Busca el texto como de costumbre y, si alguno de los resultados
+   * tiene exactamente ese código, lo agrega al carrito y limpia el
+   * campo -- así un lector USB (que teclea el código y Enter) o la
+   * cámara cobran de una vez. Si no hay coincidencia exacta, la
+   * búsqueda queda en pantalla para elegir a mano.
+   */
+  async function buscarOAgregar(kind: Linea["kind"], texto: string, desdeCamara = false, donde = kind) {
+    const codigo = texto.trim();
+    setAvisoCodigo(null);
+    if (kind === "repuesto") {
+      setBuscarRepuesto(codigo);
+      const exacto = codigo ? (await buscarRepuestos(codigo)).find((r) => mismoCodigo(r.codigo, codigo)) : undefined;
+      if (exacto) {
+        agregarRepuesto(exacto);
+        setBuscarRepuesto("");
+        setAvisoCodigo({ texto: `Agregado: ${exacto.descripcion}`, fallo: false, donde });
+        return;
+      }
+    } else {
+      setBuscarArticulo(codigo);
+      const exacto = codigo ? (await buscarArticulos(codigo)).find((a) => mismoCodigo(a.codigo, codigo)) : undefined;
+      if (exacto) {
+        agregarArticulo(exacto);
+        setBuscarArticulo("");
+        setAvisoCodigo({
+          texto: `Agregado: ${[exacto.marca, exacto.modelo].filter(Boolean).join(" ") || exacto.tipo}`,
+          fallo: false,
+          donde,
+        });
+        return;
+      }
+    }
+    if (desdeCamara) {
+      setAvisoCodigo({ texto: `Ningún producto disponible tiene el código ${codigo}.`, fallo: true, donde });
+    }
+  }
+
+  /**
+   * Lo leído por cámara se clasifica por su forma, no por junto a qué
+   * lupa se tocó el botón: los artículos siempre llevan ART-000123 en
+   * la etiqueta; cualquier otro código es de un repuesto. El aviso sí
+   * sale donde se abrió la cámara, que es donde está mirando quien cobra.
+   */
+  async function codigoLeido(valor: string) {
+    const origen = escaneando ?? "repuesto";
+    setEscaneando(null);
+    const kind = /^ART-?\d+$/i.test(valor.trim()) ? "articulo" : "repuesto";
+    await buscarOAgregar(kind, valor, true, origen);
+  }
+
+  function botonEscanear(kind: Linea["kind"]) {
+    return (
+      <Boton
+        type="button"
+        variante={escaneando === kind ? "primario" : "contorno"}
+        icono={<ScanBarcode size={17} strokeWidth={2} />}
+        onClick={() => {
+          setAvisoCodigo(null);
+          setEscaneando((e) => (e === kind ? null : kind));
+        }}
+        aria-label="Escanear código de barras con la cámara"
+        title="Escanear con la cámara"
+      />
+    );
+  }
+
+  function panelEscaneo(kind: Linea["kind"]) {
+    return (
+      <>
+        {escaneando === kind && (
+          <div style={{ marginBottom: 12 }}>
+            <LectorCodigoBarras
+              formats={FORMATOS_ESCANEO}
+              etiqueta="Ubica el código de barras del producto"
+              onDetectado={codigoLeido}
+              onCerrar={() => setEscaneando(null)}
+            />
+          </div>
+        )}
+        {avisoCodigo?.donde === kind && escaneando === null && (
+          <div style={{ marginBottom: 12 }}>
+            <Aviso
+              tono={avisoCodigo.fallo ? "peligro" : "ok"}
+              icono={avisoCodigo.fallo ? undefined : <Check size={17} strokeWidth={2.4} />}
+            >
+              {avisoCodigo.texto}
+            </Aviso>
+          </div>
+        )}
+      </>
+    );
   }
 
   function agregarRepuesto(r: Repuesto) {
@@ -360,7 +472,7 @@ export default function PaginaVender() {
               style={{ gap: 8, marginBottom: 12, flexWrap: "nowrap" }}
               onSubmit={(e) => {
                 e.preventDefault();
-                buscarRepuestos();
+                buscarOAgregar("repuesto", buscarRepuesto);
               }}
             >
               <input
@@ -369,8 +481,10 @@ export default function PaginaVender() {
                 onChange={(e) => setBuscarRepuesto(e.target.value)}
                 aria-label="Buscar repuesto o accesorio"
               />
-              <Boton type="submit" variante="contorno" icono={<Search size={17} strokeWidth={2} />} />
+              <Boton type="submit" variante="contorno" icono={<Search size={17} strokeWidth={2} />} aria-label="Buscar" />
+              {botonEscanear("repuesto")}
             </form>
+            {panelEscaneo("repuesto")}
 
             {resultadosRepuesto.length === 0 ? (
               <Tarjeta style={{ borderStyle: "dashed", textAlign: "center", color: "var(--ink-3)", fontSize: 13 }}>
@@ -429,7 +543,7 @@ export default function PaginaVender() {
               style={{ gap: 8, marginBottom: 12, flexWrap: "nowrap" }}
               onSubmit={(e) => {
                 e.preventDefault();
-                buscarArticulos();
+                buscarOAgregar("articulo", buscarArticulo);
               }}
             >
               <input
@@ -438,8 +552,10 @@ export default function PaginaVender() {
                 onChange={(e) => setBuscarArticulo(e.target.value)}
                 aria-label="Buscar artículo"
               />
-              <Boton type="submit" variante="contorno" icono={<Search size={17} strokeWidth={2} />} />
+              <Boton type="submit" variante="contorno" icono={<Search size={17} strokeWidth={2} />} aria-label="Buscar" />
+              {botonEscanear("articulo")}
             </form>
+            {panelEscaneo("articulo")}
 
             {resultadosArticulo.length === 0 ? (
               <Tarjeta style={{ borderStyle: "dashed", textAlign: "center", color: "var(--ink-3)", fontSize: 13 }}>
