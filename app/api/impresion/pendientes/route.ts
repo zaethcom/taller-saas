@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { registrarContacto, verificarEstacion } from "@/lib/estacion-auth";
 import { clienteAdmin } from "@/lib/supabase/servidor";
+import { leerAjustesEtiquetadora } from "@/lib/ajustes-etiquetadora";
 import { aBytes, resolverImpresion, type TrabajoPendiente } from "@/estacion/resolver";
 
 export async function GET(req: NextRequest) {
@@ -62,11 +63,12 @@ export async function GET(req: NextRequest) {
     .eq("sede_id", identidad.sedeId)
     .maybeSingle();
   const lenguaje = impresora?.etiquetas_lenguaje === "zpl" ? "zpl" : "pplb";
+  const ajustes = await leerAjustesEtiquetadora(admin, identidad.sedeId);
 
   return NextResponse.json(
     (data as TrabajoPendiente[]).map((trabajo) => {
       try {
-        const { destino, contenido } = resolverImpresion(trabajo, lenguaje);
+        const { destino, contenido } = resolverImpresion(trabajo, lenguaje, ajustes);
         return { id: trabajo.id, tipo: trabajo.tipo, destino, bytes: aBytes(contenido).toString("base64") };
       } catch (e) {
         // Una carga que no se puede traducir no debe frenar la cola: la
