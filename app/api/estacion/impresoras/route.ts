@@ -20,6 +20,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verificarEstacion } from "@/lib/estacion-auth";
 import { clienteAdmin } from "@/lib/supabase/servidor";
+import { leerAjustesEtiquetadora } from "@/lib/ajustes-etiquetadora";
 
 export async function GET(req: NextRequest) {
   const identidad = await verificarEstacion(req.headers.get("authorization"));
@@ -61,6 +62,7 @@ export async function GET(req: NextRequest) {
       puerto: data.etiquetas_puerto,
       protocolo: data.etiquetas_protocolo,
       lenguaje: idioma?.etiquetas_lenguaje ?? "pplb",
+      ajustes: await leerAjustesEtiquetadora(admin, identidad.sedeId),
     },
   });
 }

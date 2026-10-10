@@ -16,6 +16,7 @@
  * verdad esos 4 bytes de más rompe la impresión.
  */
 import { Socket } from "node:net";
+import type { AjustesEtiquetadora } from "./ajustes-etiquetadora";
 
 export interface Destino {
   enviar(datos: Buffer | string): Promise<void>;
@@ -133,6 +134,8 @@ export interface ConfigImpresora {
   protocolo?: "crudo" | "puente_android";
   /** Solo para la de etiquetas: Argox habla "pplb" (por defecto), Zebra "zpl". */
   lenguaje?: LenguajeEtiquetas;
+  /** Solo para la de etiquetas: oscuridad, velocidad, corrimientos (ver ajustes-etiquetadora.ts). */
+  ajustes?: AjustesEtiquetadora;
 }
 
 export type LenguajeEtiquetas = "pplb" | "zpl";
