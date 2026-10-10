@@ -21,6 +21,7 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { EvidenciaIngreso, subirEvidenciaIngreso, type ArchivoIngreso } from "@/componentes/recepcion/evidencia-ingreso";
+import type { MarcaConModelos } from "@/lib/modelos-equipo";
 
 type TipoNegocio = "celular" | "computador" | "patineta" | "otro";
 
@@ -47,6 +48,9 @@ interface Producto {
   marca: string | null;
   modelo: string | null;
 }
+
+/** Valor del desplegable para escribir una marca o un modelo que no está en la lista. */
+const OTRA = "__otra__";
 
 /** El número del paso, para que las tres tarjetas se lean como una secuencia. */
 function Paso({ n, titulo, icono, children }: { n: number; titulo: string; icono: React.ReactNode; children: React.ReactNode }) {
@@ -98,6 +102,12 @@ export default function PaginaRecibir() {
   const [productoNuevo, setProductoNuevo] = useState({ tipo: "patineta", marca: "", modelo: "" });
   const [buscandoProducto, setBuscandoProducto] = useState(false);
   const [escaneando, setEscaneando] = useState(false);
+  // Marcas y modelos del catálogo y de equipos ya recibidos; si no hay
+  // ninguno, marca y modelo quedan como texto libre.
+  const [marcas, setMarcas] = useState<MarcaConModelos[]>([]);
+  const [marcaOtra, setMarcaOtra] = useState(false);
+  const [modeloOtro, setModeloOtro] = useState(false);
+  const modelosDeMarca = marcaOtra ? [] : (marcas.find((m) => m.marca === productoNuevo.marca)?.modelos ?? []);
 
   const [tipoAcceso, setTipoAcceso] = useState<"" | "pin3" | "pin4" | "pin6" | "patron" | "otro">("");
   const [pinAcceso, setPinAcceso] = useState("");
@@ -131,6 +141,10 @@ export default function PaginaRecibir() {
           setProductoNuevo((p) => ({ ...p, tipo: TIPO_POR_NEGOCIO[config.tipoNegocio as TipoNegocio] }));
         }
       })
+      .catch(() => {});
+    fetch("/api/productos/modelos")
+      .then((r) => (r.ok ? r.json() : { marcas: [] }))
+      .then((d: { marcas?: MarcaConModelos[] }) => setMarcas(d.marcas ?? []))
       .catch(() => {});
   }, []);
 
@@ -218,7 +232,9 @@ export default function PaginaRecibir() {
     setClienteNuevo({ nombre: "", telefono: "", correo: "" });
     setSerial("");
     setProducto(null);
-    setProductoNuevo({ tipo: "patineta", marca: "", modelo: "" });
+    setProductoNuevo((p) => ({ ...p, marca: "", modelo: "" }));
+    setMarcaOtra(false);
+    setModeloOtro(false);
     setMotivo("");
     setInfoAdicional("");
     setTipoAcceso("");
@@ -441,18 +457,61 @@ export default function PaginaRecibir() {
                 </select>
               </Campo>
               <Campo etiqueta="Marca">
-                <input
-                  placeholder="Marca"
-                  value={productoNuevo.marca}
-                  onChange={(e) => setProductoNuevo((p) => ({ ...p, marca: e.target.value }))}
-                />
+                {marcas.length > 0 && (
+                  <select
+                    value={marcaOtra ? OTRA : productoNuevo.marca}
+                    onChange={(e) => {
+                      const otra = e.target.value === OTRA;
+                      setMarcaOtra(otra);
+                      setModeloOtro(otra);
+                      setProductoNuevo((p) => ({ ...p, marca: otra ? "" : e.target.value, modelo: "" }));
+                    }}
+                  >
+                    <option value="">Escoge la marca</option>
+                    {marcas.map((m) => (
+                      <option key={m.marca} value={m.marca}>
+                        {m.marca}
+                      </option>
+                    ))}
+                    <option value={OTRA}>Otra marca…</option>
+                  </select>
+                )}
+                {(marcas.length === 0 || marcaOtra) && (
+                  <input
+                    placeholder="Escribe la marca"
+                    style={marcas.length > 0 ? { marginTop: 6 } : undefined}
+                    value={productoNuevo.marca}
+                    onChange={(e) => setProductoNuevo((p) => ({ ...p, marca: e.target.value }))}
+                  />
+                )}
               </Campo>
               <Campo etiqueta="Modelo">
-                <input
-                  placeholder="Modelo"
-                  value={productoNuevo.modelo}
-                  onChange={(e) => setProductoNuevo((p) => ({ ...p, modelo: e.target.value }))}
-                />
+                {modelosDeMarca.length > 0 && (
+                  <select
+                    value={modeloOtro ? OTRA : productoNuevo.modelo}
+                    onChange={(e) => {
+                      const otro = e.target.value === OTRA;
+                      setModeloOtro(otro);
+                      setProductoNuevo((p) => ({ ...p, modelo: otro ? "" : e.target.value }));
+                    }}
+                  >
+                    <option value="">Escoge el modelo</option>
+                    {modelosDeMarca.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                    <option value={OTRA}>Otro modelo…</option>
+                  </select>
+                )}
+                {(modelosDeMarca.length === 0 || modeloOtro) && (
+                  <input
+                    placeholder="Escribe el modelo"
+                    style={modelosDeMarca.length > 0 ? { marginTop: 6 } : undefined}
+                    value={productoNuevo.modelo}
+                    onChange={(e) => setProductoNuevo((p) => ({ ...p, modelo: e.target.value }))}
+                  />
+                )}
               </Campo>
             </div>
           )}
