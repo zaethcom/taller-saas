@@ -233,7 +233,7 @@ export function VincularEstacion({ sedeId }: { sedeId: string }) {
           {estado && <LineaEstado estado={estado} />}
           <p style={{ margin: 0, fontSize: 13, color: "var(--ink-2)" }}>
             Escribe este código en la app <strong>Puente de impresión</strong> del Android, en
-            «Vincular con la página»:
+            «Vincular con la página», o en la página <strong>/estacion</strong> de Chrome:
           </p>
           <div
             className="cifra"
@@ -360,6 +360,8 @@ export function VincularEstacion({ sedeId }: { sedeId: string }) {
           <p style={{ margin: 0, fontSize: 12, color: "var(--ink-3)" }}>
             «Generar clave» es para una estación en un computador (descarga un config.json).
             «Código para la app Android» es para que el Android del puente imprima solo, sin computador.
+            El mismo código sirve en un Chromebook o cualquier equipo con Chrome y las impresoras por
+            USB: abre <a href="/estacion" target="_blank" rel="noreferrer">/estacion</a> en ese equipo.
           </p>
 
           {estado?.vinculada && (
