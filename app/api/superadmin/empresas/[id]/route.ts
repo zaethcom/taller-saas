@@ -31,7 +31,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const [{ data: empresa, error }, { data: sedes }, { data: pagos }] = await Promise.all([
       admin
         .from("empresa")
-        .select("id, nombre, nit, activa, creada_en, servicio_inicio, servicio_fin")
+        .select("id, nombre, nit, activa, creada_en, servicio_inicio, servicio_fin, tipo_empresa_id")
         .eq("id", id)
         .maybeSingle(),
       admin.from("sede").select("id, nombre, tipo").eq("empresa_id", id).order("nombre"),

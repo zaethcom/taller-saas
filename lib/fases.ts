@@ -88,8 +88,16 @@ export function filasDePlantilla(
   plantilla: NombrePlantilla,
   existentes: readonly Pick<FaseOrden, "estado" | "nombre" | "posicion" | "activo">[],
 ): { estado: Estado; nombre: string; posicion: number }[] {
+  return filasDeFases(PLANTILLAS[plantilla].fases, existentes);
+}
+
+/** Lo mismo que filasDePlantilla, para fases que no son una de las plantillas fijas (un tipo de empresa, 0053). */
+export function filasDeFases(
+  fases: Partial<Record<Estado, string[]>>,
+  existentes: readonly Pick<FaseOrden, "estado" | "nombre" | "posicion" | "activo">[],
+): { estado: Estado; nombre: string; posicion: number }[] {
   const filas: { estado: Estado; nombre: string; posicion: number }[] = [];
-  for (const [estado, nombres] of Object.entries(PLANTILLAS[plantilla].fases) as [Estado, string[]][]) {
+  for (const [estado, nombres] of Object.entries(fases) as [Estado, string[]][]) {
     const activos = new Set(existentes.filter((f) => f.activo && f.estado === estado).map((f) => normalizar(f.nombre)));
     let posicion = siguientePosicion(existentes, estado);
     for (const nombre of nombres) {
