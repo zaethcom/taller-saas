@@ -8,14 +8,28 @@
  * efecto inmediato: empresa.activa gobierna empresa_actual() (0020),
  * así que una empresa suspendida deja de ver sus propios datos en toda
  * la aplicación, no solo aquí.
+ *
+ * Cada empresa muestra hasta cuándo tiene pago el servicio (0052) y el
+ * listado avisa arriba de las vencidas y de las que vencen en los
+ * próximos días. Vencer no suspende nada solo: suspender sigue siendo
+ * decisión de quien está aquí. Editar la empresa, registrar pagos y
+ * editar o eliminar sus sedes se hace en /superadmin/empresas/<id>.
  */
 import { useEffect, useState } from "react";
-import { Building2, Plus, Check } from "lucide-react";
-import { Boton } from "@/componentes/ui/boton";
+import { Building2, Plus, Check, AlertTriangle, Settings2 } from "lucide-react";
+import { Boton, BotonEnlace } from "@/componentes/ui/boton";
 import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import {
+  DIAS_AVISO,
+  estadoServicio,
+  formatearFecha,
+  hoyIso,
+  textoEstadoServicio,
+  tonoServicio,
+} from "@/lib/servicio-empresa";
 
 interface Empresa {
   id: string;
@@ -23,6 +37,8 @@ interface Empresa {
   nit: string | null;
   activa: boolean;
   creada_en: string;
+  servicio_inicio: string | null;
+  servicio_fin: string | null;
   usuarios: number;
   sedes: number;
 }
@@ -38,6 +54,8 @@ export default function PaginaSuperadminEmpresas() {
   const [adminNombre, setAdminNombre] = useState("");
   const [adminCorreo, setAdminCorreo] = useState("");
   const [adminClave, setAdminClave] = useState("");
+  const [mesesPagados, setMesesPagados] = useState("");
+  const [valorPagado, setValorPagado] = useState("");
   const [creando, setCreando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -77,17 +95,22 @@ export default function PaginaSuperadminEmpresas() {
           adminNombre: adminNombre.trim(),
           adminCorreo: adminCorreo.trim(),
           adminClave,
+          mesesPagados: mesesPagados ? Number(mesesPagados) : undefined,
+          valorPagado: valorPagado ? Number(valorPagado) : undefined,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       const data = await res.json();
       setMensaje(`Empresa "${data.empresa.nombre}" creada. Admin: ${data.admin.correo}`);
+      if (data.avisoPago) setError(data.avisoPago);
       setNombreEmpresa("");
       setNit("");
       setNombreSede("");
       setAdminNombre("");
       setAdminCorreo("");
       setAdminClave("");
+      setMesesPagados("");
+      setValorPagado("");
       await cargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo crear la empresa");
@@ -110,6 +133,11 @@ export default function PaginaSuperadminEmpresas() {
     }
   }
 
+  const hoy = hoyIso();
+  const conEstado = empresas.map((e) => ({ ...e, servicio: estadoServicio(e.servicio_fin, hoy) }));
+  const vencidas = conEstado.filter((e) => e.servicio.tipo === "vencido");
+  const porVencer = conEstado.filter((e) => e.servicio.tipo === "por_vencer");
+
   if (cargando) {
     return <Tarjeta style={{ textAlign: "center", color: "var(--ink-3)" }}>Cargando…</Tarjeta>;
   }
@@ -123,6 +151,23 @@ export default function PaginaSuperadminEmpresas() {
       />
 
       <div className="pila">
+        {(vencidas.length > 0 || porVencer.length > 0) && (
+          <Aviso tono={vencidas.length > 0 ? "peligro" : "aviso"} icono={<AlertTriangle size={17} strokeWidth={2.2} />}>
+            {vencidas.length > 0 && (
+              <div>
+                <strong>Vencidas:</strong>{" "}
+                {vencidas.map((e) => `${e.nombre} (${formatearFecha(e.servicio_fin)})`).join(", ")}
+              </div>
+            )}
+            {porVencer.length > 0 && (
+              <div>
+                <strong>Vencen en los próximos {DIAS_AVISO} días:</strong>{" "}
+                {porVencer.map((e) => `${e.nombre} (${formatearFecha(e.servicio_fin)})`).join(", ")}
+              </div>
+            )}
+          </Aviso>
+        )}
+
         {empresas.length === 0 ? (
           <Tarjeta style={{ borderStyle: "dashed", textAlign: "center", color: "var(--ink-3)", fontSize: 13 }}>
             Todavía no hay empresas.
@@ -136,12 +181,13 @@ export default function PaginaSuperadminEmpresas() {
                   <th>NIT</th>
                   <th>Usuarios</th>
                   <th>Sedes</th>
+                  <th>Servicio hasta</th>
                   <th>Estado</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {empresas.map((e) => (
+                {conEstado.map((e) => (
                   <tr key={e.id}>
                     <td style={{ fontWeight: 700 }}>{e.nombre}</td>
                     <td className="cifra" style={{ color: "var(--ink-2)" }}>
@@ -150,11 +196,26 @@ export default function PaginaSuperadminEmpresas() {
                     <td className="cifra">{e.usuarios}</td>
                     <td className="cifra">{e.sedes}</td>
                     <td>
+                      <div className="cifra" style={{ fontSize: 13 }}>
+                        {formatearFecha(e.servicio_fin)}
+                      </div>
+                      <Etiqueta tono={tonoServicio(e.servicio)}>{textoEstadoServicio(e.servicio)}</Etiqueta>
+                    </td>
+                    <td>
                       <Etiqueta tono={e.activa ? "ok" : "peligro"} punto>
                         {e.activa ? "Activa" : "Suspendida"}
                       </Etiqueta>
                     </td>
-                    <td style={{ textAlign: "right" }}>
+                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                      <BotonEnlace
+                        href={`/superadmin/empresas/${e.id}`}
+                        variante="fantasma"
+                        tamano="sm"
+                        icono={<Settings2 size={14} strokeWidth={2} />}
+                        style={{ marginRight: 6 }}
+                      >
+                        Administrar
+                      </BotonEnlace>
                       <Boton
                         variante={e.activa ? "peligro" : "primario"}
                         tamano="sm"
@@ -187,6 +248,31 @@ export default function PaginaSuperadminEmpresas() {
               </Campo>
               <Campo etiqueta="Primera sede">
                 <input placeholder="Ej. Principal" value={nombreSede} onChange={(e) => setNombreSede(e.target.value)} />
+              </Campo>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+              <Campo etiqueta="Meses pagados" ayuda="Opcional. El servicio corre desde hoy.">
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  placeholder="Ej. 6"
+                  value={mesesPagados}
+                  onChange={(e) => setMesesPagados(e.target.value)}
+                  className="cifra"
+                />
+              </Campo>
+              <Campo etiqueta="Valor pagado" ayuda="Opcional.">
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  value={valorPagado}
+                  onChange={(e) => setValorPagado(e.target.value)}
+                  className="cifra"
+                  disabled={!mesesPagados}
+                />
               </Campo>
             </div>
 
