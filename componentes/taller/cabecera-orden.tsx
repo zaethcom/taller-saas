@@ -6,7 +6,8 @@
  * la pantalla-hub (/orden/[id]) mostraba número/estado/cliente/equipo;
  * las demás eran ciegas a ese contexto. No se dibuja un QR gráfico:
  * el que ya va impreso en la etiqueta física cumple ese rol; aquí basta
- * el código de seguimiento copiable.
+ * el código de seguimiento copiable, o enviado por WhatsApp
+ * (BotonWhatsappOrden).
  *
  * `anterior`/`siguiente` son opcionales: solo los tres pasos
  * secuenciales (diagnóstico → cotización → repuestos) los usan --
@@ -20,6 +21,7 @@ import { ArrowLeft, ArrowRight, Copy, Check } from "lucide-react";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { EstadoOrden } from "@/componentes/ui/estado-orden";
 import { Boton } from "@/componentes/ui/boton";
+import { BotonWhatsappOrden } from "@/componentes/taller/boton-whatsapp-orden";
 import type { Estado } from "@/lib/estados";
 
 interface OrdenContexto {
@@ -96,15 +98,18 @@ export function CabeceraOrden({
             </div>
           </div>
         )}
-        <Boton
-          variante="fantasma"
-          tamano="sm"
-          icono={copiado ? <Check size={14} strokeWidth={2.4} /> : <Copy size={14} strokeWidth={2} />}
-          onClick={copiarEnlace}
-          disabled={!orden}
-        >
-          {copiado ? "Copiado" : "Copiar enlace"}
-        </Boton>
+        <div className="fila" style={{ gap: 4, flexShrink: 0 }}>
+          <Boton
+            variante="fantasma"
+            tamano="sm"
+            icono={copiado ? <Check size={14} strokeWidth={2.4} /> : <Copy size={14} strokeWidth={2} />}
+            onClick={copiarEnlace}
+            disabled={!orden}
+          >
+            {copiado ? "Copiado" : "Copiar enlace"}
+          </Boton>
+          <BotonWhatsappOrden ordenId={ordenId} disabled={!orden} />
+        </div>
       </div>
 
       {(anterior || siguiente) && (

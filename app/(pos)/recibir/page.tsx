@@ -104,6 +104,11 @@ export default function PaginaRecibir() {
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [clienteNuevo, setClienteNuevo] = useState({ nombre: "", telefono: "", correo: "" });
   const [buscandoCliente, setBuscandoCliente] = useState(false);
+  // Número alternativo de contacto (0054_orden_telefono_alterno.sql): el
+  // cliente de un taller de celulares deja su teléfono, así que por ahí
+  // no contesta. "Enviar por WhatsApp" de la orden escribe a este número.
+  const [telefonoAlterno, setTelefonoAlterno] = useState("");
+  const [tipoNegocio, setTipoNegocio] = useState<TipoNegocio | null>(null);
 
   const [serial, setSerial] = useState("");
   const [producto, setProducto] = useState<Producto | null>(null);
@@ -115,6 +120,10 @@ export default function PaginaRecibir() {
   const [marcas, setMarcas] = useState<MarcaConModelos[]>([]);
   const [marcaOtra, setMarcaOtra] = useState(false);
   const [modeloOtro, setModeloOtro] = useState(false);
+  // Se pide para empresas de celulares o cuando el equipo es un celular;
+  // en ese caso es obligatorio.
+  const pideTelefonoAlterno =
+    tipoNegocio === "celular" || (producto ? producto.tipo === "celular" : productoNuevo.tipo === "celular");
   const modelosDeMarca = marcaOtra ? [] : (marcas.find((m) => m.marca === productoNuevo.marca)?.modelos ?? []);
 
   const [tipoAcceso, setTipoAcceso] = useState<"" | "pin3" | "pin4" | "pin6" | "patron" | "otro">("");
@@ -159,6 +168,7 @@ export default function PaginaRecibir() {
       .then((r) => r.json())
       .then((config: { tipoNegocio?: TipoNegocio | null }) => {
         if (config.tipoNegocio) {
+          setTipoNegocio(config.tipoNegocio);
           setProductoNuevo((p) => ({ ...p, tipo: TIPO_POR_NEGOCIO[config.tipoNegocio as TipoNegocio] }));
         }
       })
@@ -204,7 +214,11 @@ export default function PaginaRecibir() {
         motivo: motivo.trim(),
         infoAdicional: infoAdicional.trim() || undefined,
         valorServicio: valorServicio || undefined,
+        telefonoAlterno: telefonoAlterno.trim() || undefined,
       };
+      if (pideTelefonoAlterno && telefonoAlterno.replace(/\D/g, "").length < 7) {
+        throw new Error("Falta el número alternativo de contacto");
+      }
       if (abono > 0) {
         body.abono = {
           monto: abono,
@@ -270,6 +284,7 @@ export default function PaginaRecibir() {
     setDocumento("");
     setCliente(null);
     setClienteNuevo({ nombre: "", telefono: "", correo: "" });
+    setTelefonoAlterno("");
     setSerial("");
     setProducto(null);
     setProductoNuevo((p) => ({ ...p, marca: "", modelo: "" }));
@@ -442,6 +457,22 @@ export default function PaginaRecibir() {
                   placeholder="300 000 0000"
                   value={clienteNuevo.telefono}
                   onChange={(e) => setClienteNuevo((c) => ({ ...c, telefono: e.target.value }))}
+                />
+              </Campo>
+            </div>
+          )}
+
+          {pideTelefonoAlterno && (
+            <div style={{ marginTop: 12 }}>
+              <Campo
+                etiqueta="Número alternativo de contacto"
+                ayuda="Un familiar o el trabajo: el cliente deja su celular, así que por aquí se le envía el enlace por WhatsApp."
+              >
+                <input
+                  placeholder="300 000 0000"
+                  value={telefonoAlterno}
+                  onChange={(e) => setTelefonoAlterno(e.target.value)}
+                  inputMode="tel"
                 />
               </Campo>
             </div>

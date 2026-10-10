@@ -25,7 +25,8 @@ export type Accion =
   | "ver_acceso_dispositivo" // Ver el PIN/patrón del equipo de una orden (orden_acceso)
   | "reimprimir_etiqueta_orden" // Volver a mandar la etiqueta QR de una orden a la etiquetadora
   | "ver_reportes" // Admin: informes de ventas, caja, inventario y taller, y su exportación
-  | "configurar_fases"; // Admin: las fases de cada estado de la orden (0050_fase_orden.sql)
+  | "configurar_fases" // Admin: las fases de cada estado de la orden (0050_fase_orden.sql)
+  | "enviar_whatsapp_orden"; // Taller: mandar el enlace de seguimiento por WhatsApp (el número no se muestra en pantalla)
 
 const PERMISOS: Record<Rol, Accion[]> = {
   admin: [
@@ -48,6 +49,7 @@ const PERMISOS: Record<Rol, Accion[]> = {
     "reimprimir_etiqueta_orden",
     "ver_reportes",
     "configurar_fases",
+    "enviar_whatsapp_orden",
   ],
   recepcion: [
     "recibir_equipo",
@@ -57,8 +59,15 @@ const PERMISOS: Record<Rol, Accion[]> = {
     "gestionar_traslados",
     "ver_acceso_dispositivo",
     "reimprimir_etiqueta_orden",
+    "enviar_whatsapp_orden",
   ],
-  tecnico: ["diagnosticar", "marcar_faltante", "ver_acceso_dispositivo", "reimprimir_etiqueta_orden"],
+  tecnico: [
+    "diagnosticar",
+    "marcar_faltante",
+    "ver_acceso_dispositivo",
+    "reimprimir_etiqueta_orden",
+    "enviar_whatsapp_orden",
+  ],
   compras: ["gestionar_compras", "gestionar_traslados", "recibir_mercancia", "ver_ordenes"],
   cajero: ["vender", "cobrar_orden", "abrir_cajon_manual", "cerrar_turno"],
 };
