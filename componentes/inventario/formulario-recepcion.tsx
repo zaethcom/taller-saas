@@ -137,7 +137,7 @@ export function FormularioRecepcion({ sedeIdDefault }: { sedeIdDefault: string |
       const cuerpo = seleccionado
         ? { repuestoId: seleccionado.id, sedeId, cantidad: cantidadNum, motivo: motivo.trim() || undefined }
         : {
-            codigo: codigoNuevo.trim(),
+            codigo: codigoNuevo.trim() || undefined,
             descripcion: descripcionNueva.trim(),
             precioVenta: precioVentaNuevo ? Number(precioVentaNuevo) : undefined,
             categoriaId: categoriaId || undefined,
@@ -146,8 +146,8 @@ export function FormularioRecepcion({ sedeIdDefault }: { sedeIdDefault: string |
             motivo: motivo.trim() || undefined,
           };
 
-      if (!seleccionado && (!codigoNuevo.trim() || !descripcionNueva.trim())) {
-        setError("Busca un repuesto existente o completa código y descripción para uno nuevo");
+      if (!seleccionado && !descripcionNueva.trim()) {
+        setError("Busca un repuesto existente o escribe la descripción del nuevo");
         setEnviando(false);
         return;
       }
@@ -157,9 +157,14 @@ export function FormularioRecepcion({ sedeIdDefault }: { sedeIdDefault: string |
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(cuerpo),
       });
-      if (!res.ok) throw new Error((await res.json()).error);
+      const datos = await res.json();
+      if (!res.ok) throw new Error(datos.error);
 
-      setConfirmacion(`Se recibieron ${cantidadNum} unidades.`);
+      setConfirmacion(
+        seleccionado || codigoNuevo.trim()
+          ? `Se recibieron ${cantidadNum} unidades.`
+          : `Se recibieron ${cantidadNum} unidades con el código ${datos.codigo}.`,
+      );
       limpiar();
       router.refresh();
       buscarRef.current?.focus();
@@ -306,9 +311,9 @@ export function FormularioRecepcion({ sedeIdDefault }: { sedeIdDefault: string |
               </button>
             </Aviso>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
-              <Campo etiqueta="Código">
+              <Campo etiqueta="Código (vacío = se genera solo)">
                 <input
-                  placeholder="F-1023"
+                  placeholder="REP-000123"
                   value={codigoNuevo}
                   onChange={(e) => setCodigoNuevo(e.target.value)}
                   className="cifra"

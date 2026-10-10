@@ -17,6 +17,7 @@ import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
 import { encolarImpresion } from "@/lib/impresion";
+import { siguienteCodigoRepuesto } from "@/lib/codigo-interno";
 
 interface CuerpoComun {
   sedeId: string;
@@ -52,30 +53,52 @@ export async function POST(req: Request) {
 
   if (!repuestoId) {
     const nuevo = body as Partial<Extract<Cuerpo, { codigo: string }>>;
-    if (!nuevo.codigo?.trim() || !nuevo.descripcion?.trim()) {
+    if (!nuevo.descripcion?.trim()) {
       return NextResponse.json(
-        { error: "falta repuestoId (existente) o código y descripción (nuevo)" },
+        { error: "falta repuestoId (existente) o la descripción (nuevo)" },
         { status: 400 },
       );
     }
 
-    const { data: repuesto, error: errRepuesto } = await supabase
-      .from("repuesto")
-      .insert({
-        empresa_id: perfil.empresaId,
-        codigo: nuevo.codigo.trim(),
-        descripcion: nuevo.descripcion.trim(),
-        precio_venta: nuevo.precioVenta ?? 0,
-        categoria_id: nuevo.categoriaId ?? null,
-      })
-      .select("id, codigo, descripcion")
-      .single();
-
-    if (errRepuesto) {
-      if (errRepuesto.code === "23505") {
-        return NextResponse.json({ error: `Ya existe un repuesto con el código "${nuevo.codigo}"` }, { status: 409 });
+    // Sin código del proveedor, el sistema le da uno interno (REP-000123)
+    // para que la etiqueta salga con un código de barras escaneable. Si
+    // otra recepción toma el mismo número a la vez, se reintenta.
+    const codigoDado = nuevo.codigo?.trim();
+    let repuesto: { id: string; codigo: string; descripcion: string } | null = null;
+    for (let intento = 0; !repuesto && intento < 3; intento++) {
+      let codigoNuevo = codigoDado;
+      if (!codigoNuevo) {
+        const { data: existentes } = await supabase
+          .from("repuesto")
+          .select("codigo")
+          .eq("empresa_id", perfil.empresaId)
+          .like("codigo", "REP-______");
+        codigoNuevo = siguienteCodigoRepuesto((existentes ?? []).map((r) => r.codigo as string));
       }
-      return NextResponse.json({ error: errRepuesto.message }, { status: 500 });
+
+      const { data, error: errRepuesto } = await supabase
+        .from("repuesto")
+        .insert({
+          empresa_id: perfil.empresaId,
+          codigo: codigoNuevo,
+          descripcion: nuevo.descripcion.trim(),
+          precio_venta: nuevo.precioVenta ?? 0,
+          categoria_id: nuevo.categoriaId ?? null,
+        })
+        .select("id, codigo, descripcion")
+        .single();
+
+      if (errRepuesto) {
+        if (errRepuesto.code === "23505" && !codigoDado) continue;
+        if (errRepuesto.code === "23505") {
+          return NextResponse.json({ error: `Ya existe un repuesto con el código "${codigoDado}"` }, { status: 409 });
+        }
+        return NextResponse.json({ error: errRepuesto.message }, { status: 500 });
+      }
+      repuesto = data;
+    }
+    if (!repuesto) {
+      return NextResponse.json({ error: "no se pudo asignar un código interno; intenta de nuevo" }, { status: 409 });
     }
     repuestoId = repuesto.id;
     codigo = repuesto.codigo;
@@ -122,5 +145,5 @@ export async function POST(req: Request) {
     },
   });
 
-  return NextResponse.json({ ok: true, repuestoId, cantidad: nuevaCantidad });
+  return NextResponse.json({ ok: true, repuestoId, codigo, cantidad: nuevaCantidad });
 }
