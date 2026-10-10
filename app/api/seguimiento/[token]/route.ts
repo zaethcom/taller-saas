@@ -61,9 +61,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       .maybeSingle(),
     admin
       .from("evidencia")
-      .select("ruta, tipo, tomada_en")
+      .select("ruta, tipo, fase, tomada_en")
       .eq("orden_id", orden.id)
-      .eq("visible_cliente", true),
+      .eq("visible_cliente", true)
+      .order("tomada_en", { ascending: true }),
     // Ítems agregados DESPUÉS de aprobada la cotización original --
     // Fase F2 del Plan 3 -- que el cliente también tiene que decidir.
     admin
@@ -103,7 +104,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       const { data: firmada } = await admin.storage
         .from("evidencia")
         .createSignedUrl(ev.ruta, 5 * 60);
-      return { tipo: ev.tipo, tomadaEn: ev.tomada_en, url: firmada?.signedUrl ?? null };
+      return { tipo: ev.tipo, fase: ev.fase, tomadaEn: ev.tomada_en, url: firmada?.signedUrl ?? null };
     }),
   );
 

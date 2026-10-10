@@ -18,6 +18,7 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Aviso } from "@/componentes/ui/campo";
 import { HiloMensajes, type Mensaje } from "@/componentes/mensajeria/hilo-mensajes";
+import { etiquetaFaseEvidencia } from "@/lib/evidencia";
 
 interface Diagnostico {
   hallazgos: string | null;
@@ -45,7 +46,7 @@ interface Seguimiento {
     decision: string | null;
     cotizacion_item: { descripcion: string; cantidad: number; precio_unit: number }[];
   } | null;
-  evidencias: { tipo: "foto" | "video"; tomadaEn: string; url: string | null }[];
+  evidencias: { tipo: "foto" | "video"; fase: string | null; tomadaEn: string; url: string | null }[];
   itemsPendientes: { id: string; descripcion: string; cantidad: number; precioUnit: number; decision: string | null }[];
   mensajes: Mensaje[];
 }
@@ -383,6 +384,7 @@ export default function PaginaSeguimiento() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {datos.evidencias.map((ev, i) => {
                 if (!ev.url) return null;
+                const etiqueta = etiquetaFaseEvidencia(ev.fase);
                 const estilo: React.CSSProperties = {
                   width: "100%",
                   borderRadius: "var(--r-md)",
@@ -394,11 +396,24 @@ export default function PaginaSeguimiento() {
                   aspectRatio: "1",
                   objectFit: "cover",
                 };
-                return ev.tipo === "video" ? (
-                  <video key={i} src={ev.url} controls preload="none" style={estilo} />
-                ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img key={i} src={ev.url} alt="Evidencia del equipo" style={estilo} />
+                return (
+                  <figure key={i} style={{ margin: 0, position: "relative" }}>
+                    {ev.tipo === "video" ? (
+                      <video src={ev.url} controls preload="none" style={estilo} />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={ev.url} alt={etiqueta ? `Equipo ${etiqueta.toLowerCase()}` : "Evidencia del equipo"} style={estilo} />
+                    )}
+                    {etiqueta && (
+                      // Arriba, no abajo: abajo quedan los controles del video.
+                      <span style={{ position: "absolute", left: 6, top: 6, pointerEvents: "none" }}>
+                        <Etiqueta tono="ok">{etiqueta}</Etiqueta>
+                      </span>
+                    )}
+                    <figcaption className="cifra" style={{ marginTop: 4, fontSize: 12, color: "var(--ink-3)" }}>
+                      {new Date(ev.tomadaEn).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
+                    </figcaption>
+                  </figure>
                 );
               })}
             </div>

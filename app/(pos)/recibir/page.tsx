@@ -13,13 +13,14 @@
  */
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Inbox, Search, Check, User, Wrench, FileText, Printer, ClipboardList, Barcode, KeyRound } from "lucide-react";
+import { Inbox, Search, Check, User, Wrench, FileText, Printer, ClipboardList, Barcode, KeyRound, Camera } from "lucide-react";
 import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
 import { PatronGrid } from "@/componentes/patron-android/patron-grid";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { EvidenciaIngreso, subirEvidenciaIngreso, type ArchivoIngreso } from "@/componentes/recepcion/evidencia-ingreso";
 
 type TipoNegocio = "celular" | "computador" | "patineta" | "otro";
 
@@ -83,6 +84,10 @@ function Paso({ n, titulo, icono, children }: { n: number; titulo: string; icono
 export default function PaginaRecibir() {
   const router = useRouter();
 
+  const [empresaId, setEmpresaId] = useState<string | null>(null);
+  const [evidencia, setEvidencia] = useState<ArchivoIngreso[]>([]);
+  const [errorEvidencia, setErrorEvidencia] = useState<string | null>(null);
+
   const [documento, setDocumento] = useState("");
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [clienteNuevo, setClienteNuevo] = useState({ nombre: "", telefono: "", correo: "" });
@@ -103,13 +108,22 @@ export default function PaginaRecibir() {
   const [motivo, setMotivo] = useState("");
   const [infoAdicional, setInfoAdicional] = useState("");
   const [guardando, setGuardando] = useState(false);
-  const [resultado, setResultado] = useState<{ numero: number; serialGenerado?: string } | null>(null);
+  const [resultado, setResultado] = useState<{
+    ordenId: string;
+    numero: number;
+    serialGenerado?: string;
+    evidenciaFallida: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // El tipo que la empresa configuró en /configuracion (ver
   // tipo_negocio en empresa_config) decide qué aparece preseleccionado
   // acá -- antes era siempre "patineta" sin importar el negocio.
   useEffect(() => {
+    fetch("/api/perfil")
+      .then((r) => r.json())
+      .then((p: { empresaId?: string }) => setEmpresaId(p.empresaId ?? null))
+      .catch(() => {});
     fetch("/api/configuracion")
       .then((r) => r.json())
       .then((config: { tipoNegocio?: TipoNegocio | null }) => {
@@ -176,7 +190,18 @@ export default function PaginaRecibir() {
       if (!res.ok) throw new Error((await res.json()).error);
 
       const data = await res.json();
-      setResultado({ numero: data.numero, serialGenerado: data.serialGenerado });
+      // La evidencia del mostrador se sube después de crear la orden
+      // (la ruta en Storage lleva el id de la orden). Si algo falla, la
+      // orden igual queda creada y se avisa abajo.
+      const evidenciaFallida = empresaId
+        ? await subirEvidenciaIngreso({ empresaId, ordenId: data.ordenId, archivos: evidencia })
+        : evidencia.length;
+      setResultado({
+        ordenId: data.ordenId,
+        numero: data.numero,
+        serialGenerado: data.serialGenerado,
+        evidenciaFallida,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo registrar la recepción");
     } finally {
@@ -185,6 +210,9 @@ export default function PaginaRecibir() {
   }
 
   function nuevaRecepcion() {
+    evidencia.forEach((a) => URL.revokeObjectURL(a.url));
+    setEvidencia([]);
+    setErrorEvidencia(null);
     setDocumento("");
     setCliente(null);
     setClienteNuevo({ nombre: "", telefono: "", correo: "" });
@@ -200,6 +228,15 @@ export default function PaginaRecibir() {
     setNotaAcceso("");
     setResultado(null);
   }
+
+  // Al menos una foto: es la evidencia de cómo llegó el equipo, y la
+  // misma que exige lib/estados.ts (tiene_foto_entrada) para diagnosticar.
+  const tieneFoto = evidencia.some((a) => a.tipo === "foto");
+  const faltante = !tieneFoto
+    ? "Falta la foto del equipo recibido."
+    : !motivo.trim()
+      ? "Falta el motivo para poder guardar."
+      : null;
 
   if (resultado) {
     return (
@@ -231,10 +268,29 @@ export default function PaginaRecibir() {
           <Printer size={17} strokeWidth={2} aria-hidden />
           El comprobante y la etiqueta se están imprimiendo en la estación de esta sede.
         </p>
+        {resultado.evidenciaFallida > 0 && (
+          <div style={{ marginBottom: 20, textAlign: "left" }}>
+            <Aviso tono="peligro">
+              {resultado.evidenciaFallida === 1
+                ? "Una foto o video no se pudo subir."
+                : `${resultado.evidenciaFallida} fotos o videos no se pudieron subir.`}{" "}
+              Súbelos desde la evidencia de la orden.
+            </Aviso>
+          </div>
+        )}
         <div className="fila" style={{ justifyContent: "center" }}>
           <Boton variante="primario" icono={<Inbox size={18} strokeWidth={2} />} onClick={nuevaRecepcion}>
             Recibir otro equipo
           </Boton>
+          {resultado.evidenciaFallida > 0 && (
+            <Boton
+              variante="contorno"
+              icono={<Camera size={18} strokeWidth={2} />}
+              onClick={() => router.push(`/orden/${resultado.ordenId}/evidencia`)}
+            >
+              Subir evidencia
+            </Boton>
+          )}
           <Boton
             variante="contorno"
             icono={<ClipboardList size={18} strokeWidth={2} />}
@@ -252,11 +308,20 @@ export default function PaginaRecibir() {
       <TituloPantalla
         icono={<Inbox size={24} strokeWidth={2} />}
         titulo="Recibir equipo"
-        descripcion="Cliente, equipo y motivo. Al guardar se imprime el comprobante y la etiqueta."
+        descripcion="Evidencia, cliente, equipo y motivo. Al guardar se imprime el comprobante y la etiqueta."
       />
 
       <div className="pila">
-        <Paso n={1} titulo="Cliente" icono={<User size={18} strokeWidth={2} color="var(--ink-2)" />}>
+        <Paso n={1} titulo="Evidencia de ingreso" icono={<Camera size={18} strokeWidth={2} color="var(--ink-2)" />}>
+          <EvidenciaIngreso archivos={evidencia} onChange={setEvidencia} onError={setErrorEvidencia} />
+          {errorEvidencia && (
+            <div style={{ marginTop: 12 }}>
+              <Aviso tono="peligro">{errorEvidencia}</Aviso>
+            </div>
+          )}
+        </Paso>
+
+        <Paso n={2} titulo="Cliente" icono={<User size={18} strokeWidth={2} color="var(--ink-2)" />}>
           <form
             className="fila"
             style={{ gap: 8, flexWrap: "nowrap", marginBottom: cliente ? 12 : 14 }}
@@ -304,7 +369,7 @@ export default function PaginaRecibir() {
           )}
         </Paso>
 
-        <Paso n={2} titulo="Equipo" icono={<Wrench size={18} strokeWidth={2} color="var(--ink-2)" />}>
+        <Paso n={3} titulo="Equipo" icono={<Wrench size={18} strokeWidth={2} color="var(--ink-2)" />}>
           <form
             className="fila"
             style={{ gap: 8, flexWrap: "nowrap", marginBottom: 14 }}
@@ -403,7 +468,7 @@ export default function PaginaRecibir() {
           </div>
         </Paso>
 
-        <Paso n={3} titulo="Acceso" icono={<KeyRound size={18} strokeWidth={2} color="var(--ink-2)" />}>
+        <Paso n={4} titulo="Acceso" icono={<KeyRound size={18} strokeWidth={2} color="var(--ink-2)" />}>
           <p className="campo-ayuda" style={{ marginTop: 0, marginBottom: 12 }}>
             Opcional -- solo si el servicio necesita entrar al equipo. Se borra solo al entregarlo.
           </p>
@@ -462,7 +527,7 @@ export default function PaginaRecibir() {
           )}
         </Paso>
 
-        <Paso n={4} titulo="Motivo" icono={<FileText size={18} strokeWidth={2} color="var(--ink-2)" />}>
+        <Paso n={5} titulo="Motivo" icono={<FileText size={18} strokeWidth={2} color="var(--ink-2)" />}>
           <Campo ayuda="Lo que el cliente reporta, con sus palabras. Es lo que lee el técnico al abrir la orden.">
             <textarea
               value={motivo}
@@ -479,12 +544,12 @@ export default function PaginaRecibir() {
             variante="primario"
             tamano="lg"
             icono={<Printer size={19} strokeWidth={2} />}
-            disabled={guardando || !motivo.trim()}
+            disabled={guardando || !motivo.trim() || !tieneFoto}
             onClick={guardar}
           >
             {guardando ? "Guardando…" : "Recibir e imprimir"}
           </Boton>
-          {!motivo.trim() && <span style={{ fontSize: 12, color: "var(--ink-3)" }}>Falta el motivo para poder guardar.</span>}
+          {faltante && <span style={{ fontSize: 12, color: "var(--ink-3)" }}>{faltante}</span>}
         </div>
 
         {error && <Aviso tono="peligro">{error}</Aviso>}
