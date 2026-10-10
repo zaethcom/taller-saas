@@ -103,6 +103,9 @@ interface CargaCierreCaja extends CargaMarcaEmpresa {
   cierreEn: string;
   baseInicial: number;
   totalVentas: number;
+  /** Dinero metido y sacado de la caja sin venta (0054_movimiento_caja.sql). */
+  ingresos?: number;
+  salidas?: number;
   efectivoEsperado: number;
   efectivoContado: number;
   diferencia: number;

@@ -34,6 +34,7 @@ import {
   type OrdenFila,
   type PagoFila,
   type PagoTurnoFila,
+  type MovimientoTurnoFila,
   type Persona,
   type RepuestoCat,
   type TurnoFila,
@@ -290,7 +291,21 @@ export async function generarInforme(supabase: SupabaseClient, id: IdInforme, f:
         );
         pagosTurno.push(...filas.map((p) => ({ turno_id: p.venta.turno_id, monto: p.monto, es_efectivo: p.es_efectivo })));
       }
-      return cierresDeCaja(turnos, pagosTurno, c);
+      const movimientos: MovimientoTurnoFila[] = [];
+      for (let k = 0; k < turnos.length; k += 100) {
+        const lote = turnos.slice(k, k + 100).map((t) => t.id);
+        try {
+          movimientos.push(
+            ...(await todas<MovimientoTurnoFila>((a, b) =>
+              supabase.from("movimiento_caja").select("id, turno_id, tipo, monto").in("turno_id", lote).order("id").range(a, b),
+            )),
+          );
+        } catch {
+          // Sin la migración 0054 aplicada el informe sale como antes, sin movimientos.
+          break;
+        }
+      }
+      return cierresDeCaja(turnos, pagosTurno, c, movimientos);
     }
     case "inventario-repuestos": {
       const [existencias, c] = await Promise.all([

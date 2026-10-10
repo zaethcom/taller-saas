@@ -5,7 +5,8 @@
  * sigue abierto, y lo que /api/turno/cerrar recalcula al cerrar.
  */
 import { NextResponse } from "next/server";
-import { efectivoEsperado } from "@/lib/caja";
+import { efectivoEsperado, totalesMovimientos } from "@/lib/caja";
+import { movimientosDelTurno } from "@/lib/movimiento-caja";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
 
@@ -47,6 +48,8 @@ export async function GET() {
     .filter((p) => p.es_efectivo)
     .reduce((s, p) => s + Number(p.monto), 0);
   const totalVentas = (pagos ?? []).reduce((s, p) => s + Number(p.monto), 0);
+  const movimientos = await movimientosDelTurno(supabase, turno.id);
+  const { ingresos, salidas } = totalesMovimientos(movimientos);
 
   return NextResponse.json({
     abierto: true,
@@ -55,10 +58,14 @@ export async function GET() {
     abiertoEn: turno.abierto_en,
     ventasEfectivo,
     totalVentas,
+    ingresos,
+    salidas,
+    movimientos,
     efectivoEsperado: efectivoEsperado({
       baseInicial: Number(turno.base_inicial),
       ventasEfectivo,
-      aperturasManualesEfectivo: 0,
+      ingresosEfectivo: ingresos,
+      salidasEfectivo: salidas,
     }),
   });
 }

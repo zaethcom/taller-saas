@@ -5,7 +5,7 @@
  * (pruebas/reportes.test.ts) y para que pantalla, Excel y PDF salgan
  * del mismo número.
  */
-import { efectivoEsperado } from "../caja";
+import { efectivoEsperado, type TipoMovimientoCaja } from "../caja";
 import { ETIQUETA_ESTADO, type Estado } from "../estados";
 import {
   DIAS_SEMANA,
@@ -632,7 +632,27 @@ export interface PagoTurnoFila {
   es_efectivo: boolean;
 }
 
-export function cierresDeCaja(turnos: TurnoFila[], pagos: PagoTurnoFila[], c: Catalogos): Informe {
+/** Gestión de dinero del turno: lo que se metió o sacó sin venta (0054). */
+export interface MovimientoTurnoFila {
+  turno_id: string;
+  tipo: TipoMovimientoCaja;
+  monto: number;
+}
+
+export function cierresDeCaja(
+  turnos: TurnoFila[],
+  pagos: PagoTurnoFila[],
+  c: Catalogos,
+  movimientos: MovimientoTurnoFila[] = [],
+): Informe {
+  const movPorTurno = new Map<string, { ingresos: number; salidas: number }>();
+  for (const m of movimientos) {
+    const g = movPorTurno.get(m.turno_id) ?? { ingresos: 0, salidas: 0 };
+    if (m.tipo === "ingreso") g.ingresos += Number(m.monto);
+    else g.salidas += Number(m.monto);
+    movPorTurno.set(m.turno_id, g);
+  }
+
   const porTurno = new Map<string, { total: number; efectivo: number }>();
   for (const p of pagos) {
     const g = porTurno.get(p.turno_id) ?? { total: 0, efectivo: 0 };
@@ -645,7 +665,13 @@ export function cierresDeCaja(turnos: TurnoFila[], pagos: PagoTurnoFila[], c: Ca
     .sort((a, b) => b.abierto_en.localeCompare(a.abierto_en))
     .map((t) => {
       const v = porTurno.get(t.id) ?? { total: 0, efectivo: 0 };
-      const esperado = efectivoEsperado({ baseInicial: Number(t.base_inicial), ventasEfectivo: v.efectivo, aperturasManualesEfectivo: 0 });
+      const mov = movPorTurno.get(t.id) ?? { ingresos: 0, salidas: 0 };
+      const esperado = efectivoEsperado({
+        baseInicial: Number(t.base_inicial),
+        ventasEfectivo: v.efectivo,
+        ingresosEfectivo: mov.ingresos,
+        salidasEfectivo: mov.salidas,
+      });
       return {
         sede: nombreSede(c, t.sede_id),
         apertura: t.abierto_en,
@@ -655,6 +681,8 @@ export function cierresDeCaja(turnos: TurnoFila[], pagos: PagoTurnoFila[], c: Ca
         base: Number(t.base_inicial),
         ventas: v.total,
         efectivo: v.efectivo,
+        ingresos: mov.ingresos,
+        salidas: mov.salidas,
         esperado,
         contado: t.efectivo_contado === null ? null : Number(t.efectivo_contado),
         diferencia: t.diferencia === null ? null : Number(t.diferencia),
@@ -682,6 +710,8 @@ export function cierresDeCaja(turnos: TurnoFila[], pagos: PagoTurnoFila[], c: Ca
           { clave: "base", titulo: "Base", formato: "moneda" },
           { clave: "ventas", titulo: "Ventas", formato: "moneda" },
           { clave: "efectivo", titulo: "Ventas en efectivo", formato: "moneda" },
+          { clave: "ingresos", titulo: "Ingresos de caja", formato: "moneda" },
+          { clave: "salidas", titulo: "Salidas de caja", formato: "moneda" },
           { clave: "esperado", titulo: "Efectivo esperado", formato: "moneda" },
           { clave: "contado", titulo: "Efectivo contado", formato: "moneda" },
           { clave: "diferencia", titulo: "Diferencia", formato: "moneda" },
@@ -691,6 +721,8 @@ export function cierresDeCaja(turnos: TurnoFila[], pagos: PagoTurnoFila[], c: Ca
           sede: "Total",
           ventas: filas.reduce((s, f) => s + f.ventas, 0),
           efectivo: filas.reduce((s, f) => s + f.efectivo, 0),
+          ingresos: filas.reduce((s, f) => s + f.ingresos, 0),
+          salidas: filas.reduce((s, f) => s + f.salidas, 0),
           diferencia: descuadre,
         },
       },
