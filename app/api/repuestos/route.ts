@@ -12,6 +12,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
+import { reservadoEnSede } from "@/lib/reservas-servidor";
+import { disponible } from "@/lib/reservas";
 
 export async function GET(req: NextRequest) {
   const buscar = req.nextUrl.searchParams.get("buscar")?.trim() ?? "";
@@ -67,14 +69,25 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const resultado = (data ?? []).map((r) => ({
-    id: r.id,
-    codigo: r.codigo,
-    descripcion: r.descripcion,
-    precioVenta: Number(r.precio_venta),
-    imagenUrl: r.imagen_url,
-    existenciaAqui: r.existencia.find((e) => e.sede_id === sedeActivaId)?.cantidad ?? 0,
-  }));
+  // Lo apartado para órdenes aprobadas (0056) no se ofrece en el
+  // mostrador; el técnico ve cuánto hay y cuánto ya tiene dueño.
+  const reservado = sedeActivaId
+    ? await reservadoEnSede(supabase, sedeActivaId, (data ?? []).map((r) => r.id))
+    : new Map<string, number>();
 
-  return NextResponse.json(resultado);
+  const resultado = (data ?? []).map((r) => {
+    const existencia = r.existencia.find((e) => e.sede_id === sedeActivaId)?.cantidad ?? 0;
+    const reservadoAqui = reservado.get(r.id) ?? 0;
+    return {
+      id: r.id,
+      codigo: r.codigo,
+      descripcion: r.descripcion,
+      precioVenta: Number(r.precio_venta),
+      imagenUrl: r.imagen_url,
+      existenciaAqui: paraVenta ? disponible(existencia, reservadoAqui) : existencia,
+      reservadoAqui,
+    };
+  });
+
+  return NextResponse.json(paraVenta ? resultado.filter((r) => r.existenciaAqui > 0) : resultado);
 }

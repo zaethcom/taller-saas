@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { RequisitoFaltanteError, TransicionInvalidaError, estadoAlAprobar, transicionar } from "@/lib/estados";
 import { buscarPrimeraFase } from "@/lib/fases";
 import { clienteAdmin } from "@/lib/supabase/servidor";
+import { reservarAlAprobar } from "@/lib/reservas-servidor";
 
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as { token?: string; decision?: string; motivo?: string };
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
 
   const { data: orden, error: errOrden } = await admin
     .from("orden")
-    .select("id, empresa_id, estado, fase:fase_id ( nombre )")
+    .select("id, empresa_id, sede_id, estado, fase:fase_id ( nombre )")
     .eq("token_publico", body.token)
     .maybeSingle();
 
@@ -58,8 +59,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "esta cotización ya fue decidida" }, { status: 409 });
   }
 
+  // Aprobada: los repuestos cotizados que hay en la sede quedan
+  // apartados para esta orden, y lo que no alcanza se pide a Compras
+  // (lib/reservas-servidor.ts). Solo desde esperando_aprobacion: si la
+  // transición no es válida, abajo se rechaza sin haber tocado nada.
+  let reservados: string[] = [];
+  if (body.decision === "aprobada" && orden.estado === "esperando_aprobacion") {
+    const r = await reservarAlAprobar(admin, {
+      ordenId: orden.id,
+      empresaId: orden.empresa_id,
+      sedeId: orden.sede_id,
+      cotizacionId: cotizacion.id,
+    });
+    reservados = r.reservados.map((x) => x.descripcion);
+  }
+
   // Repuestos pedidos para esta orden que todavía no llegan (desde la
-  // recepción o marcados por el técnico): sin ellos no se repara.
+  // recepción, el técnico o la reserva de arriba): sin ellos no se repara.
   const { count: pendientes } = await admin
     .from("repuesto_solicitud")
     .select("id", { count: "exact", head: true })
@@ -107,7 +123,7 @@ export async function POST(req: NextRequest) {
     a_fase: faseNueva?.nombre ?? null,
     nota:
       body.decision === "aprobada"
-        ? `Cliente aprobó la cotización desde el enlace${aEstado === "esperando_repuesto" ? ". Queda esperando repuesto" : ""}`
+        ? `Cliente aprobó la cotización desde el enlace${reservados.length ? `. Reservado: ${reservados.join(", ")}` : ""}${aEstado === "esperando_repuesto" ? ". Queda esperando repuesto" : ""}`
         : `Cliente rechazó la cotización desde el enlace${motivo ? `. Motivo: ${motivo}` : ""}`,
   });
 
