@@ -14,9 +14,9 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PackageCheck, Search, Check, Camera, PenLine, Eraser, Lock, Printer, QrCode } from "lucide-react";
+import { PackageCheck, Search, Check, Camera, PenLine, Eraser, Lock, Printer, Hash } from "lucide-react";
 import { FirmaCanvas, type FirmaCanvasHandle } from "@/componentes/evidencia/firma-canvas";
-import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
+import { VisorEscaner, SeparadorEscribelo } from "@/componentes/lector-codigos/visor-escaner";
 import { PanelCobro } from "@/componentes/cobro/panel-cobro";
 import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-turno";
 import { subirEvidencia } from "@/lib/subir-evidencia";
@@ -25,7 +25,7 @@ import { ETIQUETA_ESTADO, puedeTransicionar, type Estado } from "@/lib/estados";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
-import { Aviso } from "@/componentes/ui/campo";
+import { Aviso, Campo } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
 interface ItemOrden {
@@ -68,6 +68,10 @@ export default function PaginaEntregar() {
   const [numero, setNumero] = useState("");
   const [orden, setOrden] = useState<OrdenEncontrada | null>(null);
   const [escaneando, setEscaneando] = useState(false);
+  const [buscando, setBuscando] = useState(false);
+  // La cámara se apaga al leer un código: si la búsqueda falla, se
+  // vuelve a montar el visor para leer otro.
+  const [intentoCamara, setIntentoCamara] = useState(0);
   const [foto, setFoto] = useState<File | null>(null);
   const [metodos, setMetodos] = useState<Metodo[]>([]);
   const [metodoPagoId, setMetodoPagoId] = useState("");
@@ -100,6 +104,7 @@ export default function PaginaEntregar() {
     const parametro = query?.token
       ? `token=${encodeURIComponent(query.token)}`
       : `numero=${encodeURIComponent((query?.numero ?? numero).trim())}`;
+    setBuscando(true);
     try {
       const [resOrden, resPerfil] = await Promise.all([
         fetch(`/api/ordenes/buscar?${parametro}`),
@@ -113,6 +118,9 @@ export default function PaginaEntregar() {
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo buscar la orden");
+      setIntentoCamara((n) => n + 1);
+    } finally {
+      setBuscando(false);
     }
   }
 
@@ -130,7 +138,6 @@ export default function PaginaEntregar() {
   }, []);
 
   function procesarQr(valor: string) {
-    setEscaneando(false);
     const token = extraerTokenDeSeguimiento(valor);
     if (token) {
       buscar({ token });
@@ -285,54 +292,73 @@ export default function PaginaEntregar() {
       />
 
       {!orden ? (
-        <Tarjeta>
-          <form
-            className="fila"
-            style={{ gap: 8, flexWrap: "wrap" }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              buscar();
-            }}
-          >
-            <input
-              placeholder="Número o código de orden"
-              value={numero}
-              onChange={(e) => setNumero(e.target.value)}
-              aria-label="Número o código de orden"
-              className="cifra"
-              style={{ flex: "1 1 160px", minWidth: 0 }}
-            />
-            <Boton type="submit" variante="primario" icono={<Search size={17} strokeWidth={2} />} disabled={!numero.trim()}>
-              Buscar
-            </Boton>
-            <Boton
-              type="button"
-              variante="contorno"
-              icono={<QrCode size={17} strokeWidth={2} />}
-              onClick={() => setEscaneando(true)}
-            >
-              Escanear QR
-            </Boton>
-          </form>
-
+        <div className="pila">
           {escaneando && (
-            <div style={{ marginTop: 14 }}>
-              <LectorCodigoBarras
+            <>
+              <VisorEscaner
+                key={intentoCamara}
                 formats={["qr_code"]}
-                cuadrado
-                etiqueta="Ubica el QR de la etiqueta"
                 onDetectado={procesarQr}
-                onCerrar={() => setEscaneando(false)}
+                buscando={buscando}
+                textoSinCamara="Este navegador no lee QR con la cámara. Escribe el número de la orden abajo."
               />
-            </div>
+              <SeparadorEscribelo />
+            </>
           )}
 
-          {error && (
-            <div style={{ marginTop: 14 }}>
-              <Aviso tono="peligro">{error}</Aviso>
-            </div>
-          )}
-        </Tarjeta>
+          <Tarjeta>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (numero.trim()) buscar();
+              }}
+            >
+              <Campo etiqueta="Número o código de la orden">
+                <div className="fila" style={{ gap: 0, flexWrap: "nowrap" }}>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 46,
+                      height: 44,
+                      borderRadius: "var(--r-md) 0 0 var(--r-md)",
+                      border: "1px solid var(--rule-fuerte)",
+                      borderRight: "none",
+                      background: "var(--surface-2)",
+                      color: "var(--ink-2)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Hash size={20} strokeWidth={1.8} aria-hidden />
+                  </span>
+                  <input
+                    value={numero}
+                    onChange={(e) => setNumero(e.target.value)}
+                    placeholder="Ej. 13"
+                    aria-label="Número de orden"
+                    className="cifra"
+                    style={{ borderRadius: "0 var(--r-md) var(--r-md) 0" }}
+                  />
+                </div>
+              </Campo>
+              <div style={{ marginTop: 14 }}>
+                <Boton
+                  type="submit"
+                  variante="primario"
+                  tamano="lg"
+                  ancho
+                  icono={<Search size={19} strokeWidth={2} />}
+                  disabled={buscando || !numero.trim()}
+                >
+                  {buscando ? "Buscando…" : "Buscar orden"}
+                </Boton>
+              </div>
+            </form>
+          </Tarjeta>
+
+          {error && <Aviso tono="peligro">{error}</Aviso>}
+        </div>
       ) : (
         <div className="pila">
           <Tarjeta>
