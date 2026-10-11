@@ -18,8 +18,9 @@
  * catálogo no cambie después.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { RequisitoFaltanteError, TransicionInvalidaError, transicionar, type Estado } from "@/lib/estados";
+import { RequisitoFaltanteError, TransicionInvalidaError, transicionar } from "@/lib/estados";
 import { buscarPrimeraFase } from "@/lib/fases";
+import { asegurarDiagnostico } from "@/lib/diagnostico-auto";
 import { clienteServidor } from "@/lib/supabase/servidor";
 
 interface ItemCotizacion {
@@ -48,6 +49,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
+  // Revisar y cotizar ya es diagnosticar: si la orden sigue en Recibida
+  // (o se recotiza tras un rechazo) entra sola a diagnóstico.
+  const enDiagnostico = await asegurarDiagnostico(supabase, id, user.id);
+  if ("error" in enDiagnostico) {
+    return NextResponse.json({ error: enDiagnostico.error }, { status: 409 });
+  }
+  const estadoActual = enDiagnostico.estado;
+
+  // Se lee después: si entró sola a diagnóstico, el estado y la fase
+  // de antes son esos.
   const { data: orden, error: errOrden } = await supabase
     .from("orden")
     .select("id, empresa_id, estado, token_publico, fase:fase_id ( nombre )")
@@ -62,14 +73,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // guarda como "enviada" (contaría en la cuenta de la orden sin que el
   // cliente la haya visto).
   try {
-    transicionar(orden.estado as Estado, "esperando_aprobacion", new Set(["tiene_cotizacion"]));
+    transicionar(estadoActual, "esperando_aprobacion", new Set(["tiene_cotizacion"]));
   } catch (e) {
     if (e instanceof TransicionInvalidaError || e instanceof RequisitoFaltanteError) {
-      const mensaje =
-        orden.estado === "recibida"
-          ? "La orden todavía está en Recibida: pásala a diagnóstico antes de enviar la cotización."
-          : `No se puede enviar la cotización: ${e.message}`;
-      return NextResponse.json({ error: mensaje }, { status: 409 });
+      return NextResponse.json({ error: `No se puede enviar la cotización: ${e.message}` }, { status: 409 });
     }
     throw e;
   }

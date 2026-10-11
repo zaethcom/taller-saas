@@ -152,8 +152,14 @@ export default function PaginaCotizacion() {
   const [copiado, setCopiado] = useState(false);
   const [quitando, setQuitando] = useState<string | null>(null);
   const [estado, setEstado] = useState<Estado | null>(null);
-  // Se avisa antes de armar la cotización, no al enviarla.
-  const sePuedeEnviar = estado === null || puedeTransicionar(estado, "esperando_aprobacion");
+  // Se avisa antes de armar la cotización, no al enviarla. Desde
+  // Recibida (o tras un rechazo) se envía igual: la orden pasa sola por
+  // diagnóstico (lib/diagnostico-auto.ts).
+  const sePuedeEnviar =
+    estado === null ||
+    estado === "recibida" ||
+    estado === "rechazada" ||
+    puedeTransicionar(estado, "esperando_aprobacion");
 
   const total = items.reduce((s, i) => s + i.cantidad * i.precioUnit, 0);
   const hayAcordado = items.some((i) => i.origen === "acordado");
@@ -331,9 +337,7 @@ export default function PaginaCotizacion() {
       <div className="pila">
         {!sePuedeEnviar && estado && (
           <Aviso tono="aviso">
-            {estado === "recibida"
-              ? "La orden todavía está en Recibida. Pásala a diagnóstico desde la orden para poder enviar la cotización."
-              : `La orden está en "${ETIQUETA_ESTADO[estado]}": desde ahí no se envía una cotización.`}
+            La orden está en &quot;{ETIQUETA_ESTADO[estado]}&quot;: la cotización ya se envió, desde aquí no se envía otra.
           </Aviso>
         )}
         <Tarjeta>
