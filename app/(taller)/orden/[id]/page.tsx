@@ -6,14 +6,17 @@
  * llegada por el QR, es donde se cumple la primera de las dos promesas
  * del proyecto.
  *
- * Los tres accesos (evidencia, diagnóstico, repuestos) son tarjetas y
- * no enlaces de texto: se tocan con guantes, con una sola mano.
+ * Arriba, el camino de la orden (lib/camino-orden.ts) y el siguiente
+ * paso con su botón: el técnico no tiene que saber a qué estado pasar.
+ * Los accesos (evidencia, diagnóstico, repuestos) son tarjetas y no
+ * enlaces de texto: se tocan con guantes, con una sola mano.
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Camera, Wrench, Package, ChevronRight, ArrowRight, KeyRound, Eye, Clock, Check, Printer } from "lucide-react";
-import { ENTREGA_DESDE_TALLER, ETIQUETA_ESTADO, siguientesEstados, type Estado } from "@/lib/estados";
+import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
+import { CAMINO, pasoActual, siguientePaso, type Accion, type Destino } from "@/lib/camino-orden";
 import { puede, type Rol } from "@/lib/permisos";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
@@ -22,8 +25,6 @@ import { EstadoOrden } from "@/componentes/ui/estado-orden";
 import { HiloMensajes, type Mensaje } from "@/componentes/mensajeria/hilo-mensajes";
 import { SelectorFase } from "@/componentes/taller/selector-fase";
 
-/** Lo que la ficha ofrece como siguiente paso: la entrega anticipada
- *  (desde recibida, diagnóstico, etc.) solo se hace en el mostrador. */
 /** Los cambios que piden una nota, y qué se le pregunta a quien los hace. */
 const NOTA_AL_PASAR: Partial<Record<Estado, { etiqueta: string; ayuda: string; prefijo: string }>> = {
   listo_entrega: {
@@ -38,8 +39,48 @@ const NOTA_AL_PASAR: Partial<Record<Estado, { etiqueta: string; ayuda: string; p
   },
 };
 
-function siguientesDesdeTaller(estado: Estado): Estado[] {
-  return siguientesEstados(estado).filter((e) => e !== "entregada" || ENTREGA_DESDE_TALLER.includes(estado));
+function rutaDe(destino: Destino, orden: { id: string; numero: number }): string {
+  return destino === "entregar" ? `/entregar?numero=${orden.numero}` : `/orden/${orden.id}/${destino}`;
+}
+
+/** Los pasos del camino, con el actual marcado. */
+function Camino({ estado }: { estado: Estado }) {
+  const actual = pasoActual(estado);
+  return (
+    <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+      {CAMINO.map((paso, i) => {
+        const hecho = i < actual || estado === "entregada";
+        const enCurso = i === actual && estado !== "entregada";
+        return (
+          <li key={paso.titulo} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14 }}>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 24,
+                height: 24,
+                borderRadius: "50%",
+                flexShrink: 0,
+                fontSize: 12,
+                fontWeight: 800,
+                background: enCurso ? "var(--accent)" : hecho ? "var(--ok-fondo)" : "var(--surface-2)",
+                color: enCurso ? "var(--accent-texto)" : hecho ? "var(--ok)" : "var(--ink-3)",
+              }}
+            >
+              {hecho ? <Check size={14} strokeWidth={2.6} /> : i + 1}
+            </span>
+            <span style={{ fontWeight: enCurso ? 800 : 500, color: hecho || enCurso ? "var(--ink)" : "var(--ink-3)" }}>
+              {paso.titulo}
+              {enCurso && paso.estados.length > 1 && (
+                <span style={{ fontWeight: 600, color: "var(--ink-2)" }}> · {ETIQUETA_ESTADO[estado]}</span>
+              )}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
 }
 
 const ETIQUETA_TIPO_ACCESO: Record<string, string> = {
@@ -162,6 +203,7 @@ interface OrdenTecnico {
   total: number;
   fase_id: string | null;
   fase_nombre: string | null;
+  token_publico: string;
 }
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
@@ -299,9 +341,40 @@ export default function PaginaOrdenTecnico() {
     }
   }
 
+  // El cliente aprobó aquí o por teléfono: la misma ruta que su enlace
+  // (reserva repuestos y decide si va a reparación o a esperar repuesto).
+  async function aprobar() {
+    if (!orden) return;
+    setCambiando(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/aprobacion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: orden.token_publico, decision: "aprobada" }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      cargarOrden();
+      cargarEventos();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo registrar la aprobación");
+    } finally {
+      setCambiando(false);
+    }
+  }
+
+  function ejecutar(accion: Accion) {
+    if (accion.tipo === "ir") router.push(rutaDe(accion.destino, orden!));
+    else if (accion.tipo === "aprobar") aprobar();
+    else if (NOTA_AL_PASAR[accion.a]) setCerrando(accion.a);
+    else avanzar(accion.a);
+  }
+
   if (!orden) {
     return <Tarjeta style={{ textAlign: "center", color: "var(--ink-3)" }}>Cargando…</Tarjeta>;
   }
+
+  const paso = siguientePaso(orden.estado);
 
   return (
     <div className="pila">
@@ -354,59 +427,32 @@ export default function PaginaOrdenTecnico() {
         )}
       </Tarjeta>
 
-      {rol && puede(rol, "diagnosticar") && (
-        <SelectorFase
-          ordenId={id}
-          estado={orden.estado}
-          faseId={orden.fase_id}
-          onCambio={(fase) => {
-            setOrden((prev) => (prev ? { ...prev, fase_id: fase?.id ?? null, fase_nombre: fase?.nombre ?? null } : prev));
-            cargarEventos();
-          }}
-        />
-      )}
+      <Tarjeta>
+        <div className="campo-etiqueta">Camino de la orden</div>
+        <Camino estado={orden.estado} />
+      </Tarjeta>
 
-      {rol && puede(rol, "ver_acceso_dispositivo") && <PanelAcceso ordenId={id} />}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <Acceso
-          href={`/orden/${id}/evidencia`}
-          icono={<Camera size={21} strokeWidth={2} />}
-          titulo="Evidencia"
-          descripcion="Fotos y videos del equipo"
-        />
-        <Acceso
-          href={`/orden/${id}/diagnostico`}
-          icono={<Wrench size={21} strokeWidth={2} />}
-          titulo="Diagnóstico"
-          descripcion="Qué se encontró, y de ahí a la cotización"
-        />
-        <Acceso
-          href={`/orden/${id}/repuestos`}
-          icono={<Package size={21} strokeWidth={2} />}
-          titulo="Repuestos"
-          descripcion="Consumir del inventario o marcar faltante"
-        />
-      </div>
-
-      {siguientesDesdeTaller(orden.estado).length > 0 && (
-        <Tarjeta>
-          <div className="campo-etiqueta">Avanzar a</div>
+      <Tarjeta>
+        <div className="campo-etiqueta">Siguiente paso</div>
+        <h2 style={{ fontSize: 18, marginBottom: 4 }}>{paso.titulo}</h2>
+        <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--ink-2)" }}>{paso.ayuda}</p>
+        {paso.acciones.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {siguientesDesdeTaller(orden.estado).map((e) => (
+            {paso.acciones.map((accion, i) => (
               <Boton
-                key={e}
-                variante="primario"
-                tamano="lg"
+                key={accion.texto}
+                variante={i === 0 ? "primario" : "contorno"}
+                tamano={i === 0 ? "lg" : undefined}
                 ancho
-                icono={<ArrowRight size={19} strokeWidth={2} />}
-                disabled={cambiando || cerrando === e}
-                onClick={() => (NOTA_AL_PASAR[e] ? setCerrando(e) : avanzar(e))}
+                icono={i === 0 ? <ArrowRight size={19} strokeWidth={2} /> : undefined}
+                disabled={cambiando || (accion.tipo === "estado" && cerrando === accion.a)}
+                onClick={() => ejecutar(accion)}
               >
-                {ETIQUETA_ESTADO[e]}
+                {accion.texto}
               </Boton>
             ))}
           </div>
+        )}
           {cerrando && NOTA_AL_PASAR[cerrando] && (
             <div className="pila" style={{ gap: 10, marginTop: 14 }}>
               <label style={{ display: "block" }}>
@@ -445,7 +491,42 @@ export default function PaginaOrdenTecnico() {
               </div>
             </div>
           )}
-        </Tarjeta>
+      </Tarjeta>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <Acceso
+          href={`/orden/${id}/evidencia`}
+          icono={<Camera size={21} strokeWidth={2} />}
+          titulo="Evidencia"
+          descripcion="Fotos y videos del equipo"
+        />
+        <Acceso
+          href={`/orden/${id}/diagnostico`}
+          icono={<Wrench size={21} strokeWidth={2} />}
+          titulo="Diagnóstico y cotización"
+          descripcion="Qué se encontró y lo que se le cobra al cliente"
+        />
+        <Acceso
+          href={`/orden/${id}/repuestos`}
+          icono={<Package size={21} strokeWidth={2} />}
+          titulo="Repuestos"
+          descripcion="Consumir del inventario o marcar faltante"
+        />
+      </div>
+
+      {rol && puede(rol, "ver_acceso_dispositivo") && <PanelAcceso ordenId={id} />}
+
+      {/* Las fases de la empresa son detalle opcional dentro de cada paso. */}
+      {rol && puede(rol, "diagnosticar") && (
+        <SelectorFase
+          ordenId={id}
+          estado={orden.estado}
+          faseId={orden.fase_id}
+          onCambio={(fase) => {
+            setOrden((prev) => (prev ? { ...prev, fase_id: fase?.id ?? null, fase_nombre: fase?.nombre ?? null } : prev));
+            cargarEventos();
+          }}
+        />
       )}
 
       <Historial eventos={eventos} />
