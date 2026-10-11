@@ -26,7 +26,7 @@ import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
 import { Etiqueta, type TonoEtiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
-import { enlaceWhatsapp, mensajePedido } from "@/lib/compras/whatsapp";
+import { enlaceWhatsapp, equipoTexto, mensajePedido } from "@/lib/compras/whatsapp";
 import { comprasAutorizadas, type Estado } from "@/lib/estados";
 
 interface Faltante {
@@ -43,7 +43,13 @@ interface OrdenFaltante {
   numero: number;
   estado: Estado;
   motivo: string | null;
-  producto: { marca: string | null; modelo: string | null } | { marca: string | null; modelo: string | null }[] | null;
+  producto: ProductoFaltante | ProductoFaltante[] | null;
+}
+
+interface ProductoFaltante {
+  tipo: string | null;
+  marca: string | null;
+  modelo: string | null;
 }
 
 interface RepuestoResultado {
@@ -75,12 +81,10 @@ function unaOrden(orden: Faltante["orden"]): OrdenFaltante | null {
   return (Array.isArray(orden) ? orden[0] : orden) ?? null;
 }
 
-/** El equipo y el daño de la orden: para qué es el repuesto. */
-function detalleOrden(orden: OrdenFaltante | null): string {
+/** El equipo de la orden (tipo, marca y modelo): para qué es el repuesto. */
+function equipoOrden(orden: OrdenFaltante | null): string {
   if (!orden) return "";
-  const producto = Array.isArray(orden.producto) ? orden.producto[0] : orden.producto;
-  const equipo = [producto?.marca, producto?.modelo].filter(Boolean).join(" ");
-  return [equipo, orden.motivo].filter(Boolean).join(" · ");
+  return equipoTexto(Array.isArray(orden.producto) ? orden.producto[0] : orden.producto);
 }
 
 const CASILLA = { width: 18, height: 18, padding: 0, accentColor: "var(--accent)", cursor: "pointer" } as const;
@@ -115,7 +119,7 @@ export default function PaginaCompras() {
     const supabase = clienteNavegador();
     const { data } = await supabase
       .from("repuesto_solicitud")
-      .select("id, descripcion, cantidad, prioridad, estado, creada_en, orden:orden_id ( numero, estado, motivo, producto:producto_id ( marca, modelo ) )")
+      .select("id, descripcion, cantidad, prioridad, estado, creada_en, orden:orden_id ( numero, estado, motivo, producto:producto_id ( tipo, marca, modelo ) )")
       .in("estado", conRecibidos ? ["faltante", "recibido"] : ["faltante"])
       .order("creada_en", { ascending: true });
     const lista = (data as Faltante[]) ?? [];
@@ -254,6 +258,7 @@ export default function PaginaCompras() {
         cantidad: f.cantidad,
         ordenNumero: unaOrden(f.orden)?.numero,
         prioridad: f.prioridad,
+        equipo: equipoOrden(unaOrden(f.orden)),
       }));
     if (lineas.length === 0) return;
     window.open(enlaceWhatsapp(contacto.telefono, mensajePedido(lineas, contacto.nombre)), "_blank");
@@ -402,11 +407,16 @@ export default function PaginaCompras() {
                           />
                         )}
                       </td>
-                      <td style={{ fontWeight: 600 }}>{f.descripcion}</td>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{f.descripcion}</div>
+                        {equipoOrden(unaOrden(f.orden)) && (
+                          <div style={{ fontSize: 13, color: "var(--ink-2)" }}>Para {equipoOrden(unaOrden(f.orden))}</div>
+                        )}
+                      </td>
                       <td>
                         <span className="cifra">#{numeroOrden(f.orden)}</span>
-                        {detalleOrden(unaOrden(f.orden)) && (
-                          <div style={{ fontSize: 12, color: "var(--ink-3)", maxWidth: 240 }}>{detalleOrden(unaOrden(f.orden))}</div>
+                        {unaOrden(f.orden)?.motivo && (
+                          <div style={{ fontSize: 12, color: "var(--ink-3)", maxWidth: 240 }}>{unaOrden(f.orden)!.motivo}</div>
                         )}
                         {f.estado === "faltante" && unaOrden(f.orden) && (
                           <div style={{ marginTop: 4 }}>
