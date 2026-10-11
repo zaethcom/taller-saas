@@ -27,6 +27,7 @@ import { Etiqueta, type TonoEtiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { enlaceWhatsapp, mensajePedido } from "@/lib/compras/whatsapp";
+import { comprasAutorizadas, type Estado } from "@/lib/estados";
 
 interface Faltante {
   id: string;
@@ -35,7 +36,14 @@ interface Faltante {
   prioridad: string;
   estado: string;
   creada_en: string;
-  orden: { numero: number } | { numero: number }[] | null;
+  orden: OrdenFaltante | OrdenFaltante[] | null;
+}
+
+interface OrdenFaltante {
+  numero: number;
+  estado: Estado;
+  motivo: string | null;
+  producto: { marca: string | null; modelo: string | null } | { marca: string | null; modelo: string | null }[] | null;
 }
 
 interface RepuestoResultado {
@@ -61,6 +69,19 @@ const TONO_PRIORIDAD: Record<string, TonoEtiqueta> = {
   alta: "aviso",
   normal: "neutro",
 };
+
+/** El join de Supabase puede traer la relación 1:1 como arreglo. */
+function unaOrden(orden: Faltante["orden"]): OrdenFaltante | null {
+  return (Array.isArray(orden) ? orden[0] : orden) ?? null;
+}
+
+/** El equipo y el daño de la orden: para qué es el repuesto. */
+function detalleOrden(orden: OrdenFaltante | null): string {
+  if (!orden) return "";
+  const producto = Array.isArray(orden.producto) ? orden.producto[0] : orden.producto;
+  const equipo = [producto?.marca, producto?.modelo].filter(Boolean).join(" ");
+  return [equipo, orden.motivo].filter(Boolean).join(" · ");
+}
 
 const CASILLA = { width: 18, height: 18, padding: 0, accentColor: "var(--accent)", cursor: "pointer" } as const;
 
@@ -94,7 +115,7 @@ export default function PaginaCompras() {
     const supabase = clienteNavegador();
     const { data } = await supabase
       .from("repuesto_solicitud")
-      .select("id, descripcion, cantidad, prioridad, estado, creada_en, orden:orden_id ( numero )")
+      .select("id, descripcion, cantidad, prioridad, estado, creada_en, orden:orden_id ( numero, estado, motivo, producto:producto_id ( marca, modelo ) )")
       .in("estado", conRecibidos ? ["faltante", "recibido"] : ["faltante"])
       .order("creada_en", { ascending: true });
     const lista = (data as Faltante[]) ?? [];
@@ -199,8 +220,7 @@ export default function PaginaCompras() {
   }
 
   function numeroOrden(orden: Faltante["orden"]) {
-    if (!orden) return "—";
-    return Array.isArray(orden) ? orden[0]?.numero : orden.numero;
+    return unaOrden(orden)?.numero ?? "—";
   }
 
   const pendientes = faltantes.filter((f) => f.estado === "faltante");
@@ -232,7 +252,7 @@ export default function PaginaCompras() {
       .map((f) => ({
         descripcion: f.descripcion,
         cantidad: f.cantidad,
-        ordenNumero: numeroOrden(f.orden) as number | undefined,
+        ordenNumero: unaOrden(f.orden)?.numero,
         prioridad: f.prioridad,
       }));
     if (lineas.length === 0) return;
@@ -339,7 +359,7 @@ export default function PaginaCompras() {
               {mostrarRecibidos ? "No hay faltantes ni recibidos sin consumir" : "No hay faltantes pendientes"}
             </p>
             <p style={{ margin: "5px 0 0", fontSize: 13, color: "var(--ink-2)" }}>
-              Aparecen aquí solos cuando un técnico marca un repuesto como faltante.
+              Aparecen aquí solos cuando al recibir un equipo no hay el repuesto, o cuando un técnico lo marca como faltante.
             </p>
           </Tarjeta>
         ) : (
@@ -383,7 +403,21 @@ export default function PaginaCompras() {
                         )}
                       </td>
                       <td style={{ fontWeight: 600 }}>{f.descripcion}</td>
-                      <td className="cifra">#{numeroOrden(f.orden)}</td>
+                      <td>
+                        <span className="cifra">#{numeroOrden(f.orden)}</span>
+                        {detalleOrden(unaOrden(f.orden)) && (
+                          <div style={{ fontSize: 12, color: "var(--ink-3)", maxWidth: 240 }}>{detalleOrden(unaOrden(f.orden))}</div>
+                        )}
+                        {f.estado === "faltante" && unaOrden(f.orden) && (
+                          <div style={{ marginTop: 4 }}>
+                            {unaOrden(f.orden)!.estado === "entregada" ? (
+                              <Etiqueta tono="neutro">Orden entregada</Etiqueta>
+                            ) : !comprasAutorizadas(unaOrden(f.orden)!.estado) ? (
+                              <Etiqueta tono="espera">Falta aprobación del cliente</Etiqueta>
+                            ) : null}
+                          </div>
+                        )}
+                      </td>
                       <td className="cifra">{f.cantidad}</td>
                       <td>
                         <Etiqueta tono={TONO_PRIORIDAD[f.prioridad] ?? "neutro"} punto>

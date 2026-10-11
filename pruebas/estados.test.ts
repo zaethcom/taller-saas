@@ -5,6 +5,7 @@ import {
   RequisitoFaltanteError,
   TRANSICIONES,
   TransicionInvalidaError,
+  comprasAutorizadas,
   esFinal,
   puedeTransicionar,
   siguientesEstados,
@@ -203,5 +204,16 @@ describe("un escenario completo, de principio a fin", () => {
 
     cumplidos.add("tiene_foto_salida").add("tiene_firma").add("saldo_en_cero");
     expect(() => transicionar("en_reparacion", "entregada", cumplidos)).not.toThrow();
+  });
+});
+
+describe("comprasAutorizadas", () => {
+  it("solo con la cotización aprobada se compra", () => {
+    expect(comprasAutorizadas("recibida")).toBe(false);
+    expect(comprasAutorizadas("en_diagnostico")).toBe(false);
+    expect(comprasAutorizadas("esperando_aprobacion")).toBe(false);
+    expect(comprasAutorizadas("rechazada")).toBe(false);
+    expect(comprasAutorizadas("en_reparacion")).toBe(true);
+    expect(comprasAutorizadas("esperando_repuesto")).toBe(true);
   });
 });

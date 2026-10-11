@@ -7,6 +7,7 @@
  *   motivo: string, infoAdicional?: string, telefonoAlterno?: string,
  *   valorServicio?: number,
  *   abono?: {monto, metodoPagoId, montoRecibido?},
+ *   repuestos?: {repuestoId?, descripcion, cantidad}[],
  * }
  *
  * `valorServicio` queda como un orden_item tipo servicio con el motivo
@@ -14,6 +15,11 @@
  * orden.total y a la cuenta de la orden. `abono` es plata que el cliente
  * deja a cuenta (lib/abono.ts): se valida antes de crear nada y sale en
  * el comprobante junto con el saldo.
+ *
+ * `repuestos` son los que quien recibe ya sabe que lleva el daño. Lo que
+ * no alcanza en la sede entra solo a Compras, vinculado a la orden
+ * (lib/repuestos-recepcion.ts); lo que sí hay queda anotado en el
+ * historial para el técnico.
  *
  * El punto de entrada de todo el sistema: recibir un equipo. Reutiliza
  * cliente y producto si ya existen (buscados antes con /api/clientes y
@@ -32,6 +38,7 @@ import { ESTADO_INICIAL } from "@/lib/estados";
 import { buscarPrimeraFase } from "@/lib/fases";
 import { recalcularTotalOrden } from "@/lib/orden-total";
 import { registrarAbono, validarAbono, type AbonoValidado, type DatosAbono } from "@/lib/abono";
+import { clasificarRepuestos, normalizarRepuestos, notaRepuestosRecepcion } from "@/lib/repuestos-recepcion";
 
 interface ClienteNuevo {
   nombre: string;
@@ -65,6 +72,7 @@ interface CuerpoOrden {
   acceso?: AccesoDispositivo;
   valorServicio?: number;
   abono?: DatosAbono;
+  repuestos?: unknown;
 }
 
 export async function POST(req: NextRequest) {
@@ -182,13 +190,48 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: errOrden?.message ?? "no se pudo crear la orden" }, { status: 500 });
   }
 
+  // Repuestos identificados al recibir: lo que no hay en la sede va
+  // directo a la lista de Compras, con esta orden como referencia, y
+  // el resumen queda en el evento de recepción (sin un evento aparte,
+  // que el cliente vería como un segundo "Recibida" en su seguimiento).
+  const repuestos = normalizarRepuestos(body.repuestos);
+  let faltantesCompras: string[] = [];
+  let faltantesFallidos = false;
+  let notaRepuestos: string | null = null;
+  if (repuestos.length > 0) {
+    const ids = [...new Set(repuestos.flatMap((r) => (r.repuestoId ? [r.repuestoId] : [])))];
+    const { data: existencias } = ids.length
+      ? await supabase.from("existencia").select("repuesto_id, cantidad").eq("sede_id", sedeActivaId).in("repuesto_id", ids)
+      : { data: [] as { repuesto_id: string; cantidad: number }[] };
+    const clasificacion = clasificarRepuestos(
+      repuestos,
+      new Map((existencias ?? []).map((e) => [e.repuesto_id, Number(e.cantidad)])),
+    );
+
+    if (clasificacion.faltantes.length > 0) {
+      const { error: errFaltantes } = await supabase.from("repuesto_solicitud").insert(
+        clasificacion.faltantes.map((f) => ({
+          empresa_id: perfil.empresa_id,
+          orden_id: orden.id,
+          descripcion: f.descripcion,
+          cantidad: f.cantidad,
+          solicitado_por: user.id,
+        })),
+      );
+      if (errFaltantes) faltantesFallidos = true;
+      else faltantesCompras = clasificacion.faltantes.map((f) => f.descripcion);
+    }
+
+    notaRepuestos = notaRepuestosRecepcion(clasificacion);
+  }
+
   await supabase.from("orden_evento").insert({
     empresa_id: perfil.empresa_id,
     orden_id: orden.id,
     a_estado: "recibida",
     a_fase: faseInicial?.nombre ?? null,
     autor_id: user.id,
-    nota: "Recepción inicial",
+    nota: notaRepuestos ? `Recepción inicial. ${notaRepuestos}` : "Recepción inicial",
   });
 
   if (valorServicio > 0) {
@@ -313,5 +356,7 @@ export async function POST(req: NextRequest) {
     numero: orden.numero,
     serialGenerado,
     abonoFallido: Boolean(abono && !abonoRegistrado),
+    faltantesCompras,
+    faltantesFallidos,
   });
 }

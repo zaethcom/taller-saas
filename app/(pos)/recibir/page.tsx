@@ -13,7 +13,7 @@
  */
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Inbox, Search, Check, User, Wrench, FileText, Printer, ClipboardList, Barcode, KeyRound, Camera, Wallet } from "lucide-react";
+import { Inbox, Search, Check, User, Wrench, FileText, Printer, ClipboardList, Barcode, KeyRound, Camera, Wallet, ShoppingBag } from "lucide-react";
 import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
 import { PatronGrid } from "@/componentes/patron-android/patron-grid";
 import { Boton } from "@/componentes/ui/boton";
@@ -23,6 +23,7 @@ import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { PanelCobro, formatearMoneda } from "@/componentes/cobro/panel-cobro";
 import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-turno";
 import { EvidenciaIngreso, subirEvidenciaIngreso, type ArchivoIngreso } from "@/componentes/recepcion/evidencia-ingreso";
+import { RepuestosNecesarios, type RepuestoElegido } from "@/componentes/recepcion/repuestos-necesarios";
 import type { MarcaConModelos } from "@/lib/modelos-equipo";
 
 type TipoNegocio = "celular" | "computador" | "patineta" | "otro";
@@ -134,6 +135,7 @@ export default function PaginaRecibir() {
 
   const [motivo, setMotivo] = useState("");
   const [infoAdicional, setInfoAdicional] = useState("");
+  const [repuestos, setRepuestos] = useState<RepuestoElegido[]>([]);
   // Valor del servicio y abono (lib/abono.ts): el abono entra a la caja
   // como venta de la orden y descuenta el saldo que se cobra al entregar.
   const [valorServicio, setValorServicio] = useState(0);
@@ -153,6 +155,8 @@ export default function PaginaRecibir() {
     valorServicio: number;
     abono: number;
     abonoFallido: boolean;
+    faltantesCompras: string[];
+    faltantesFallidos: boolean;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -215,6 +219,9 @@ export default function PaginaRecibir() {
         infoAdicional: infoAdicional.trim() || undefined,
         valorServicio: valorServicio || undefined,
         telefonoAlterno: telefonoAlterno.trim() || undefined,
+        repuestos: repuestos.length
+          ? repuestos.map((r) => ({ repuestoId: r.repuestoId, descripcion: r.descripcion, cantidad: r.cantidad }))
+          : undefined,
       };
       if (pideTelefonoAlterno && telefonoAlterno.replace(/\D/g, "").length < 7) {
         throw new Error("Falta el número alternativo de contacto");
@@ -269,6 +276,8 @@ export default function PaginaRecibir() {
         valorServicio,
         abono: data.abonoFallido ? 0 : abono,
         abonoFallido: Boolean(data.abonoFallido),
+        faltantesCompras: Array.isArray(data.faltantesCompras) ? data.faltantesCompras : [],
+        faltantesFallidos: Boolean(data.faltantesFallidos),
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo registrar la recepción");
@@ -292,6 +301,7 @@ export default function PaginaRecibir() {
     setModeloOtro(false);
     setMotivo("");
     setInfoAdicional("");
+    setRepuestos([]);
     setValorServicio(0);
     setAbono(0);
     setMontoRecibido(0);
@@ -354,6 +364,20 @@ export default function PaginaRecibir() {
             {resultado.abono > 0 ? ` · Abono ${formatearMoneda(resultado.abono)}` : ""} · Saldo{" "}
             <strong>{formatearMoneda(resultado.valorServicio - resultado.abono)}</strong>
           </p>
+        )}
+        {resultado.faltantesCompras.length > 0 && (
+          <div style={{ marginBottom: 20, textAlign: "left" }}>
+            <Aviso tono="info" icono={<ShoppingBag size={17} strokeWidth={2} />}>
+              Pasó a Compras por falta de existencia: {resultado.faltantesCompras.join(", ")}.
+            </Aviso>
+          </div>
+        )}
+        {resultado.faltantesFallidos && (
+          <div style={{ marginBottom: 20, textAlign: "left" }}>
+            <Aviso tono="peligro">
+              La orden quedó creada pero los repuestos faltantes no llegaron a Compras. Márcalos desde los repuestos de la orden.
+            </Aviso>
+          </div>
         )}
         {resultado.abonoFallido && (
           <div style={{ marginBottom: 20, textAlign: "left" }}>
@@ -680,8 +704,8 @@ export default function PaginaRecibir() {
           )}
         </Paso>
 
-        <Paso n={5} titulo="Motivo" icono={<FileText size={18} strokeWidth={2} color="var(--ink-2)" />}>
-          <Campo ayuda="El servicio que se va a realizar. Es lo que lee el técnico al abrir la orden.">
+        <Paso n={5} titulo="Daño y motivo" icono={<FileText size={18} strokeWidth={2} color="var(--ink-2)" />}>
+          <Campo ayuda="El daño identificado y el servicio que se va a realizar. Es lo que lee el técnico al abrir la orden.">
             <textarea
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
@@ -689,6 +713,15 @@ export default function PaginaRecibir() {
               aria-label="Motivo de la recepción"
             />
           </Campo>
+          <div style={{ marginTop: 14 }}>
+            {/* No va en <Campo>: es un <label> y aquí hay varios controles. */}
+            <span className="campo-etiqueta">Repuestos que necesita</span>
+            <RepuestosNecesarios repuestos={repuestos} onChange={setRepuestos} />
+            <div className="campo-ayuda">
+              Opcional. Si ya se sabe qué repuesto lleva: lo que no hay en esta sede pasa solo a la lista de Compras,
+              vinculado a esta orden. Se compra cuando el cliente apruebe.
+            </div>
+          </div>
           <div style={{ marginTop: 14 }}>
             <Campo etiqueta="Valor del servicio" ayuda="Opcional. Queda en la cuenta de la orden y en el comprobante.">
               <input
