@@ -153,8 +153,13 @@ export default function PaginaAbonos() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: orden.token_publico, decision: "aprobada" }),
       });
-      if (!res.ok) throw new Error((await res.json()).error);
-      setAviso("Servicio autorizado: la orden pasó a reparación.");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setAviso(
+        data.estado === "esperando_repuesto"
+          ? "Servicio autorizado: la orden queda esperando repuesto."
+          : "Servicio autorizado: la orden pasó a reparación.",
+      );
       await recargar(orden.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo autorizar el servicio");

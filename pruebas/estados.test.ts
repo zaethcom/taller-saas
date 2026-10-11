@@ -6,6 +6,7 @@ import {
   TRANSICIONES,
   TransicionInvalidaError,
   esFinal,
+  estadoAlAprobar,
   puedeTransicionar,
   siguientesEstados,
   transicionar,
@@ -26,6 +27,8 @@ describe("el grafo de transiciones", () => {
   it("permite el rechazo del cliente y su entrega sin reparar", () => {
     expect(puedeTransicionar("esperando_aprobacion", "rechazada")).toBe(true);
     expect(puedeTransicionar("rechazada", "entregada")).toBe(true);
+    // Pendiente de decisión: si el cliente reconsidera, se vuelve a cotizar.
+    expect(puedeTransicionar("rechazada", "en_diagnostico")).toBe(true);
   });
 
   it("reparación termina en listo para entregar, y vuelve si la verificación falla", () => {
@@ -162,11 +165,25 @@ describe("transicionar() — la puerta única de cambio de estado", () => {
   it("una transición sin requisitos declarados no exige nada", () => {
     // esperando_aprobacion -> en_reparacion pasa por la aprobación del
     // cliente vía enlace, pero requiere cotizacion_aprobada explícitamente.
-    // en_reparacion -> esperando_repuesto no tiene entrada en REQUISITOS:
-    // marcar un faltante no debe bloquearse por nada más.
+    // en_reparacion -> listo_entrega no tiene entrada en REQUISITOS (la
+    // nota de verificación la exige la ruta, no la máquina de estados).
     expect(() =>
-      transicionar("en_reparacion", "esperando_repuesto", new Set()),
+      transicionar("en_reparacion", "listo_entrega", new Set()),
     ).not.toThrow();
+  });
+
+  it("esperar repuesto exige la aprobación del cliente: no se compra sin ella", () => {
+    expect(() => transicionar("esperando_aprobacion", "esperando_repuesto", new Set())).toThrow(
+      RequisitoFaltanteError,
+    );
+    expect(() =>
+      transicionar("esperando_aprobacion", "esperando_repuesto", new Set<Requisito>(["cotizacion_aprobada"])),
+    ).not.toThrow();
+  });
+
+  it("al aprobar con repuestos pendientes, la orden espera repuesto", () => {
+    expect(estadoAlAprobar(0)).toBe("en_reparacion");
+    expect(estadoAlAprobar(2)).toBe("esperando_repuesto");
   });
 });
 

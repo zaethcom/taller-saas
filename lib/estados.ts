@@ -30,12 +30,17 @@ export type Estado =
 export const TRANSICIONES: Record<Estado, Estado[]> = {
   recibida: ["en_diagnostico", "entregada"],
   en_diagnostico: ["esperando_aprobacion", "entregada"],
-  esperando_aprobacion: ["en_reparacion", "rechazada", "entregada"],
+  // Aprobada sin todos los repuestos, espera sin pasar por reparación:
+  // la falta de repuesto no se confunde con reparar.
+  esperando_aprobacion: ["en_reparacion", "esperando_repuesto", "rechazada", "entregada"],
   en_reparacion: ["esperando_repuesto", "listo_entrega", "entregada"],
   esperando_repuesto: ["en_reparacion", "entregada"],
   // Si al verificar algo no quedó bien, el equipo vuelve a reparación.
   listo_entrega: ["en_reparacion", "entregada"],
-  rechazada: ["entregada"],
+  // Rechazada queda pendiente de decisión: si el cliente reconsidera, se
+  // vuelve a diagnóstico y se le envía otra cotización (la rechazada no
+  // se borra), o se le entrega sin reparar.
+  rechazada: ["en_diagnostico", "entregada"],
   entregada: [],
 };
 
@@ -61,6 +66,7 @@ export const REQUISITOS: Partial<Record<Estado, Requisito[]>> = {
   en_diagnostico: ["tiene_foto_entrada", "tiene_etiqueta", "tiene_tecnico"],
   esperando_aprobacion: ["tiene_cotizacion"],
   en_reparacion: ["cotizacion_aprobada"],
+  esperando_repuesto: ["cotizacion_aprobada"],
   entregada: ["tiene_foto_salida", "tiene_firma", "saldo_en_cero"],
 };
 
@@ -140,6 +146,14 @@ export const ETIQUETA_ESTADO: Record<Estado, string> = {
   en_reparacion: "En reparación",
   esperando_repuesto: "Esperando repuesto",
   listo_entrega: "Listo para entregar",
-  rechazada: "Rechazada",
+  rechazada: "Pendiente de decisión",
   entregada: "Entregada",
 };
+
+/**
+ * A dónde va la orden cuando el cliente aprueba: a reparación, o a
+ * esperar repuesto si alguno de los que necesita todavía no ha llegado.
+ */
+export function estadoAlAprobar(repuestosPendientes: number): Estado {
+  return repuestosPendientes > 0 ? "esperando_repuesto" : "en_reparacion";
+}
