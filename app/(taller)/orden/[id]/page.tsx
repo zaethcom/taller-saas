@@ -196,6 +196,10 @@ export default function PaginaOrdenTecnico() {
   const [orden, setOrden] = useState<OrdenTecnico | null>(null);
   const [rol, setRol] = useState<Rol | null>(null);
   const [cambiando, setCambiando] = useState(false);
+  // "Listo para entregar" no es un clic: pide qué se hizo y que se verificó.
+  const [cerrando, setCerrando] = useState(false);
+  const [notaCierre, setNotaCierre] = useState("");
+  const [verificado, setVerificado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [eventos, setEventos] = useState<Evento[]>([]);
@@ -255,16 +259,19 @@ export default function PaginaOrdenTecnico() {
     }
   }
 
-  async function avanzar(aEstado: Estado) {
+  async function avanzar(aEstado: Estado, nota?: string) {
     setCambiando(true);
     setError(null);
     try {
       const res = await fetch(`/api/ordenes/${id}/transicion`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ aEstado }),
+        body: JSON.stringify({ aEstado, nota }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
+      setCerrando(false);
+      setNotaCierre("");
+      setVerificado(false);
       router.refresh();
       setOrden((prev) => (prev ? { ...prev, estado: aEstado } : prev));
       // La transición también le pone la primera fase del estado nuevo
@@ -379,13 +386,49 @@ export default function PaginaOrdenTecnico() {
                 tamano="lg"
                 ancho
                 icono={<ArrowRight size={19} strokeWidth={2} />}
-                disabled={cambiando}
-                onClick={() => avanzar(e)}
+                disabled={cambiando || (e === "listo_entrega" && cerrando)}
+                onClick={() => (e === "listo_entrega" ? setCerrando(true) : avanzar(e))}
               >
                 {ETIQUETA_ESTADO[e]}
               </Boton>
             ))}
           </div>
+          {cerrando && (
+            <div className="pila" style={{ gap: 10, marginTop: 14 }}>
+              <label style={{ display: "block" }}>
+                <span className="campo-etiqueta">Trabajo realizado</span>
+                <textarea
+                  rows={3}
+                  value={notaCierre}
+                  onChange={(ev) => setNotaCierre(ev.target.value)}
+                  placeholder="Qué se cambió o reparó, y cómo se probó"
+                  autoFocus
+                />
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={verificado}
+                  onChange={(ev) => setVerificado(ev.target.checked)}
+                  style={{ width: 18, height: 18, padding: 0, accentColor: "var(--accent)" }}
+                />
+                Verifiqué que el equipo funciona
+              </label>
+              <div className="fila" style={{ gap: 8 }}>
+                <Boton
+                  variante="primario"
+                  icono={<Check size={18} strokeWidth={2.4} />}
+                  disabled={cambiando || !notaCierre.trim() || !verificado}
+                  onClick={() => avanzar("listo_entrega", `Trabajo verificado: ${notaCierre.trim()}`)}
+                >
+                  Confirmar listo para entregar
+                </Boton>
+                <Boton variante="fantasma" onClick={() => setCerrando(false)}>
+                  Cancelar
+                </Boton>
+              </div>
+            </div>
+          )}
         </Tarjeta>
       )}
 

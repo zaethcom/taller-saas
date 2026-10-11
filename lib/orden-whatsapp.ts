@@ -47,6 +47,9 @@ export function mensajeSeguimiento({
   if (estado === "esperando_aprobacion") {
     return `${saludo}${deParte}. ${capitalizar(tuEquipo)} necesita tu autorización para continuar. Revisa el diagnóstico y la cotización, y apruébala aquí: ${url}`;
   }
+  if (estado === "listo_entrega") {
+    return `${saludo}${deParte}. ${capitalizar(tuEquipo)} ya está listo para recoger. Aquí ves el detalle y el saldo: ${url}`;
+  }
   if (estado === "entregada") {
     return `${saludo}${deParte}. Aquí puedes ver el historial de ${tuEquipo}: ${url}`;
   }

@@ -1,6 +1,9 @@
 /**
  * POST /api/ordenes/<id>/transicion
- * Body: { aEstado: Estado }
+ * Body: { aEstado: Estado, nota?: string }
+ *
+ * `nota` queda en el historial con el cambio. Pasar a "Listo para
+ * entregar" la exige: es el registro de qué se hizo y que se verificó.
  *
  * La única puerta para cambiar el estado de una orden desde la app del
  * técnico o el admin. Arma el conjunto de requisitos cumplidos
@@ -24,9 +27,13 @@ import { encolarImpresion } from "@/lib/impresion";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const body = (await req.json()) as { aEstado?: Estado; imprimirComprobante?: boolean };
+  const body = (await req.json()) as { aEstado?: Estado; imprimirComprobante?: boolean; nota?: string };
   if (!body.aEstado) {
     return NextResponse.json({ error: "falta aEstado" }, { status: 400 });
+  }
+  const nota = typeof body.nota === "string" ? body.nota.trim().slice(0, 1000) : "";
+  if (body.aEstado === "listo_entrega" && !nota) {
+    return NextResponse.json({ error: "escribe qué se hizo y cómo se verificó" }, { status: 400 });
   }
 
   const supabase = await clienteServidor();
@@ -146,6 +153,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     de_fase: faseAnterior?.nombre ?? null,
     a_fase: faseNueva?.nombre ?? null,
     autor_id: user.id,
+    nota: nota || null,
   });
 
   // El PIN/patrón del equipo ya no hace falta una vez el cliente se lo

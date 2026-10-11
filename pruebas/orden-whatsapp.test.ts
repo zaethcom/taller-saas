@@ -22,6 +22,11 @@ describe("mensajeSeguimiento", () => {
       `Hola Ana, te escribimos de Cell Fix. Tu equipo Samsung A54 necesita tu autorización para continuar. Revisa el diagnóstico y la cotización, y apruébala aquí: ${url}`,
     );
   });
+  it("avisa que el equipo está listo para recoger", () => {
+    expect(mensajeSeguimiento({ nombre: "Luis", estado: "listo_entrega", equipo: "iPhone 12", url })).toBe(
+      `Hola Luis. Tu equipo iPhone 12 ya está listo para recoger. Aquí ves el detalle y el saldo: ${url}`,
+    );
+  });
   it("invita a revisar el avance en los demás estados", () => {
     expect(mensajeSeguimiento({ nombre: "", estado: "en_reparacion", url })).toBe(
       `Hola. Por favor revisa cómo va tu equipo en este enlace: ${url}`,
