@@ -1,6 +1,10 @@
 /**
  * POST /api/aprobacion
- * Body: { token: string, decision: "aprobada" | "rechazada" }
+ * Body: { token: string, decision: "aprobada" | "rechazada", motivo?: string }
+ *
+ * Aprobada pasa a reparación, o a "Esperando repuesto" si la orden
+ * tiene repuestos pedidos que no han llegado (estadoAlAprobar). Rechazada
+ * queda pendiente de decisión, con el motivo del cliente en el historial.
  *
  * El cliente aprueba o rechaza la cotización desde el enlace público.
  * La decisión queda grabada con fecha e IP -- es la prueba de
@@ -11,12 +15,13 @@
  * esta ruta no pueda saltarse una regla que el resto de la app respeta.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { RequisitoFaltanteError, TransicionInvalidaError, transicionar } from "@/lib/estados";
+import { RequisitoFaltanteError, TransicionInvalidaError, estadoAlAprobar, transicionar } from "@/lib/estados";
 import { buscarPrimeraFase } from "@/lib/fases";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json()) as { token?: string; decision?: string };
+  const body = (await req.json()) as { token?: string; decision?: string; motivo?: string };
+  const motivo = typeof body.motivo === "string" ? body.motivo.trim().slice(0, 500) : "";
 
   if (body.decision !== "aprobada" && body.decision !== "rechazada") {
     return NextResponse.json({ error: "decisión inválida" }, { status: 400 });
@@ -53,7 +58,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "esta cotización ya fue decidida" }, { status: 409 });
   }
 
-  const aEstado = body.decision === "aprobada" ? "en_reparacion" : "rechazada";
+  // Repuestos pedidos para esta orden que todavía no llegan (desde la
+  // recepción o marcados por el técnico): sin ellos no se repara.
+  const { count: pendientes } = await admin
+    .from("repuesto_solicitud")
+    .select("id", { count: "exact", head: true })
+    .eq("orden_id", orden.id)
+    .in("estado", ["faltante", "solicitado"]);
+
+  const aEstado = body.decision === "aprobada" ? estadoAlAprobar(pendientes ?? 0) : "rechazada";
 
   try {
     transicionar(
@@ -92,7 +105,10 @@ export async function POST(req: NextRequest) {
     a_estado: aEstado,
     de_fase: faseAnterior?.nombre ?? null,
     a_fase: faseNueva?.nombre ?? null,
-    nota: `Cliente ${body.decision === "aprobada" ? "aprobó" : "rechazó"} la cotización desde el enlace`,
+    nota:
+      body.decision === "aprobada"
+        ? `Cliente aprobó la cotización desde el enlace${aEstado === "esperando_repuesto" ? ". Queda esperando repuesto" : ""}`
+        : `Cliente rechazó la cotización desde el enlace${motivo ? `. Motivo: ${motivo}` : ""}`,
   });
 
   return NextResponse.json({ ok: true, estado: aEstado });

@@ -65,6 +65,9 @@ export default function PaginaSeguimiento() {
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [decidiendoItem, setDecidiendoItem] = useState<string | null>(null);
+  // Rechazar pide el motivo (opcional) antes de enviar: queda en el historial.
+  const [rechazando, setRechazando] = useState(false);
+  const [motivoRechazo, setMotivoRechazo] = useState("");
 
   useEffect(() => {
     fetch(`/api/seguimiento/${token}`)
@@ -82,9 +85,10 @@ export default function PaginaSeguimiento() {
       const res = await fetch("/api/aprobacion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, decision }),
+        body: JSON.stringify({ token, decision, motivo: decision === "rechazada" ? motivoRechazo.trim() || undefined : undefined }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
+      setRechazando(false);
       // Recargar para reflejar el nuevo estado.
       const actualizado = await fetch(`/api/seguimiento/${token}`).then((r) => r.json());
       setDatos(actualizado);
@@ -307,18 +311,40 @@ export default function PaginaSeguimiento() {
                     variante="contorno"
                     tamano="lg"
                     icono={<X size={19} strokeWidth={2.4} />}
-                    disabled={enviando}
-                    onClick={() => decidir("rechazada")}
+                    disabled={enviando || rechazando}
+                    onClick={() => setRechazando(true)}
                   >
                     Rechazar
                   </Boton>
                 </div>
               )}
 
+              {puedeDecidir && rechazando && (
+                <div className="pila" style={{ gap: 10, padding: "0 16px 16px" }}>
+                  <label style={{ display: "block" }}>
+                    <span className="campo-etiqueta">¿Por qué la rechazas? (opcional)</span>
+                    <textarea
+                      rows={2}
+                      value={motivoRechazo}
+                      onChange={(e) => setMotivoRechazo(e.target.value)}
+                      placeholder="Ej. muy costoso, lo pienso y les aviso"
+                    />
+                  </label>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <Boton variante="peligro" disabled={enviando} onClick={() => decidir("rechazada")}>
+                      Confirmar rechazo
+                    </Boton>
+                    <Boton variante="fantasma" disabled={enviando} onClick={() => setRechazando(false)}>
+                      Volver
+                    </Boton>
+                  </div>
+                </div>
+              )}
+
               {datos.cotizacion.decision && (
                 <div style={{ padding: "0 16px 16px" }}>
                   <Etiqueta tono={datos.cotizacion.decision === "aprobada" ? "ok" : "neutro"} punto>
-                    {datos.cotizacion.decision === "aprobada" ? "Aprobada por ti" : "Rechazada por ti"}
+                    {datos.cotizacion.decision === "aprobada" ? "Aprobada por ti" : "Rechazada"}
                   </Etiqueta>
                 </div>
               )}
