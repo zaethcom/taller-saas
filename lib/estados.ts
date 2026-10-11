@@ -139,3 +139,12 @@ export const ETIQUETA_ESTADO: Record<Estado, string> = {
   rechazada: "Rechazada",
   entregada: "Entregada",
 };
+
+/**
+ * ¿Ya se puede comprar lo que esta orden necesita? Un faltante entra a
+ * Compras desde la recepción, pero comprarlo requiere que el cliente
+ * haya aprobado: hasta entonces Compras lo ve marcado como en espera.
+ */
+export function comprasAutorizadas(estado: Estado): boolean {
+  return estado === "en_reparacion" || estado === "esperando_repuesto";
+}
