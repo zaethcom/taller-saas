@@ -28,6 +28,13 @@ describe("el grafo de transiciones", () => {
     expect(puedeTransicionar("rechazada", "entregada")).toBe(true);
   });
 
+  it("reparación termina en listo para entregar, y vuelve si la verificación falla", () => {
+    expect(puedeTransicionar("en_reparacion", "listo_entrega")).toBe(true);
+    expect(puedeTransicionar("listo_entrega", "entregada")).toBe(true);
+    expect(puedeTransicionar("listo_entrega", "en_reparacion")).toBe(true);
+    expect(puedeTransicionar("esperando_repuesto", "listo_entrega")).toBe(false);
+  });
+
   it("permite la espera de repuesto y el regreso a reparación", () => {
     expect(puedeTransicionar("en_reparacion", "esperando_repuesto")).toBe(true);
     expect(puedeTransicionar("esperando_repuesto", "en_reparacion")).toBe(true);
