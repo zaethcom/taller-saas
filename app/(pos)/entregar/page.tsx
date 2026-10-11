@@ -116,12 +116,15 @@ export default function PaginaEntregar() {
     }
   }
 
-  // Desde la ficha de la orden ("Entregar") llega con ?numero=N.
+  // Desde la ficha de la orden ("Entregar") llega con ?numero=N; si no,
+  // la cámara abre de una para escanear el QR de la etiqueta.
   useEffect(() => {
     const n = new URLSearchParams(window.location.search).get("numero");
     if (n) {
       setNumero(n);
       buscar({ numero: n });
+    } else {
+      setEscaneando(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -316,6 +319,7 @@ export default function PaginaEntregar() {
             <div style={{ marginTop: 14 }}>
               <LectorCodigoBarras
                 formats={["qr_code"]}
+                cuadrado
                 etiqueta="Ubica el QR de la etiqueta"
                 onDetectado={procesarQr}
                 onCerrar={() => setEscaneando(false)}

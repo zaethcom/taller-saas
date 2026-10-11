@@ -506,13 +506,14 @@ export default function PaginaRecibir() {
         <Paso n={3} titulo="Equipo" icono={<Wrench size={18} strokeWidth={2} color="var(--ink-2)" />}>
           <form
             className="fila"
-            style={{ gap: 8, flexWrap: "nowrap", marginBottom: 14 }}
+            style={{ gap: 8, marginBottom: 14 }}
             onSubmit={(e) => {
               e.preventDefault();
               buscarProducto();
             }}
           >
             <input
+              style={{ flex: "1 1 220px", minWidth: 0 }}
               placeholder="Serial (vacío = equipo nuevo, se genera al guardar)"
               value={serial}
               onChange={(e) => {
@@ -563,7 +564,7 @@ export default function PaginaRecibir() {
               ({producto.tipo})
             </Aviso>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "160px repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(160px, 100%), 1fr))", gap: 12 }}>
               <Campo etiqueta="Tipo">
                 <select
                   value={productoNuevo.tipo}
