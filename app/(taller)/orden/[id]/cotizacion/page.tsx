@@ -11,9 +11,11 @@
  *
  * Lo que la orden ya tiene acordado (el "valor del servicio" que se puso
  * al recibir, o lo ya registrado en la orden) entra a la cotización
- * desde el principio y no se puede editar ni quitar: el cliente ve el
- * total completo, y lo acordado no se cobra dos veces (la cuenta toma
- * lo mayor entre lo usado y lo cotizado, lib/cuenta-orden.ts).
+ * desde el principio y no se edita: el cliente ve el total completo, y
+ * lo acordado no se cobra dos veces (la cuenta toma lo mayor entre lo
+ * usado y lo cotizado, lib/cuenta-orden.ts). Lo que se agregó por error
+ * sí se quita antes de enviar: la X lo borra de la orden (DELETE
+ * /api/ordenes/[id]/items), y un repuesto consumido vuelve a la sede.
  *
  * Llega desde /diagnostico ("Continuar a cotización"); al enviar,
  * POST /api/ordenes/[id]/cotizacion mueve la orden a
@@ -29,6 +31,7 @@ import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { CabeceraOrden } from "@/componentes/taller/cabecera-orden";
 import { BotonWhatsappOrden } from "@/componentes/taller/boton-whatsapp-orden";
 import { clienteNavegador } from "@/lib/supabase/cliente";
+import { ETIQUETA_ESTADO, puedeTransicionar, type Estado } from "@/lib/estados";
 
 type Origen = "repuesto" | "servicio" | "mano_obra" | "libre" | "acordado";
 
@@ -40,6 +43,8 @@ interface Item {
   repuestoId?: string;
   servicioId?: string;
   manoObraId?: string;
+  /** Solo en las líneas "acordado": el orden_item que la respalda. */
+  ordenItemId?: string;
 }
 
 interface ResultadoCatalogo {
@@ -145,15 +150,28 @@ export default function PaginaCotizacion() {
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<{ total: number; urlSeguimiento: string } | null>(null);
   const [copiado, setCopiado] = useState(false);
+  const [quitando, setQuitando] = useState<string | null>(null);
+  const [estado, setEstado] = useState<Estado | null>(null);
+  // Se avisa antes de armar la cotización, no al enviarla.
+  const sePuedeEnviar = estado === null || puedeTransicionar(estado, "esperando_aprobacion");
 
   const total = items.reduce((s, i) => s + i.cantidad * i.precioUnit, 0);
   const hayAcordado = items.some((i) => i.origen === "acordado");
+
+  useEffect(() => {
+    clienteNavegador()
+      .from("orden")
+      .select("estado")
+      .eq("id", id)
+      .maybeSingle()
+      .then(({ data }) => setEstado((data?.estado as Estado) ?? null));
+  }, [id]);
 
   // Lo que la orden ya tiene (orden_item) entra fijo, antes que lo nuevo.
   useEffect(() => {
     clienteNavegador()
       .from("orden_item")
-      .select("descripcion, cantidad, precio_unit")
+      .select("id, descripcion, cantidad, precio_unit")
       .eq("orden_id", id)
       // Un costo agregado que el cliente rechazó (0040) no es acordado.
       .or("decision.is.null,decision.neq.rechazada")
@@ -161,6 +179,7 @@ export default function PaginaCotizacion() {
       .then(({ data }) => {
         const acordados: Item[] = (data ?? []).map((it) => ({
           origen: "acordado",
+          ordenItemId: it.id,
           descripcion: it.descripcion,
           cantidad: it.cantidad,
           precioUnit: Number(it.precio_unit),
@@ -179,6 +198,21 @@ export default function PaginaCotizacion() {
 
   function quitar(i: number) {
     setItems((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  // Lo acordado ya está guardado en la orden: quitarlo es borrarlo allí.
+  async function quitarAcordado(ordenItemId: string) {
+    setQuitando(ordenItemId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/ordenes/${id}/items?item=${encodeURIComponent(ordenItemId)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setItems((prev) => prev.filter((it) => it.ordenItemId !== ordenItemId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo quitar la línea");
+    } finally {
+      setQuitando(null);
+    }
   }
 
   async function enviar() {
@@ -295,6 +329,13 @@ export default function PaginaCotizacion() {
       />
 
       <div className="pila">
+        {!sePuedeEnviar && estado && (
+          <Aviso tono="aviso">
+            {estado === "recibida"
+              ? "La orden todavía está en Recibida. Pásala a diagnóstico desde la orden para poder enviar la cotización."
+              : `La orden está en "${ETIQUETA_ESTADO[estado]}": desde ahí no se envía una cotización.`}
+          </Aviso>
+        )}
         <Tarjeta>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
             <BuscadorCatalogo
@@ -375,7 +416,13 @@ export default function PaginaCotizacion() {
                     <>
                       <span className="cifra" style={{ textAlign: "center", fontSize: 13 }}>{it.cantidad}</span>
                       <span className="cifra" style={{ textAlign: "right", fontSize: 13 }}>{fmt(it.precioUnit)}</span>
-                      <span />
+                      <Boton
+                        variante="peligro"
+                        icono={<X size={16} strokeWidth={2.4} />}
+                        onClick={() => it.ordenItemId && quitarAcordado(it.ordenItemId)}
+                        disabled={quitando !== null}
+                        aria-label={`Quitar ${it.descripcion} de la orden`}
+                      />
                     </>
                   ) : (
                   <>
@@ -414,7 +461,8 @@ export default function PaginaCotizacion() {
         {hayAcordado && (
           <Aviso tono="info">
             Las líneas &quot;Acordado&quot; ya estaban en la orden (el valor que se pactó al recibir, o lo ya registrado).
-            Quedan incluidas en el total y no se cobran dos veces.
+            Quedan incluidas en el total y no se cobran dos veces. Si alguna está por error, la X la quita de la orden
+            (un repuesto vuelve al inventario).
           </Aviso>
         )}
 
@@ -433,7 +481,7 @@ export default function PaginaCotizacion() {
           ancho
           icono={<Send size={19} strokeWidth={2} />}
           onClick={enviar}
-          disabled={enviando}
+          disabled={enviando || !sePuedeEnviar}
         >
           {enviando ? "Enviando…" : "Enviar cotización"}
         </Boton>

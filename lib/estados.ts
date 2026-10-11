@@ -166,3 +166,12 @@ export function comprasAutorizadas(estado: Estado): boolean {
 export function estadoAlAprobar(repuestosPendientes: number): Estado {
   return repuestosPendientes > 0 ? "esperando_repuesto" : "en_reparacion";
 }
+
+/**
+ * ¿Se puede quitar algo que ya está en la orden (orden_item)? Solo
+ * mientras no se haya enviado la cotización: antes de eso, una línea
+ * agregada por error se corrige; después, el cliente ya vio ese total.
+ */
+export function itemsSeQuitan(estado: Estado): boolean {
+  return estado === "recibida" || estado === "en_diagnostico";
+}

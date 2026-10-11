@@ -8,6 +8,7 @@ import {
   comprasAutorizadas,
   esFinal,
   estadoAlAprobar,
+  itemsSeQuitan,
   puedeTransicionar,
   siguientesEstados,
   transicionar,
@@ -239,5 +240,15 @@ describe("comprasAutorizadas", () => {
     expect(comprasAutorizadas("rechazada")).toBe(false);
     expect(comprasAutorizadas("en_reparacion")).toBe(true);
     expect(comprasAutorizadas("esperando_repuesto")).toBe(true);
+  });
+});
+
+describe("itemsSeQuitan", () => {
+  it("solo antes de enviar la cotización", () => {
+    expect(itemsSeQuitan("recibida")).toBe(true);
+    expect(itemsSeQuitan("en_diagnostico")).toBe(true);
+    expect(itemsSeQuitan("esperando_aprobacion")).toBe(false);
+    expect(itemsSeQuitan("en_reparacion")).toBe(false);
+    expect(itemsSeQuitan("entregada")).toBe(false);
   });
 });
