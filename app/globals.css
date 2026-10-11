@@ -248,6 +248,16 @@ textarea::placeholder {
   color: var(--ink-3);
 }
 
+/* La regla de input (ancho completo, alto de campo) no aplica a las casillas. */
+input[type="checkbox"],
+input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  flex: none;
+  accent-color: var(--accent);
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

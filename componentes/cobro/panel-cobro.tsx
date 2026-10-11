@@ -50,7 +50,7 @@ export function PanelCobro({
       {metodos.length > 0 && (
         <div>
           <div className="campo-etiqueta">Forma de pago</div>
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(metodos.length, 3)}, minmax(0, 1fr))`, gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8 }}>
             {metodos.map((m) => (
               <Boton
                 key={m.id}
