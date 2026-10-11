@@ -24,6 +24,20 @@ import { SelectorFase } from "@/componentes/taller/selector-fase";
 
 /** Lo que la ficha ofrece como siguiente paso: la entrega anticipada
  *  (desde recibida, diagnóstico, etc.) solo se hace en el mostrador. */
+/** Los cambios que piden una nota, y qué se le pregunta a quien los hace. */
+const NOTA_AL_PASAR: Partial<Record<Estado, { etiqueta: string; ayuda: string; prefijo: string }>> = {
+  listo_entrega: {
+    etiqueta: "Trabajo realizado",
+    ayuda: "Qué se cambió o reparó, y cómo se probó",
+    prefijo: "Trabajo verificado: ",
+  },
+  rechazada: {
+    etiqueta: "Respuesta del cliente",
+    ayuda: "Por qué no aprobó, o qué va a decidir",
+    prefijo: "Cliente no aprobó: ",
+  },
+};
+
 function siguientesDesdeTaller(estado: Estado): Estado[] {
   return siguientesEstados(estado).filter((e) => e !== "entregada" || ENTREGA_DESDE_TALLER.includes(estado));
 }
@@ -196,8 +210,8 @@ export default function PaginaOrdenTecnico() {
   const [orden, setOrden] = useState<OrdenTecnico | null>(null);
   const [rol, setRol] = useState<Rol | null>(null);
   const [cambiando, setCambiando] = useState(false);
-  // "Listo para entregar" no es un clic: pide qué se hizo y que se verificó.
-  const [cerrando, setCerrando] = useState(false);
+  // Algunos cambios no son un clic: piden una nota que queda en el historial.
+  const [cerrando, setCerrando] = useState<Estado | null>(null);
   const [notaCierre, setNotaCierre] = useState("");
   const [verificado, setVerificado] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -269,7 +283,7 @@ export default function PaginaOrdenTecnico() {
         body: JSON.stringify({ aEstado, nota }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
-      setCerrando(false);
+      setCerrando(null);
       setNotaCierre("");
       setVerificado(false);
       router.refresh();
@@ -386,44 +400,46 @@ export default function PaginaOrdenTecnico() {
                 tamano="lg"
                 ancho
                 icono={<ArrowRight size={19} strokeWidth={2} />}
-                disabled={cambiando || (e === "listo_entrega" && cerrando)}
-                onClick={() => (e === "listo_entrega" ? setCerrando(true) : avanzar(e))}
+                disabled={cambiando || cerrando === e}
+                onClick={() => (NOTA_AL_PASAR[e] ? setCerrando(e) : avanzar(e))}
               >
                 {ETIQUETA_ESTADO[e]}
               </Boton>
             ))}
           </div>
-          {cerrando && (
+          {cerrando && NOTA_AL_PASAR[cerrando] && (
             <div className="pila" style={{ gap: 10, marginTop: 14 }}>
               <label style={{ display: "block" }}>
-                <span className="campo-etiqueta">Trabajo realizado</span>
+                <span className="campo-etiqueta">{NOTA_AL_PASAR[cerrando]!.etiqueta}</span>
                 <textarea
                   rows={3}
                   value={notaCierre}
                   onChange={(ev) => setNotaCierre(ev.target.value)}
-                  placeholder="Qué se cambió o reparó, y cómo se probó"
+                  placeholder={NOTA_AL_PASAR[cerrando]!.ayuda}
                   autoFocus
                 />
               </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={verificado}
-                  onChange={(ev) => setVerificado(ev.target.checked)}
-                  style={{ width: 18, height: 18, padding: 0, accentColor: "var(--accent)" }}
-                />
-                Verifiqué que el equipo funciona
-              </label>
+              {cerrando === "listo_entrega" && (
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={verificado}
+                    onChange={(ev) => setVerificado(ev.target.checked)}
+                    style={{ width: 18, height: 18, padding: 0, accentColor: "var(--accent)" }}
+                  />
+                  Verifiqué que el equipo funciona
+                </label>
+              )}
               <div className="fila" style={{ gap: 8 }}>
                 <Boton
                   variante="primario"
                   icono={<Check size={18} strokeWidth={2.4} />}
-                  disabled={cambiando || !notaCierre.trim() || !verificado}
-                  onClick={() => avanzar("listo_entrega", `Trabajo verificado: ${notaCierre.trim()}`)}
+                  disabled={cambiando || !notaCierre.trim() || (cerrando === "listo_entrega" && !verificado)}
+                  onClick={() => avanzar(cerrando, `${NOTA_AL_PASAR[cerrando]!.prefijo}${notaCierre.trim()}`)}
                 >
-                  Confirmar listo para entregar
+                  Confirmar: {ETIQUETA_ESTADO[cerrando]}
                 </Boton>
-                <Boton variante="fantasma" onClick={() => setCerrando(false)}>
+                <Boton variante="fantasma" onClick={() => setCerrando(null)}>
                   Cancelar
                 </Boton>
               </div>

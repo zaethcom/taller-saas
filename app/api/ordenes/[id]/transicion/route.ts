@@ -3,7 +3,8 @@
  * Body: { aEstado: Estado, nota?: string }
  *
  * `nota` queda en el historial con el cambio. Pasar a "Listo para
- * entregar" la exige: es el registro de qué se hizo y que se verificó.
+ * entregar" la exige (qué se hizo y que se verificó), y también pasar a
+ * "Pendiente de decisión" (la respuesta del cliente que no aprobó).
  *
  * La única puerta para cambiar el estado de una orden desde la app del
  * técnico o el admin. Arma el conjunto de requisitos cumplidos
@@ -34,6 +35,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const nota = typeof body.nota === "string" ? body.nota.trim().slice(0, 1000) : "";
   if (body.aEstado === "listo_entrega" && !nota) {
     return NextResponse.json({ error: "escribe qué se hizo y cómo se verificó" }, { status: 400 });
+  }
+  if (body.aEstado === "rechazada" && !nota) {
+    return NextResponse.json({ error: "escribe la respuesta del cliente" }, { status: 400 });
   }
 
   const supabase = await clienteServidor();
@@ -143,6 +147,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (errUpdate) {
     return NextResponse.json({ error: errUpdate.message }, { status: 500 });
+  }
+
+  // El cliente respondió por teléfono o en el mostrador: la cotización
+  // enviada queda rechazada, igual que si lo hubiera hecho en el enlace.
+  if (body.aEstado === "rechazada" && cotizacion?.estado === "enviada" && !cotizacion.decision) {
+    await supabase
+      .from("cotizacion")
+      .update({ decision: "rechazada", decidida_en: new Date().toISOString() })
+      .eq("id", cotizacion.id);
   }
 
   await supabase.from("orden_evento").insert({
