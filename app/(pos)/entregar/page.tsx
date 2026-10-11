@@ -116,6 +116,16 @@ export default function PaginaEntregar() {
     }
   }
 
+  // Desde la ficha de la orden ("Entregar") llega con ?numero=N.
+  useEffect(() => {
+    const n = new URLSearchParams(window.location.search).get("numero");
+    if (n) {
+      setNumero(n);
+      buscar({ numero: n });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function procesarQr(valor: string) {
     setEscaneando(false);
     const token = extraerTokenDeSeguimiento(valor);
