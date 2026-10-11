@@ -1,9 +1,9 @@
 /**
  * La máquina de estados de la orden de servicio.
  *
- * Las doce fases del documento original describen la operación, no doce
- * estados del sistema. Aquí son cinco, y las demás quedan como notas y
- * evidencias dentro de un estado.
+ * Los estados son los mismos para todo tipo de equipo (celulares,
+ * patinetas, computadores): las subfases que cada empresa configura
+ * (lib/fases.ts) son detalle dentro de un estado, nunca cambian el flujo.
  *
  * Regla del proyecto: si una transición no está en TRANSICIONES, no existe.
  * Ninguna pantalla debe escribir `estado = 'entregada'` por su cuenta —
@@ -16,6 +16,7 @@ export type Estado =
   | "esperando_aprobacion"
   | "en_reparacion"
   | "esperando_repuesto"
+  | "listo_entrega"
   | "rechazada"
   | "entregada";
 
@@ -30,8 +31,10 @@ export const TRANSICIONES: Record<Estado, Estado[]> = {
   recibida: ["en_diagnostico", "entregada"],
   en_diagnostico: ["esperando_aprobacion", "entregada"],
   esperando_aprobacion: ["en_reparacion", "rechazada", "entregada"],
-  en_reparacion: ["esperando_repuesto", "entregada"],
+  en_reparacion: ["esperando_repuesto", "listo_entrega", "entregada"],
   esperando_repuesto: ["en_reparacion", "entregada"],
+  // Si al verificar algo no quedó bien, el equipo vuelve a reparación.
+  listo_entrega: ["en_reparacion", "entregada"],
   rechazada: ["entregada"],
   entregada: [],
 };
@@ -41,7 +44,7 @@ export const TRANSICIONES: Record<Estado, Estado[]> = {
  * siguiente paso. Desde los demás también se puede entregar, pero solo
  * por el mostrador (/entregar), donde se cobra, se firma y se fotografía.
  */
-export const ENTREGA_DESDE_TALLER: Estado[] = ["en_reparacion", "rechazada"];
+export const ENTREGA_DESDE_TALLER: Estado[] = ["listo_entrega", "rechazada"];
 
 export type Requisito =
   | "tiene_foto_entrada"
@@ -136,6 +139,7 @@ export const ETIQUETA_ESTADO: Record<Estado, string> = {
   esperando_aprobacion: "Esperando aprobación",
   en_reparacion: "En reparación",
   esperando_repuesto: "Esperando repuesto",
+  listo_entrega: "Listo para entregar",
   rechazada: "Rechazada",
   entregada: "Entregada",
 };
