@@ -9,6 +9,12 @@
  * con el usuario) -- esa línea no descuenta inventario ni genera
  * movimiento de auditoría, solo suma al total.
  *
+ * Lo que la orden ya tiene acordado (el "valor del servicio" que se puso
+ * al recibir, o lo ya registrado en la orden) entra a la cotización
+ * desde el principio y no se puede editar ni quitar: el cliente ve el
+ * total completo, y lo acordado no se cobra dos veces (la cuenta toma
+ * lo mayor entre lo usado y lo cotizado, lib/cuenta-orden.ts).
+ *
  * Llega desde /diagnostico ("Continuar a cotización"); al enviar,
  * POST /api/ordenes/[id]/cotizacion mueve la orden a
  * esperando_aprobacion, igual que antes.
@@ -22,8 +28,9 @@ import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { CabeceraOrden } from "@/componentes/taller/cabecera-orden";
 import { BotonWhatsappOrden } from "@/componentes/taller/boton-whatsapp-orden";
+import { clienteNavegador } from "@/lib/supabase/cliente";
 
-type Origen = "repuesto" | "servicio" | "mano_obra" | "libre";
+type Origen = "repuesto" | "servicio" | "mano_obra" | "libre" | "acordado";
 
 interface Item {
   origen: Origen;
@@ -50,6 +57,7 @@ const ETIQUETA_ORIGEN: Record<Origen, string> = {
   servicio: "Servicio",
   mano_obra: "Mano de obra",
   libre: "Otro",
+  acordado: "Acordado",
 };
 
 function BuscadorCatalogo({
@@ -139,6 +147,27 @@ export default function PaginaCotizacion() {
   const [copiado, setCopiado] = useState(false);
 
   const total = items.reduce((s, i) => s + i.cantidad * i.precioUnit, 0);
+  const hayAcordado = items.some((i) => i.origen === "acordado");
+
+  // Lo que la orden ya tiene (orden_item) entra fijo, antes que lo nuevo.
+  useEffect(() => {
+    clienteNavegador()
+      .from("orden_item")
+      .select("descripcion, cantidad, precio_unit")
+      .eq("orden_id", id)
+      // Un costo agregado que el cliente rechazó (0040) no es acordado.
+      .or("decision.is.null,decision.neq.rechazada")
+      .order("creado_en", { ascending: true })
+      .then(({ data }) => {
+        const acordados: Item[] = (data ?? []).map((it) => ({
+          origen: "acordado",
+          descripcion: it.descripcion,
+          cantidad: it.cantidad,
+          precioUnit: Number(it.precio_unit),
+        }));
+        if (acordados.length) setItems((prev) => [...acordados, ...prev.filter((p) => p.origen !== "acordado")]);
+      });
+  }, [id]);
 
   function agregar(item: Item) {
     setItems((prev) => [...prev, item]);
@@ -342,6 +371,14 @@ export default function PaginaCotizacion() {
                   ) : (
                     <span style={{ fontSize: 13, fontWeight: 600 }}>{it.descripcion}</span>
                   )}
+                  {it.origen === "acordado" ? (
+                    <>
+                      <span className="cifra" style={{ textAlign: "center", fontSize: 13 }}>{it.cantidad}</span>
+                      <span className="cifra" style={{ textAlign: "right", fontSize: 13 }}>{fmt(it.precioUnit)}</span>
+                      <span />
+                    </>
+                  ) : (
+                  <>
                   <input
                     type="number"
                     min={1}
@@ -366,11 +403,20 @@ export default function PaginaCotizacion() {
                     onClick={() => quitar(i)}
                     aria-label={`Quitar la línea ${i + 1}`}
                   />
+                  </>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </Tarjeta>
+
+        {hayAcordado && (
+          <Aviso tono="info">
+            Las líneas &quot;Acordado&quot; ya estaban en la orden (el valor que se pactó al recibir, o lo ya registrado).
+            Quedan incluidas en el total y no se cobran dos veces.
+          </Aviso>
+        )}
 
         <Tarjeta>
           <div style={{ textAlign: "right" }}>
