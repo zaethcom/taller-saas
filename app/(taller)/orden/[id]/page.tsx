@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Camera, Wrench, Package, ChevronRight, ArrowRight, KeyRound, Eye, Clock, Check, Printer } from "lucide-react";
 import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
+import { formatearMoneda } from "@/componentes/cobro/panel-cobro";
 import { CAMINO, pasoActual, siguientePaso, type Accion, type Destino } from "@/lib/camino-orden";
 import { puede, type Rol } from "@/lib/permisos";
 import { Boton } from "@/componentes/ui/boton";
@@ -256,6 +257,9 @@ export default function PaginaOrdenTecnico() {
   const [cerrando, setCerrando] = useState<Estado | null>(null);
   const [notaCierre, setNotaCierre] = useState("");
   const [verificado, setVerificado] = useState(false);
+  // "Ya viene con precio acordado": salta diagnóstico, cotización y
+  // aprobación. Arranca marcado si la orden ya trae un valor.
+  const [omitir, setOmitir] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [eventos, setEventos] = useState<Evento[]>([]);
@@ -265,7 +269,10 @@ export default function PaginaOrdenTecnico() {
   function cargarOrden() {
     fetch(`/api/ordenes/${id}`)
       .then((r) => r.json())
-      .then(setOrden)
+      .then((o: OrdenTecnico) => {
+        setOrden(o);
+        setOmitir((prev) => prev ?? Number(o.total) > 0);
+      })
       .catch(() => setError("No se pudo cargar la orden"));
   }
 
@@ -315,16 +322,18 @@ export default function PaginaOrdenTecnico() {
     }
   }
 
-  async function avanzar(aEstado: Estado, nota?: string) {
+  async function avanzar(aEstado: Estado, nota?: string, omitirCotizacion?: boolean) {
     setCambiando(true);
     setError(null);
     try {
       const res = await fetch(`/api/ordenes/${id}/transicion`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ aEstado, nota }),
+        body: JSON.stringify({ aEstado, nota, omitirCotizacion }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
+      // Con precio acordado el servidor decide: reparación o esperar repuesto.
+      aEstado = (await res.json()).estado ?? aEstado;
       setCerrando(null);
       setNotaCierre("");
       setVerificado(false);
@@ -375,6 +384,7 @@ export default function PaginaOrdenTecnico() {
   }
 
   const paso = siguientePaso(orden.estado);
+  const antesDeCotizar = orden.estado === "recibida" || orden.estado === "en_diagnostico";
 
   return (
     <div className="pila">
@@ -434,6 +444,50 @@ export default function PaginaOrdenTecnico() {
 
       <Tarjeta>
         <div className="campo-etiqueta">Siguiente paso</div>
+        {antesDeCotizar && (
+          <label
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 10,
+              padding: 12,
+              marginBottom: 14,
+              borderRadius: "var(--r-md)",
+              background: "var(--surface-2)",
+              cursor: "pointer",
+            }}
+          >
+            <input type="checkbox" checked={!!omitir} onChange={(e) => setOmitir(e.target.checked)} style={{ marginTop: 2 }} />
+            <span>
+              <span style={{ display: "block", fontSize: 14, fontWeight: 700 }}>Ya viene con precio acordado</span>
+              <span style={{ display: "block", fontSize: 12, color: "var(--ink-2)" }}>
+                Omite diagnóstico, cotización y aprobación del cliente.
+                {Number(orden.total) > 0 ? ` Precio: ${formatearMoneda(Number(orden.total))}.` : ""}
+              </span>
+            </span>
+          </label>
+        )}
+        {antesDeCotizar && omitir ? (
+          <>
+            <h2 style={{ fontSize: 18, marginBottom: 4 }}>Reparar</h2>
+            <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--ink-2)" }}>
+              {Number(orden.total) > 0
+                ? "Pasa directo a reparación, o a esperar repuesto si falta alguno pedido a Compras."
+                : "La orden no tiene precio todavía. Agrégalo en Repuestos (servicio o mano de obra) y vuelve aquí."}
+            </p>
+            <Boton
+              variante="primario"
+              tamano="lg"
+              ancho
+              icono={<ArrowRight size={19} strokeWidth={2} />}
+              disabled={cambiando || !(Number(orden.total) > 0)}
+              onClick={() => avanzar("en_reparacion", undefined, true)}
+            >
+              Continuar a reparación
+            </Boton>
+          </>
+        ) : (
+          <>
         <h2 style={{ fontSize: 18, marginBottom: 4 }}>{paso.titulo}</h2>
         <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--ink-2)" }}>{paso.ayuda}</p>
         {paso.acciones.length > 0 && (
@@ -452,6 +506,8 @@ export default function PaginaOrdenTecnico() {
               </Boton>
             ))}
           </div>
+        )}
+          </>
         )}
           {cerrando && NOTA_AL_PASAR[cerrando] && (
             <div className="pila" style={{ gap: 10, marginTop: 14 }}>
