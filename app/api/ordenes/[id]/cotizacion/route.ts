@@ -58,6 +58,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "orden no encontrada" }, { status: 404 });
   }
 
+  // Antes de guardar nada: una cotización que no se puede enviar no se
+  // guarda como "enviada" (contaría en la cuenta de la orden sin que el
+  // cliente la haya visto).
+  try {
+    transicionar(orden.estado as Estado, "esperando_aprobacion", new Set(["tiene_cotizacion"]));
+  } catch (e) {
+    if (e instanceof TransicionInvalidaError || e instanceof RequisitoFaltanteError) {
+      const mensaje =
+        orden.estado === "recibida"
+          ? "La orden todavía está en Recibida: pásala a diagnóstico antes de enviar la cotización."
+          : `No se puede enviar la cotización: ${e.message}`;
+      return NextResponse.json({ error: mensaje }, { status: 409 });
+    }
+    throw e;
+  }
+
   const totalItems = body.items.reduce((s, i) => s + i.cantidad * i.precioUnit, 0);
   const total = totalItems + manoObra;
 
@@ -91,22 +107,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   );
 
   if (errItems) {
+    // Sin sus líneas no es una cotización: no se deja a medias.
+    await supabase.from("cotizacion").delete().eq("id", cotizacion.id);
     return NextResponse.json({ error: errItems.message }, { status: 500 });
   }
 
-  try {
-    transicionar(orden.estado as Estado, "esperando_aprobacion", new Set(["tiene_cotizacion"]));
-  } catch (e) {
-    if (e instanceof TransicionInvalidaError || e instanceof RequisitoFaltanteError) {
-      // La cotización ya quedó guardada -- el técnico no pierde el
-      // trabajo aunque la orden no estuviera en el estado correcto.
-      return NextResponse.json(
-        { error: `Cotización guardada, pero no se pudo enviar: ${e.message}` },
-        { status: 409 },
-      );
-    }
-    throw e;
-  }
 
   // Misma regla de fases que /api/ordenes/<id>/transicion: al entrar
   // al estado, la primera fase activa que tenga configurada, o ninguna.
