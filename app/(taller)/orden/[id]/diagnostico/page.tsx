@@ -19,6 +19,7 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { CabeceraOrden } from "@/componentes/taller/cabecera-orden";
+import { AreaDictado } from "@/componentes/ui/area-dictado";
 
 interface Diagnostico {
   hallazgos: string;
@@ -101,10 +102,10 @@ export default function PaginaDiagnostico() {
       <div className="pila">
         <Tarjeta>
           <Campo etiqueta="Diagnóstico técnico" ayuda="Qué se encontró al revisar el equipo.">
-            <textarea
+            <AreaDictado
               placeholder="Ej. Pastillas de freno delanteras desgastadas por completo…"
               value={datos.hallazgos}
-              onChange={(e) => setDatos({ ...datos, hallazgos: e.target.value })}
+              onChange={(v) => setDatos((d) => ({ ...d, hallazgos: v }))}
               rows={3}
             />
           </Campo>
@@ -112,10 +113,10 @@ export default function PaginaDiagnostico() {
 
         <Tarjeta>
           <Campo etiqueta="Fallas encontradas" ayuda="Opcional. Lista de fallas puntuales, si aplica.">
-            <textarea
+            <AreaDictado
               placeholder="Ej. Ruido en el motor, batería no carga al 100%…"
               value={datos.fallas}
-              onChange={(e) => setDatos({ ...datos, fallas: e.target.value })}
+              onChange={(v) => setDatos((d) => ({ ...d, fallas: v }))}
               rows={3}
             />
           </Campo>
@@ -123,10 +124,10 @@ export default function PaginaDiagnostico() {
 
         <Tarjeta>
           <Campo etiqueta="Observaciones" ayuda="Opcional. El cliente no las ve; quedan en el historial del equipo.">
-            <textarea
+            <AreaDictado
               placeholder="Ej. Equipo con golpes previos en el chasis…"
               value={datos.observaciones}
-              onChange={(e) => setDatos({ ...datos, observaciones: e.target.value })}
+              onChange={(v) => setDatos((d) => ({ ...d, observaciones: v }))}
               rows={3}
             />
           </Campo>
@@ -134,10 +135,10 @@ export default function PaginaDiagnostico() {
 
         <Tarjeta>
           <Campo etiqueta="Recomendaciones" ayuda="Opcional. Qué se le sugiere al cliente además de la reparación.">
-            <textarea
+            <AreaDictado
               placeholder="Ej. Cambiar también el cable de freno trasero antes de que falle…"
               value={datos.recomendaciones}
-              onChange={(e) => setDatos({ ...datos, recomendaciones: e.target.value })}
+              onChange={(v) => setDatos((d) => ({ ...d, recomendaciones: v }))}
               rows={2}
             />
           </Campo>
