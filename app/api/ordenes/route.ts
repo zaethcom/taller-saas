@@ -39,6 +39,8 @@ import { buscarPrimeraFase } from "@/lib/fases";
 import { recalcularTotalOrden } from "@/lib/orden-total";
 import { registrarAbono, validarAbono, type AbonoValidado, type DatosAbono } from "@/lib/abono";
 import { clasificarRepuestos, normalizarRepuestos, notaRepuestosRecepcion } from "@/lib/repuestos-recepcion";
+import { reservadoEnSede } from "@/lib/reservas-servidor";
+import { disponible } from "@/lib/reservas";
 
 interface ClienteNuevo {
   nombre: string;
@@ -203,9 +205,13 @@ export async function POST(req: NextRequest) {
     const { data: existencias } = ids.length
       ? await supabase.from("existencia").select("repuesto_id, cantidad").eq("sede_id", sedeActivaId).in("repuesto_id", ids)
       : { data: [] as { repuesto_id: string; cantidad: number }[] };
+    // Lo apartado para otras órdenes (0056) no cuenta como disponible.
+    const reservado = await reservadoEnSede(supabase, sedeActivaId, ids);
     const clasificacion = clasificarRepuestos(
       repuestos,
-      new Map((existencias ?? []).map((e) => [e.repuesto_id, Number(e.cantidad)])),
+      new Map(
+        (existencias ?? []).map((e) => [e.repuesto_id, disponible(Number(e.cantidad), reservado.get(e.repuesto_id) ?? 0)]),
+      ),
     );
 
     if (clasificacion.faltantes.length > 0) {

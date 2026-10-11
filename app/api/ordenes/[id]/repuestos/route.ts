@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { recalcularTotalOrden } from "@/lib/orden-total";
 import { requiereNuevaAprobacion } from "@/lib/orden-aprobacion";
+import { consumirReserva } from "@/lib/reservas-servidor";
 
 type Cuerpo =
   | { accion: "consumir"; repuestoId: string; cantidad: number }
@@ -98,6 +99,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       requiere_aprobacion: await requiereNuevaAprobacion(supabase, id),
     });
     await recalcularTotalOrden(supabase, id);
+    // Lo que estaba apartado para esta orden (0056) ya se usó.
+    await consumirReserva(supabase, id, body.repuestoId, body.cantidad);
 
     // Fase 6: cierra el ciclo faltante -> solicitado -> recibido ->
     // consumido si esta orden tenía una solicitud ya recibida para

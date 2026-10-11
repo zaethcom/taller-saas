@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import { Plus, Search, X } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
+import { disponible } from "@/lib/reservas";
 
 export interface RepuestoElegido {
   /** Clave local de la fila. */
@@ -27,6 +28,7 @@ interface Resultado {
   codigo: string;
   descripcion: string;
   existenciaAqui: number;
+  reservadoAqui?: number;
 }
 
 let siguienteClave = 0;
@@ -127,12 +129,15 @@ export function RepuestosNecesarios({
         </div>
         {resultados.length > 0 && (
           <div className="pila" style={{ gap: 4, marginTop: 8 }}>
-            {resultados.map((r) => (
+            {resultados.map((r) => {
+              // Lo apartado para otras órdenes no está disponible.
+              const libre = disponible(r.existenciaAqui, r.reservadoAqui ?? 0);
+              return (
               <button
                 key={r.id}
                 type="button"
                 className="fila"
-                onClick={() => agregar({ repuestoId: r.id, descripcion: r.descripcion, existencia: r.existenciaAqui })}
+                onClick={() => agregar({ repuestoId: r.id, descripcion: r.descripcion, existencia: libre })}
                 style={{
                   gap: 8,
                   flexWrap: "nowrap",
@@ -152,11 +157,10 @@ export function RepuestosNecesarios({
                   </span>
                   {r.descripcion}
                 </span>
-                <Etiqueta tono={r.existenciaAqui > 0 ? "ok" : "aviso"}>
-                  {r.existenciaAqui > 0 ? `Hay ${r.existenciaAqui}` : "Agotado"}
-                </Etiqueta>
+                <Etiqueta tono={libre > 0 ? "ok" : "aviso"}>{libre > 0 ? `Hay ${libre}` : "Agotado"}</Etiqueta>
               </button>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

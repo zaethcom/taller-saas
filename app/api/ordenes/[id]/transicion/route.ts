@@ -25,6 +25,7 @@ import { buscarPrimeraFase } from "@/lib/fases";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
 import { encolarImpresion } from "@/lib/impresion";
+import { liberarReservas } from "@/lib/reservas-servidor";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -174,6 +175,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Plan 3, supabase/migrations/0038_orden_acceso.sql).
   if (body.aEstado === "entregada") {
     await supabase.from("orden_acceso").delete().eq("orden_id", id);
+    await liberarReservas(supabase, id);
     if (body.imprimirComprobante) {
       await imprimirComprobanteEntrega(supabase, id, orden.empresa_id, user.id);
     }

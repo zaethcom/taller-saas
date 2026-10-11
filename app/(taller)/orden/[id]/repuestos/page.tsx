@@ -33,6 +33,8 @@ interface Repuesto {
   codigo: string;
   descripcion: string;
   existenciaAqui: number;
+  /** Apartado para órdenes aprobadas (0056); puede incluir esta misma. */
+  reservadoAqui?: number;
 }
 
 interface ItemCatalogo {
@@ -281,6 +283,7 @@ export default function PaginaRepuestos() {
                 <div style={{ fontSize: 14, fontWeight: 700 }}>{r.descripcion}</div>
                 <div className="cifra" style={{ fontSize: 12, color: "var(--ink-3)" }}>
                   {r.codigo}
+                  {r.reservadoAqui ? ` · ${r.reservadoAqui} reservado${r.reservadoAqui > 1 ? "s" : ""}` : ""}
                 </div>
               </div>
               <Etiqueta tono={r.existenciaAqui <= 0 ? "neutro" : r.existenciaAqui <= 3 ? "aviso" : "ok"}>
