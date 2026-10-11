@@ -28,8 +28,11 @@ export type Estado =
  * de REQUISITOS.entregada: foto de salida, firma y saldo en cero.
  */
 export const TRANSICIONES: Record<Estado, Estado[]> = {
-  recibida: ["en_diagnostico", "entregada"],
-  en_diagnostico: ["esperando_aprobacion", "entregada"],
+  // El equipo que llega con el precio ya acordado salta diagnóstico,
+  // cotización y aprobación (ver sePuedeOmitirCotizacion): de una a
+  // reparación, o a esperar repuesto si falta alguno.
+  recibida: ["en_diagnostico", "en_reparacion", "esperando_repuesto", "entregada"],
+  en_diagnostico: ["esperando_aprobacion", "en_reparacion", "esperando_repuesto", "entregada"],
   // Aprobada sin todos los repuestos, espera sin pasar por reparación:
   // la falta de repuesto no se confunde con reparar.
   esperando_aprobacion: ["en_reparacion", "esperando_repuesto", "rechazada", "entregada"],
@@ -176,4 +179,14 @@ export function estadoAlAprobar(repuestosPendientes: number): Estado {
  */
 export function itemsSeQuitan(estado: Estado): boolean {
   return estado === "recibida" || estado === "en_diagnostico";
+}
+
+/**
+ * ¿Puede esta orden saltarse diagnóstico, cotización y aprobación? Solo
+ * antes de cotizar y si ya trae un precio acordado (orden.total > 0, lo
+ * que se pactó al recibir o se registró después). Ese precio hace las
+ * veces de la cotización aprobada para pasar a reparación.
+ */
+export function sePuedeOmitirCotizacion(estado: Estado, totalOrden: number): boolean {
+  return (estado === "recibida" || estado === "en_diagnostico") && totalOrden > 0;
 }

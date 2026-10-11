@@ -1,6 +1,12 @@
 /**
  * POST /api/ordenes/<id>/transicion
- * Body: { aEstado: Estado, nota?: string }
+ * Body: { aEstado: Estado, nota?: string, omitirCotizacion?: boolean }
+ *
+ * `omitirCotizacion`: el equipo ya viene con precio acordado. Desde
+ * Recibida o En diagnóstico pasa directo a reparación, o a esperar
+ * repuesto si hay alguno pedido sin llegar (estadoAlAprobar); el precio
+ * hace las veces de la cotización aprobada (sePuedeOmitirCotizacion) y
+ * queda dicho en el historial.
  *
  * `nota` queda en el historial con el cambio. Pasar a "Listo para
  * entregar" la exige (qué se hizo y que se verificó), y también pasar a
@@ -16,6 +22,8 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   RequisitoFaltanteError,
   TransicionInvalidaError,
+  estadoAlAprobar,
+  sePuedeOmitirCotizacion,
   transicionar,
   type Estado,
   type Requisito,
@@ -29,11 +37,16 @@ import { liberarReservas } from "@/lib/reservas-servidor";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const body = (await req.json()) as { aEstado?: Estado; imprimirComprobante?: boolean; nota?: string };
+  const body = (await req.json()) as {
+    aEstado?: Estado;
+    imprimirComprobante?: boolean;
+    nota?: string;
+    omitirCotizacion?: boolean;
+  };
   if (!body.aEstado) {
     return NextResponse.json({ error: "falta aEstado" }, { status: 400 });
   }
-  const nota = typeof body.nota === "string" ? body.nota.trim().slice(0, 1000) : "";
+  let nota = typeof body.nota === "string" ? body.nota.trim().slice(0, 1000) : "";
   if (body.aEstado === "listo_entrega" && !nota) {
     return NextResponse.json({ error: "escribe qué se hizo y cómo se verificó" }, { status: 400 });
   }
@@ -60,6 +73,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const cumplidos = new Set<Requisito>();
+
+  if (body.omitirCotizacion) {
+    const total = Number(orden.total) || 0;
+    if (!sePuedeOmitirCotizacion(orden.estado as Estado, total)) {
+      return NextResponse.json(
+        {
+          error:
+            total > 0
+              ? "Esta orden ya pasó la cotización."
+              : "La orden no tiene precio acordado: agrégalo (servicio o repuesto) antes de saltarte la cotización.",
+        },
+        { status: 409 },
+      );
+    }
+    const { count: pendientes } = await supabase
+      .from("repuesto_solicitud")
+      .select("id", { count: "exact", head: true })
+      .eq("orden_id", id)
+      .in("estado", ["faltante", "solicitado"]);
+    body.aEstado = estadoAlAprobar(pendientes ?? 0);
+    cumplidos.add("cotizacion_aprobada");
+    const precio = "$" + Math.round(total).toLocaleString("es-CO");
+    nota = `Precio acordado (${precio}): sin diagnóstico, cotización ni aprobación del cliente.${nota ? ` ${nota}` : ""}`;
+  }
 
   const [{ count: fotoEntrada }, { count: fotoSalida }, { count: firma }, { count: etiqueta }] =
     await Promise.all([
@@ -98,7 +135,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // El punto natural para asignarlo es este: quien mueve la orden a
   // en_diagnostico se convierte en su técnico, autoasignado por hacer el
   // trabajo -- de ahí sale la productividad por técnico de la sección 5.
-  const tecnicoId = orden.tecnico_id ?? (body.aEstado === "en_diagnostico" ? user.id : null);
+  const tecnicoId =
+    orden.tecnico_id ?? (body.aEstado === "en_diagnostico" || body.omitirCotizacion ? user.id : null);
   if (tecnicoId) cumplidos.add("tiene_tecnico");
 
   const { data: cotizacion } = await supabase

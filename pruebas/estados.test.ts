@@ -9,6 +9,7 @@ import {
   esFinal,
   estadoAlAprobar,
   itemsSeQuitan,
+  sePuedeOmitirCotizacion,
   puedeTransicionar,
   siguientesEstados,
   transicionar,
@@ -64,7 +65,7 @@ describe("el grafo de transiciones", () => {
   });
 
   it("rechaza cualquier salto que no esté dibujado en el diagrama", () => {
-    expect(puedeTransicionar("recibida", "en_reparacion")).toBe(false);
+    expect(puedeTransicionar("recibida", "listo_entrega")).toBe(false);
     expect(puedeTransicionar("entregada", "recibida")).toBe(false);
     expect(puedeTransicionar("rechazada", "en_reparacion")).toBe(false);
   });
@@ -100,7 +101,7 @@ describe("el grafo de transiciones", () => {
 
 describe("transicionar() — la puerta única de cambio de estado", () => {
   it("lanza TransicionInvalidaError si el salto no existe en el grafo", () => {
-    expect(() => transicionar("recibida", "en_reparacion", new Set())).toThrow(
+    expect(() => transicionar("recibida", "listo_entrega", new Set())).toThrow(
       TransicionInvalidaError,
     );
   });
@@ -246,5 +247,21 @@ describe("itemsSeQuitan", () => {
     expect(itemsSeQuitan("esperando_aprobacion")).toBe(false);
     expect(itemsSeQuitan("en_reparacion")).toBe(false);
     expect(itemsSeQuitan("entregada")).toBe(false);
+  });
+});
+
+describe("sePuedeOmitirCotizacion", () => {
+  it("solo antes de cotizar y con precio acordado", () => {
+    expect(sePuedeOmitirCotizacion("recibida", 150000)).toBe(true);
+    expect(sePuedeOmitirCotizacion("en_diagnostico", 150000)).toBe(true);
+    expect(sePuedeOmitirCotizacion("recibida", 0)).toBe(false);
+    expect(sePuedeOmitirCotizacion("esperando_aprobacion", 150000)).toBe(false);
+  });
+
+  it("aun así, saltar a reparación exige el requisito de aprobación", () => {
+    expect(() => transicionar("recibida", "en_reparacion", new Set())).toThrow(RequisitoFaltanteError);
+    expect(() =>
+      transicionar("recibida", "esperando_repuesto", new Set<Requisito>(["cotizacion_aprobada"])),
+    ).not.toThrow();
   });
 });
