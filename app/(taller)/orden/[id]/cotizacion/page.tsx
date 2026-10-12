@@ -400,64 +400,82 @@ export default function PaginaCotizacion() {
               <Search size={15} strokeWidth={2} /> Busca arriba o agrega una línea libre.
             </p>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {items.map((it, i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "70px minmax(0,1fr) 64px 100px 44px", gap: 8, alignItems: "center" }}>
-                  <span className="cifra" style={{ fontSize: 11, color: "var(--ink-3)" }}>
-                    {ETIQUETA_ORIGEN[it.origen]}
-                  </span>
-                  {it.origen === "libre" ? (
-                    <input
-                      placeholder="Descripción"
-                      value={it.descripcion}
-                      onChange={(e) => actualizar(i, { descripcion: e.target.value })}
-                      aria-label={`Descripción de la línea ${i + 1}`}
-                    />
-                  ) : (
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>{it.descripcion}</span>
-                  )}
-                  {it.origen === "acordado" ? (
-                    <>
-                      <span className="cifra" style={{ textAlign: "center", fontSize: 13 }}>{it.cantidad}</span>
-                      <span className="cifra" style={{ textAlign: "right", fontSize: 13 }}>{fmt(it.precioUnit)}</span>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {items.map((it, i) => {
+                const acordado = it.origen === "acordado";
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      padding: "12px 0",
+                      borderTop: i === 0 ? "none" : "1px solid var(--rule)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 8,
+                    }}
+                  >
+                    {/* Arriba qué es; abajo cuánto. La X siempre a la derecha, dentro de la tarjeta. */}
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="campo-etiqueta" style={{ marginBottom: 2 }}>
+                          {ETIQUETA_ORIGEN[it.origen]}
+                        </div>
+                        {it.origen === "libre" ? (
+                          <input
+                            placeholder="Descripción"
+                            value={it.descripcion}
+                            onChange={(e) => actualizar(i, { descripcion: e.target.value })}
+                            aria-label={`Descripción de la línea ${i + 1}`}
+                          />
+                        ) : (
+                          <div style={{ fontSize: 15, fontWeight: 700, overflowWrap: "anywhere" }}>{it.descripcion}</div>
+                        )}
+                      </div>
                       <Boton
                         variante="peligro"
+                        tamano="sm"
                         icono={<X size={16} strokeWidth={2.4} />}
-                        onClick={() => it.ordenItemId && quitarAcordado(it.ordenItemId)}
-                        disabled={quitando !== null}
-                        aria-label={`Quitar ${it.descripcion} de la orden`}
+                        onClick={() => (acordado ? it.ordenItemId && quitarAcordado(it.ordenItemId) : quitar(i))}
+                        disabled={acordado && quitando !== null}
+                        aria-label={acordado ? `Quitar ${it.descripcion} de la orden` : `Quitar la línea ${i + 1}`}
                       />
-                    </>
-                  ) : (
-                  <>
-                  <input
-                    type="number"
-                    min={1}
-                    value={it.cantidad}
-                    onChange={(e) => actualizar(i, { cantidad: Number(e.target.value) || 1 })}
-                    aria-label={`Cantidad de la línea ${i + 1}`}
-                    className="cifra"
-                    style={{ textAlign: "center" }}
-                  />
-                  <input
-                    type="number"
-                    min={0}
-                    value={it.precioUnit || ""}
-                    onChange={(e) => actualizar(i, { precioUnit: Number(e.target.value) || 0 })}
-                    aria-label={`Precio de la línea ${i + 1}`}
-                    className="cifra"
-                    style={{ textAlign: "right" }}
-                  />
-                  <Boton
-                    variante="peligro"
-                    icono={<X size={16} strokeWidth={2.4} />}
-                    onClick={() => quitar(i)}
-                    aria-label={`Quitar la línea ${i + 1}`}
-                  />
-                  </>
-                  )}
-                </div>
-              ))}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+                      {acordado ? (
+                        <span className="cifra" style={{ color: "var(--ink-2)" }}>
+                          {it.cantidad} × {fmt(it.precioUnit)}
+                        </span>
+                      ) : (
+                        <>
+                          <input
+                            type="number"
+                            min={1}
+                            value={it.cantidad}
+                            onChange={(e) => actualizar(i, { cantidad: Number(e.target.value) || 1 })}
+                            aria-label={`Cantidad de la línea ${i + 1}`}
+                            className="cifra"
+                            style={{ width: 64, flex: "none", textAlign: "center" }}
+                          />
+                          <span style={{ color: "var(--ink-3)" }}>×</span>
+                          <input
+                            type="number"
+                            min={0}
+                            placeholder="Precio"
+                            value={it.precioUnit || ""}
+                            onChange={(e) => actualizar(i, { precioUnit: Number(e.target.value) || 0 })}
+                            aria-label={`Precio de la línea ${i + 1}`}
+                            className="cifra"
+                            style={{ flex: "1 1 0", minWidth: 0, maxWidth: 160, textAlign: "right" }}
+                          />
+                        </>
+                      )}
+                      <span className="cifra" style={{ marginLeft: "auto", fontWeight: 800, whiteSpace: "nowrap" }}>
+                        {fmt(it.cantidad * it.precioUnit)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Tarjeta>
