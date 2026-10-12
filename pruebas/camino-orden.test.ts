@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CAMINO, pasoActual, siguientePaso } from "../lib/camino-orden";
+import { CAMINO, enlacesVisibles, pasoActual, siguientePaso } from "../lib/camino-orden";
 import { TRANSICIONES, puedeTransicionar, type Estado } from "../lib/estados";
 
 const TODOS = Object.keys(TRANSICIONES) as Estado[];
@@ -45,5 +45,17 @@ describe("siguientePaso", () => {
 
   it("una orden entregada ya no tiene siguiente paso", () => {
     expect(siguientePaso("entregada").acciones).toEqual([]);
+  });
+});
+
+describe("enlacesVisibles", () => {
+  it("al recibir ya se pueden abrir fotos, diagnóstico y cotización, no repuestos", () => {
+    const destinos = CAMINO.flatMap((_, i) => enlacesVisibles(i, "recibida").map((e) => e.destino));
+    expect(destinos).toEqual(["evidencia", "diagnostico", "cotizacion"]);
+  });
+
+  it("en reparación aparecen los repuestos y siguen los pasos anteriores", () => {
+    const destinos = CAMINO.flatMap((_, i) => enlacesVisibles(i, "en_reparacion").map((e) => e.destino));
+    expect(destinos).toEqual(["evidencia", "diagnostico", "cotizacion", "repuestos"]);
   });
 });
