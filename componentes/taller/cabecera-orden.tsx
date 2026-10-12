@@ -98,18 +98,30 @@ export function CabeceraOrden({
             </div>
           </div>
         )}
-        <div className="fila" style={{ gap: 4, flexShrink: 0 }}>
-          <Boton
-            variante="fantasma"
-            tamano="sm"
-            icono={copiado ? <Check size={14} strokeWidth={2.4} /> : <Copy size={14} strokeWidth={2} />}
-            onClick={copiarEnlace}
-            disabled={!orden}
-          >
-            {copiado ? "Copiado" : "Copiar enlace"}
-          </Boton>
-          <BotonWhatsappOrden ordenId={ordenId} disabled={!orden} />
-        </div>
+      </div>
+
+      {/* Fila propia y en rejilla: al lado de los datos se salía de la
+          tarjeta en el celular. En pantallas angostas quedan uno debajo
+          del otro, a todo el ancho. */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+          gap: 8,
+          marginTop: 12,
+        }}
+      >
+        <Boton
+          variante="contorno"
+          tamano="sm"
+          ancho
+          icono={copiado ? <Check size={14} strokeWidth={2.4} /> : <Copy size={14} strokeWidth={2} />}
+          onClick={copiarEnlace}
+          disabled={!orden}
+        >
+          {copiado ? "Copiado" : "Copiar enlace"}
+        </Boton>
+        <BotonWhatsappOrden ordenId={ordenId} variante="contorno" ancho disabled={!orden} />
       </div>
 
       {(anterior || siguiente) && (

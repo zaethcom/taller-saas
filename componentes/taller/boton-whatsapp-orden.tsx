@@ -26,11 +26,13 @@ export function BotonWhatsappOrden({
   ordenId,
   tamano = "sm",
   variante = "fantasma",
+  ancho,
   disabled,
 }: {
   ordenId: string;
   tamano?: "sm" | "md";
   variante?: "fantasma" | "contorno" | "primario";
+  ancho?: boolean;
   disabled?: boolean;
 }) {
   const dialogo = useRef<HTMLDialogElement>(null);
@@ -68,6 +70,7 @@ export function BotonWhatsappOrden({
       <Boton
         variante={variante}
         tamano={tamano}
+        ancho={ancho}
         icono={<MessageCircle size={tamano === "sm" ? 14 : 17} strokeWidth={2} />}
         onClick={abrir}
         disabled={disabled}
