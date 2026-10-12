@@ -60,13 +60,16 @@ export function BarraLateral({
           comía un tercio de la pantalla en un catálogo con 30+
           categorías, sin dejar campo para nada más) y pasa a un cajón
           que se abre con este botón -- oculto por completo el resto
-          del tiempo, así el catálogo tiene toda la pantalla. */}
+          del tiempo, así el catálogo tiene toda la pantalla. El botón
+          se queda arriba con la página (no flota al bajar) para no
+          tapar títulos del contenido; solo con el menú abierto queda
+          fijo, para poder cerrarlo. */}
       <button
         type="button"
         onClick={() => setAbierto((a) => !a)}
         aria-label={abierto ? "Cerrar menú" : "Abrir menú"}
         aria-expanded={abierto}
-        className="bl-hamburguesa"
+        className={`bl-hamburguesa${abierto ? " bl-hamburguesa-abierta" : ""}`}
       >
         {abierto ? <X size={20} strokeWidth={2.2} /> : <Menu size={20} strokeWidth={2.2} />}
       </button>
@@ -86,10 +89,11 @@ export function BarraLateral({
           @media (max-width:640px){
             .bl-hamburguesa{
               display:flex;align-items:center;justify-content:center;
-              position:fixed;top:12px;left:12px;z-index:60;
+              position:absolute;top:12px;left:12px;z-index:60;
               width:42px;height:42px;border:none;border-radius:var(--r-md);
               background:var(--chrome);color:#fff;box-shadow:0 6px 16px -6px rgba(0,0,0,.6);
             }
+            .bl-hamburguesa-abierta{position:fixed;}
             .bl-fondo{display:block;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:45;}
             .barra-lateral{
               position:fixed;top:0;left:0;height:100vh;width:220px;z-index:50;

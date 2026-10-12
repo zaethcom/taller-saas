@@ -14,12 +14,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Camera, Wrench, Package, ChevronRight, ArrowRight, KeyRound, Eye, Clock, Check, Printer } from "lucide-react";
+import { Camera, Wrench, Package, FileText, ChevronRight, ArrowRight, KeyRound, Eye, Clock, Check, Printer } from "lucide-react";
 import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
 import { formatearMoneda } from "@/componentes/cobro/panel-cobro";
-import { CAMINO, pasoActual, siguientePaso, type Accion, type Destino } from "@/lib/camino-orden";
+import { CAMINO, enlacesVisibles, pasoActual, siguientePaso, type Accion, type Destino } from "@/lib/camino-orden";
 import { puede, type Rol } from "@/lib/permisos";
-import { Boton } from "@/componentes/ui/boton";
+import { Boton, BotonEnlace } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Aviso } from "@/componentes/ui/campo";
 import { EstadoOrden } from "@/componentes/ui/estado-orden";
@@ -40,12 +40,21 @@ const NOTA_AL_PASAR: Partial<Record<Estado, { etiqueta: string; ayuda: string; p
   },
 };
 
+const ICONO_DESTINO: Record<Destino, React.ReactNode> = {
+  evidencia: <Camera size={14} strokeWidth={2.2} color="var(--accent)" />,
+  diagnostico: <Wrench size={14} strokeWidth={2.2} color="var(--accent)" />,
+  cotizacion: <FileText size={14} strokeWidth={2.2} color="var(--accent)" />,
+  repuestos: <Package size={14} strokeWidth={2.2} color="var(--accent)" />,
+  entregar: <ArrowRight size={14} strokeWidth={2.2} color="var(--accent)" />,
+};
+
 function rutaDe(destino: Destino, orden: { id: string; numero: number }): string {
   return destino === "entregar" ? `/entregar?numero=${orden.numero}` : `/orden/${orden.id}/${destino}`;
 }
 
-/** Los pasos del camino, con el actual marcado. */
-function Camino({ estado }: { estado: Estado }) {
+/** Los pasos del camino, con el actual marcado y, bajo cada paso al que
+ *  ya se llegó, sus pantallas (fotos, diagnóstico, cotización, repuestos). */
+function Camino({ estado, orden }: { estado: Estado; orden: { id: string; numero: number } }) {
   const actual = pasoActual(estado);
   return (
     <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -53,7 +62,7 @@ function Camino({ estado }: { estado: Estado }) {
         const hecho = i < actual || estado === "entregada";
         const enCurso = i === actual && estado !== "entregada";
         return (
-          <li key={paso.titulo} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14 }}>
+          <li key={paso.titulo} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14 }}>
             <span
               style={{
                 display: "inline-flex",
@@ -71,10 +80,40 @@ function Camino({ estado }: { estado: Estado }) {
             >
               {hecho ? <Check size={14} strokeWidth={2.6} /> : i + 1}
             </span>
-            <span style={{ fontWeight: enCurso ? 800 : 500, color: hecho || enCurso ? "var(--ink)" : "var(--ink-3)" }}>
-              {paso.titulo}
-              {enCurso && paso.estados.length > 1 && (
-                <span style={{ fontWeight: 600, color: "var(--ink-2)" }}> · {ETIQUETA_ESTADO[estado]}</span>
+            <span style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
+              <span style={{ fontWeight: enCurso ? 800 : 500, color: hecho || enCurso ? "var(--ink)" : "var(--ink-3)" }}>
+                {paso.titulo}
+                {enCurso && paso.estados.length > 1 && (
+                  <span style={{ fontWeight: 600, color: "var(--ink-2)" }}> · {ETIQUETA_ESTADO[estado]}</span>
+                )}
+              </span>
+              {enlacesVisibles(i, estado).length > 0 && (
+                <span style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                  {enlacesVisibles(i, estado).map((e) => (
+                    <Link
+                      key={e.destino}
+                      href={rutaDe(e.destino, orden)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        height: 34,
+                        padding: "0 12px",
+                        borderRadius: "var(--r-pill)",
+                        border: "1px solid var(--rule)",
+                        background: "var(--surface-2)",
+                        color: "var(--ink)",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        textDecoration: "none",
+                      }}
+                    >
+                      {ICONO_DESTINO[e.destino]}
+                      {e.texto}
+                      <ChevronRight size={14} strokeWidth={2.2} color="var(--ink-3)" aria-hidden />
+                    </Link>
+                  ))}
+                </span>
               )}
             </span>
           </li>
@@ -208,44 +247,6 @@ interface OrdenTecnico {
 }
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
-
-function Acceso({ href, icono, titulo, descripcion }: { href: string; icono: React.ReactNode; titulo: string; descripcion: string }) {
-  return (
-    <Link
-      href={href}
-      className="tarjeta"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 13,
-        padding: 14,
-        color: "var(--ink)",
-        textDecoration: "none",
-      }}
-    >
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 44,
-          height: 44,
-          borderRadius: "var(--r-md)",
-          background: "var(--accent-suave)",
-          color: "var(--accent)",
-          flexShrink: 0,
-        }}
-      >
-        {icono}
-      </span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: 15, fontWeight: 700 }}>{titulo}</span>
-        <span style={{ display: "block", fontSize: 12, color: "var(--ink-2)" }}>{descripcion}</span>
-      </span>
-      <ChevronRight size={19} strokeWidth={2} color="var(--ink-3)" aria-hidden />
-    </Link>
-  );
-}
 
 export default function PaginaOrdenTecnico() {
   const { id } = useParams<{ id: string }>();
@@ -439,7 +440,7 @@ export default function PaginaOrdenTecnico() {
 
       <Tarjeta>
         <div className="campo-etiqueta">Camino de la orden</div>
-        <Camino estado={orden.estado} />
+        <Camino estado={orden.estado} orden={orden} />
       </Tarjeta>
 
       <Tarjeta>
@@ -475,6 +476,13 @@ export default function PaginaOrdenTecnico() {
                 ? "Pasa directo a reparación, o a esperar repuesto si falta alguno pedido a Compras."
                 : "La orden no tiene precio todavía. Agrégalo en Repuestos (servicio o mano de obra) y vuelve aquí."}
             </p>
+            {!(Number(orden.total) > 0) && (
+              <div style={{ marginBottom: 8 }}>
+                <BotonEnlace variante="contorno" ancho href={rutaDe("repuestos", orden)} icono={<Package size={17} strokeWidth={2} />}>
+                  Repuestos
+                </BotonEnlace>
+              </div>
+            )}
             <Boton
               variante="primario"
               tamano="lg"
@@ -548,27 +556,6 @@ export default function PaginaOrdenTecnico() {
             </div>
           )}
       </Tarjeta>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <Acceso
-          href={`/orden/${id}/evidencia`}
-          icono={<Camera size={21} strokeWidth={2} />}
-          titulo="Evidencia"
-          descripcion="Fotos y videos del equipo"
-        />
-        <Acceso
-          href={`/orden/${id}/diagnostico`}
-          icono={<Wrench size={21} strokeWidth={2} />}
-          titulo="Diagnóstico y cotización"
-          descripcion="Qué se encontró y lo que se le cobra al cliente"
-        />
-        <Acceso
-          href={`/orden/${id}/repuestos`}
-          icono={<Package size={21} strokeWidth={2} />}
-          titulo="Repuestos"
-          descripcion="Consumir del inventario o marcar faltante"
-        />
-      </div>
 
       {rol && puede(rol, "ver_acceso_dispositivo") && <PanelAcceso ordenId={id} />}
 

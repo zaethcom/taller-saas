@@ -7,27 +7,45 @@
  */
 import type { Estado } from "@/lib/estados";
 
+/** Pantallas de la orden a las que lleva un botón. */
+export type Destino = "diagnostico" | "cotizacion" | "evidencia" | "repuestos" | "entregar";
+
 export interface Paso {
   titulo: string;
   estados: Estado[];
+  /** Las pantallas de este paso: se abren desde el camino, junto al
+   *  paso, cuando ya se llegó a él (no antes, para no confundir). */
+  enlaces: { destino: Destino; texto: string }[];
 }
 
 export const CAMINO: Paso[] = [
-  { titulo: "Recibido", estados: ["recibida"] },
-  { titulo: "Diagnóstico y cotización", estados: ["en_diagnostico"] },
-  { titulo: "Aprobación del cliente", estados: ["esperando_aprobacion", "rechazada"] },
-  { titulo: "Reparación", estados: ["en_reparacion", "esperando_repuesto"] },
-  { titulo: "Terminado", estados: ["listo_entrega"] },
-  { titulo: "Entregado", estados: ["entregada"] },
+  { titulo: "Recibido", estados: ["recibida"], enlaces: [{ destino: "evidencia", texto: "Fotos y videos" }] },
+  {
+    titulo: "Diagnóstico y cotización",
+    estados: ["en_diagnostico"],
+    enlaces: [
+      { destino: "diagnostico", texto: "Diagnóstico" },
+      { destino: "cotizacion", texto: "Cotización" },
+    ],
+  },
+  { titulo: "Aprobación del cliente", estados: ["esperando_aprobacion", "rechazada"], enlaces: [] },
+  { titulo: "Reparación", estados: ["en_reparacion", "esperando_repuesto"], enlaces: [{ destino: "repuestos", texto: "Repuestos" }] },
+  { titulo: "Terminado", estados: ["listo_entrega"], enlaces: [] },
+  { titulo: "Entregado", estados: ["entregada"], enlaces: [] },
 ];
+
+/** Los enlaces de un paso se muestran si la orden ya llegó a él. El
+ *  diagnóstico se abre desde "Recibido" también: ahí se empieza. */
+export function enlacesVisibles(indicePaso: number, estado: Estado): Paso["enlaces"] {
+  const actual = pasoActual(estado);
+  const llegoA = indicePaso <= actual || (indicePaso === 1 && actual === 0);
+  return llegoA ? CAMINO[indicePaso]!.enlaces : [];
+}
 
 /** En qué paso del camino va la orden. */
 export function pasoActual(estado: Estado): number {
   return CAMINO.findIndex((p) => p.estados.includes(estado));
 }
-
-/** Pantallas de la orden a las que lleva un botón. */
-export type Destino = "diagnostico" | "cotizacion" | "evidencia" | "repuestos" | "entregar";
 
 export type Accion =
   | { tipo: "ir"; destino: Destino; texto: string }
