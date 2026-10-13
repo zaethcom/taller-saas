@@ -31,7 +31,7 @@ export function BarraSuperior({
   const contenidoSede = (
     <>
       <MapPin size={15} strokeWidth={2} />
-      <span style={{ fontSize: 12, fontWeight: 700 }}>{sedeNombre}</span>
+      <span style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{sedeNombre}</span>
     </>
   );
   const estiloSede: React.CSSProperties = {
@@ -49,6 +49,7 @@ export function BarraSuperior({
 
   return (
     <header
+      className="barra-superior"
       style={{
         display: "flex",
         alignItems: "center",
@@ -60,9 +61,9 @@ export function BarraSuperior({
         flexWrap: "wrap",
       }}
     >
-      <Buscador />
+      <Buscador className="bs-buscador" />
 
-      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+      <div className="bs-acciones" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
         <SelectorPuertas rol={rol} actual={puerta} />
         {sedeNombre &&
           (puedeCambiarSede ? (
@@ -73,6 +74,8 @@ export function BarraSuperior({
             <div style={estiloSede}>{contenidoSede}</div>
           ))}
         <div
+          className="bs-usuario"
+          title={`${nombre} · ${rol}`}
           style={{
             display: "flex",
             alignItems: "center",
@@ -100,7 +103,7 @@ export function BarraSuperior({
           >
             {nombre.charAt(0).toUpperCase() || "?"}
           </span>
-          <div style={{ lineHeight: 1.15 }}>
+          <div className="bs-usuario-texto" style={{ lineHeight: 1.15 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--chrome-texto)" }}>{nombre}</div>
             <div style={{ fontSize: 10, color: "var(--chrome-apagado)", textTransform: "capitalize" }}>{rol}</div>
           </div>
