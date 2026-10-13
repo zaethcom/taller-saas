@@ -31,7 +31,9 @@ export function BarraSuperior({
   const contenidoSede = (
     <>
       <MapPin size={15} strokeWidth={2} />
-      <span style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{sedeNombre}</span>
+      <span style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        {sedeNombre}
+      </span>
     </>
   );
   const estiloSede: React.CSSProperties = {
@@ -67,11 +69,13 @@ export function BarraSuperior({
         <SelectorPuertas rol={rol} actual={puerta} />
         {sedeNombre &&
           (puedeCambiarSede ? (
-            <Link href="/elegir-sede" title="Cambiar de sede" style={estiloSede}>
+            <Link href="/elegir-sede" title="Cambiar de sede" className="bs-sede" style={estiloSede}>
               {contenidoSede}
             </Link>
           ) : (
-            <div style={estiloSede}>{contenidoSede}</div>
+            <div className="bs-sede" style={estiloSede}>
+              {contenidoSede}
+            </div>
           ))}
         <div
           className="bs-usuario"

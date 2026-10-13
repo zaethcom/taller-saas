@@ -850,8 +850,18 @@ textarea.invalido {
   .barra-superior .bs-acciones {
     margin-left: 0 !important;
     width: 100%;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 8px !important;
+  }
+  .barra-superior .bs-acciones .btn {
+    padding: 0 12px;
+  }
+  .barra-superior .bs-acciones > * {
+    flex: none;
+  }
+  .barra-superior .bs-acciones > .bs-sede {
+    flex: 0 1 auto;
+    min-width: 0;
   }
   .barra-superior .bs-usuario {
     padding: 0 7px !important;
