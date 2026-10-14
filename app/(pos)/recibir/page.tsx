@@ -4,6 +4,8 @@
  * Recepción de equipo: buscar o crear cliente, buscar o registrar el
  * equipo por serial, escribir el motivo, guardar. Al guardar,
  * POST /api/ordenes crea la orden e imprime comprobante + etiqueta.
+ * "Enviar por WhatsApp", al lado, hace lo mismo y además abre el
+ * mensaje con el enlace de seguimiento para el cliente.
  *
  * El requisito de la Fase 3 del plano es que esto tome menos de tres
  * minutos -- por eso busca cliente y equipo por un solo campo (documento,
@@ -13,7 +15,7 @@
  */
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Inbox, Search, Check, User, Wrench, FileText, Printer, ClipboardList, Barcode, KeyRound, Camera, Wallet, ShoppingBag } from "lucide-react";
+import { Inbox, Search, Check, User, Wrench, FileText, Printer, ClipboardList, Barcode, KeyRound, Camera, Wallet, ShoppingBag, MessageCircle } from "lucide-react";
 import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
 import { PatronGrid } from "@/componentes/patron-android/patron-grid";
 import { Boton } from "@/componentes/ui/boton";
@@ -24,6 +26,7 @@ import { PanelCobro, formatearMoneda } from "@/componentes/cobro/panel-cobro";
 import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-turno";
 import { EvidenciaIngreso, subirEvidenciaIngreso, type ArchivoIngreso } from "@/componentes/recepcion/evidencia-ingreso";
 import { RepuestosNecesarios, type RepuestoElegido } from "@/componentes/recepcion/repuestos-necesarios";
+import { EnlaceOrden } from "@/componentes/taller/enlace-orden";
 import type { MarcaConModelos } from "@/lib/modelos-equipo";
 
 type TipoNegocio = "celular" | "computador" | "patineta" | "otro";
@@ -150,6 +153,9 @@ export default function PaginaRecibir() {
   const [resultado, setResultado] = useState<{
     ordenId: string;
     numero: number;
+    tokenPublico: string;
+    /** Se guardó con "Enviar por WhatsApp": el diálogo se abre solo. */
+    enviarWhatsapp: boolean;
     serialGenerado?: string;
     evidenciaFallida: number;
     valorServicio: number;
@@ -210,7 +216,7 @@ export default function PaginaRecibir() {
     setBuscandoProducto(false);
   }
 
-  async function guardar() {
+  async function guardar(enviarWhatsapp = false) {
     setGuardando(true);
     setError(null);
     try {
@@ -271,6 +277,8 @@ export default function PaginaRecibir() {
       setResultado({
         ordenId: data.ordenId,
         numero: data.numero,
+        tokenPublico: data.tokenPublico,
+        enviarWhatsapp,
         serialGenerado: data.serialGenerado,
         evidenciaFallida,
         valorServicio,
@@ -358,6 +366,14 @@ export default function PaginaRecibir() {
           <Printer size={17} strokeWidth={2} aria-hidden />
           El comprobante y la etiqueta se están imprimiendo en la estación de esta sede.
         </p>
+        <div style={{ maxWidth: 420, margin: "0 auto 20px" }}>
+          <EnlaceOrden
+            ordenId={resultado.ordenId}
+            tokenPublico={resultado.tokenPublico}
+            abrirWhatsapp={resultado.enviarWhatsapp}
+            tamano="md"
+          />
+        </div>
         {resultado.valorServicio > 0 && (
           <p className="cifra" style={{ margin: "0 0 16px", color: "var(--ink-2)" }}>
             Valor {formatearMoneda(resultado.valorServicio)}
@@ -787,9 +803,21 @@ export default function PaginaRecibir() {
             tamano="lg"
             icono={<Printer size={19} strokeWidth={2} />}
             disabled={guardando || Boolean(faltante)}
-            onClick={guardar}
+            onClick={() => guardar()}
           >
             {guardando ? "Guardando…" : "Recibir e imprimir"}
+          </Boton>
+          {/* Aparte, a propósito: guarda e imprime igual que el de al
+              lado y además abre el mensaje con el enlace de seguimiento,
+              listo para mandar al cliente. */}
+          <Boton
+            variante="contorno"
+            tamano="lg"
+            icono={<MessageCircle size={19} strokeWidth={2} />}
+            disabled={guardando || Boolean(faltante)}
+            onClick={() => guardar(true)}
+          >
+            Enviar por WhatsApp
           </Boton>
           {faltante && <span style={{ fontSize: 12, color: "var(--ink-3)" }}>{faltante}</span>}
         </div>

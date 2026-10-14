@@ -360,6 +360,7 @@ export async function POST(req: NextRequest) {
     ok: true,
     ordenId: orden.id,
     numero: orden.numero,
+    tokenPublico: orden.token_publico,
     serialGenerado,
     abonoFallido: Boolean(abono && !abonoRegistrado),
     faltantesCompras,

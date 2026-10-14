@@ -9,7 +9,7 @@
  * hay, el del cliente. No se muestra en pantalla: el técnico no ve los
  * teléfonos del cliente (0003_vista_tecnico.sql).
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MessageCircle, X } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Aviso } from "@/componentes/ui/campo";
@@ -28,12 +28,15 @@ export function BotonWhatsappOrden({
   variante = "fantasma",
   ancho,
   disabled,
+  abrirAlMontar,
 }: {
   ordenId: string;
   tamano?: "sm" | "md";
   variante?: "fantasma" | "contorno" | "primario";
   ancho?: boolean;
   disabled?: boolean;
+  /** Abre el diálogo apenas aparece el botón (Recibir → "Enviar por WhatsApp"). */
+  abrirAlMontar?: boolean;
 }) {
   const dialogo = useRef<HTMLDialogElement>(null);
   const [datos, setDatos] = useState<DatosWhatsapp | null>(null);
@@ -58,6 +61,13 @@ export function BotonWhatsappOrden({
       setCargando(false);
     }
   }
+
+  // Solo el diálogo se abre solo; WhatsApp se abre con el toque en
+  // "Abrir WhatsApp", así el celular no lo bloquea como ventana emergente.
+  useEffect(() => {
+    if (abrirAlMontar) abrir();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function enviar() {
     if (!datos) return;
