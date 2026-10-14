@@ -10,7 +10,7 @@ import {
   coincideDocumento,
   digitosTelefono,
   normalizarDocumento,
-} from "@/lib/busqueda-orden";
+} from "./busqueda-orden";
 
 export interface ClienteBuscado {
   id: string;
