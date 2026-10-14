@@ -25,6 +25,7 @@ import { Aviso } from "@/componentes/ui/campo";
 import { EstadoOrden } from "@/componentes/ui/estado-orden";
 import { HiloMensajes, type Mensaje } from "@/componentes/mensajeria/hilo-mensajes";
 import { SelectorFase } from "@/componentes/taller/selector-fase";
+import { EnlaceOrden } from "@/componentes/taller/enlace-orden";
 
 /** Los cambios que piden una nota, y qué se le pregunta a quien los hace. */
 const NOTA_AL_PASAR: Partial<Record<Estado, { etiqueta: string; ayuda: string; prefijo: string }>> = {
@@ -420,6 +421,13 @@ export default function PaginaOrdenTecnico() {
               <strong className="cifra">{fmt(Number(orden.total))}</strong>
             </div>
           )}
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <EnlaceOrden
+            ordenId={id}
+            tokenPublico={orden.token_publico}
+            conWhatsapp={Boolean(rol && puede(rol, "enviar_whatsapp_orden"))}
+          />
         </div>
         {rol && puede(rol, "reimprimir_etiqueta_orden") && (
           <div style={{ marginTop: 14 }}>
