@@ -130,16 +130,18 @@ export function RepuestosNecesarios({
             variante="contorno"
             tamano="sm"
             style={{ flexShrink: 0 }}
+            aria-label="Agregar a Compras"
             icono={<Plus size={15} strokeWidth={2} />}
             disabled={!buscar.trim()}
             onClick={() => agregar({ descripcion: buscar.trim(), existencia: 0 })}
           >
-            Agregar a Compras
+            {/* En celular solo "+ Compras", para que el buscador tenga el ancho. */}
+            <span className="ocultar-movil">Agregar a&nbsp;</span>Compras
           </Boton>
         </div>
         {buscado === buscar.trim() && buscado.length >= 2 && resultados.length === 0 && (
           <div style={{ marginTop: 8, fontSize: 13, color: "var(--ink-2)" }}>
-            No está en el catálogo. Con &ldquo;Agregar a Compras&rdquo; se pide tal cual, con el número de esta orden.
+            No está en el catálogo. Con el botón Compras se pide tal cual, con el número de esta orden.
           </div>
         )}
         {resultados.length > 0 && (
