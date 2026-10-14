@@ -135,9 +135,10 @@ export default function PaginaRecibir() {
     tipoNegocio === "celular" || (producto ? producto.tipo === "celular" : productoNuevo.tipo === "celular");
   const modelosDeMarca = marcaOtra ? [] : (marcas.find((m) => m.marca === productoNuevo.marca)?.modelos ?? []);
 
-  const [tipoAcceso, setTipoAcceso] = useState<"" | "pin3" | "pin4" | "pin6" | "patron" | "otro">("");
+  const [tipoAcceso, setTipoAcceso] = useState<"" | "pin" | "patron" | "contrasena" | "otro">("");
   const [pinAcceso, setPinAcceso] = useState("");
   const [patronAcceso, setPatronAcceso] = useState<number[]>([]);
+  const [contrasenaAcceso, setContrasenaAcceso] = useState("");
   const [otroAcceso, setOtroAcceso] = useState("");
   const [notaAcceso, setNotaAcceso] = useState("");
 
@@ -298,7 +299,13 @@ export default function PaginaRecibir() {
 
       if (tipoAcceso) {
         const valor =
-          tipoAcceso === "patron" ? patronAcceso.join("-") : tipoAcceso === "otro" ? otroAcceso.trim() : pinAcceso.trim();
+          tipoAcceso === "patron"
+            ? patronAcceso.join("-")
+            : tipoAcceso === "contrasena"
+              ? contrasenaAcceso.trim()
+              : tipoAcceso === "otro"
+                ? otroAcceso.trim()
+                : pinAcceso.trim();
         if (valor) {
           body.acceso = { tipo: tipoAcceso, valor, nota: notaAcceso.trim() || undefined };
         }
@@ -371,6 +378,7 @@ export default function PaginaRecibir() {
     setTipoAcceso("");
     setPinAcceso("");
     setPatronAcceso([]);
+    setContrasenaAcceso("");
     setOtroAcceso("");
     setNotaAcceso("");
     setResultado(null);
@@ -755,13 +763,12 @@ export default function PaginaRecibir() {
             {(
               [
                 { valor: "", etiqueta: "Sin acceso" },
-                { valor: "pin3", etiqueta: "PIN de 3" },
-                { valor: "pin4", etiqueta: "PIN de 4" },
-                { valor: "pin6", etiqueta: "PIN de 6" },
+                { valor: "pin", etiqueta: "PIN" },
                 // Siempre visible: antes dependía de que el tipo fuera "celular",
                 // y con el tipo por defecto (patineta) el patrón no aparecía.
                 { valor: "patron", etiqueta: "Patrón" },
-                { valor: "otro", etiqueta: "Otro" },
+                { valor: "contrasena", etiqueta: "Contraseña" },
+                { valor: "otro", etiqueta: "Otros" },
               ] as const
             ).map((o) => (
               <Boton
@@ -776,23 +783,34 @@ export default function PaginaRecibir() {
             ))}
           </div>
 
-          {(tipoAcceso === "pin3" || tipoAcceso === "pin4" || tipoAcceso === "pin6") && (
-            <Campo etiqueta="PIN">
+          {tipoAcceso === "pin" && (
+            <Campo etiqueta="PIN" ayuda="Solo números, de cualquier largo.">
               <input
                 value={pinAcceso}
                 onChange={(e) => setPinAcceso(e.target.value.replace(/\D/g, ""))}
-                maxLength={tipoAcceso === "pin3" ? 3 : tipoAcceso === "pin4" ? 4 : 6}
                 inputMode="numeric"
                 className="cifra"
-                style={{ maxWidth: 140 }}
+                style={{ maxWidth: 220 }}
               />
             </Campo>
           )}
 
           {tipoAcceso === "patron" && <PatronGrid valor={patronAcceso} onChange={setPatronAcceso} />}
 
+          {tipoAcceso === "contrasena" && (
+            <Campo etiqueta="Contraseña" ayuda="Letras, números, palabras o símbolos, tal como la dicta el cliente.">
+              <input
+                value={contrasenaAcceso}
+                onChange={(e) => setContrasenaAcceso(e.target.value)}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+            </Campo>
+          )}
+
           {tipoAcceso === "otro" && (
-            <Campo etiqueta="Contraseña o código de acceso">
+            <Campo etiqueta="Método de acceso" ayuda="Describe cómo se entra, ej. &quot;cuenta Google del cliente&quot;.">
               <input value={otroAcceso} onChange={(e) => setOtroAcceso(e.target.value)} />
             </Campo>
           )}

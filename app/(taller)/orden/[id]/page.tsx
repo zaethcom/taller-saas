@@ -125,11 +125,14 @@ function Camino({ estado, orden }: { estado: Estado; orden: { id: string; numero
 }
 
 const ETIQUETA_TIPO_ACCESO: Record<string, string> = {
-  pin3: "PIN de 3",
-  pin4: "PIN de 4",
-  pin6: "PIN de 6",
+  pin: "PIN",
+  // Órdenes guardadas antes de que el PIN fuera de cualquier largo.
+  pin3: "PIN",
+  pin4: "PIN",
+  pin6: "PIN",
   patron: "Patrón",
-  otro: "Otro",
+  contrasena: "Contraseña",
+  otro: "Otros",
 };
 
 /** Panel con el PIN/patrón del equipo -- se carga solo al tocar "Ver",
