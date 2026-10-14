@@ -117,16 +117,20 @@ export function RepuestosNecesarios({
       )}
 
       <div style={{ position: "relative" }}>
-        <div className="fila" style={{ gap: 8, flexWrap: "nowrap" }}>
+        <div className="fila" style={{ gap: 8, flexWrap: "nowrap", alignItems: "center" }}>
           <input
             placeholder="Buscar repuesto, ej. pantalla A10"
             value={buscar}
             onChange={(e) => setBuscar(e.target.value)}
             aria-label="Buscar repuesto necesario"
+            style={{ flex: 1, minWidth: 0 }}
           />
+          {/* Secundario: lo normal es elegir del catálogo, esto es para lo que no está. */}
           <Boton
             variante="contorno"
-            icono={<Plus size={17} strokeWidth={2} />}
+            tamano="sm"
+            style={{ flexShrink: 0 }}
+            icono={<Plus size={15} strokeWidth={2} />}
             disabled={!buscar.trim()}
             onClick={() => agregar({ descripcion: buscar.trim(), existencia: 0 })}
           >
