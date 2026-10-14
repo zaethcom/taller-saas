@@ -46,6 +46,12 @@ interface Seguimiento {
     decision: string | null;
     cotizacion_item: { descripcion: string; cantidad: number; precio_unit: number }[];
   } | null;
+  cuenta: {
+    valor: number;
+    pagado: number;
+    saldo: number;
+    pagos: { tipo: string; monto: number; fecha: string }[];
+  } | null;
   evidencias: { tipo: "foto" | "video"; fase: string | null; tomadaEn: string; url: string | null }[];
   itemsPendientes: { id: string; descripcion: string; cantidad: number; precioUnit: number; decision: string | null }[];
   mensajes: Mensaje[];
@@ -58,6 +64,15 @@ function tieneDiagnostico(d: Diagnostico | null): d is Diagnostico {
 }
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
+
+const filaCuenta: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  padding: "9px 0",
+  borderBottom: "1px solid var(--rule)",
+  fontSize: 14,
+};
 
 export default function PaginaSeguimiento() {
   const { token } = useParams<{ token: string }>();
@@ -348,6 +363,39 @@ export default function PaginaSeguimiento() {
                   </Etiqueta>
                 </div>
               )}
+            </Tarjeta>
+          </section>
+        )}
+
+        {datos.cuenta && (datos.cuenta.valor > 0 || datos.cuenta.pagos.length > 0) && (
+          <section>
+            <h2 style={{ marginBottom: 12 }}>Cuenta</h2>
+            <Tarjeta relleno={false}>
+              <div style={{ padding: "14px 16px" }}>
+                <div style={filaCuenta}>
+                  <span>Valor del servicio</span>
+                  <span className="cifra" style={{ fontWeight: 700 }}>{fmt(datos.cuenta.valor)}</span>
+                </div>
+                {datos.cuenta.pagos.map((p, i) => (
+                  <div key={i} style={filaCuenta}>
+                    <span>
+                      {p.tipo === "anticipo" ? "Abono" : "Pago"}{" "}
+                      <span className="cifra" style={{ color: "var(--ink-3)", fontSize: 12 }}>
+                        {new Date(p.fecha).toLocaleDateString("es-CO")}
+                      </span>
+                    </span>
+                    <span className="cifra" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>
+                      −{fmt(p.monto)}
+                    </span>
+                  </div>
+                ))}
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", paddingTop: 14 }}>
+                  <span style={{ fontSize: 18, fontWeight: 800 }}>Saldo</span>
+                  <span className="cifra" style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em" }}>
+                    {fmt(datos.cuenta.saldo)}
+                  </span>
+                </div>
+              </div>
             </Tarjeta>
           </section>
         )}
