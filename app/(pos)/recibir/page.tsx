@@ -13,7 +13,7 @@
  * tres tarjetas numeradas en una sola pantalla, sin asistente ni
  * pestañas: quien recibe ve de un vistazo lo que le falta.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Inbox, Search, Check, User, Wrench, FileText, Printer, ClipboardList, Barcode, KeyRound, Camera, Wallet, ShoppingBag, MessageCircle } from "lucide-react";
 import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
@@ -28,6 +28,7 @@ import { EvidenciaIngreso, subirEvidenciaIngreso, type ArchivoIngreso } from "@/
 import { RepuestosNecesarios, type RepuestoElegido } from "@/componentes/recepcion/repuestos-necesarios";
 import { EnlaceOrden } from "@/componentes/taller/enlace-orden";
 import type { MarcaConModelos } from "@/lib/modelos-equipo";
+import { pareceCelular, sePuedeBuscarCliente, type ClienteEncontrado } from "@/lib/busqueda-cliente";
 
 type TipoNegocio = "celular" | "computador" | "patineta" | "otro";
 
@@ -108,6 +109,10 @@ export default function PaginaRecibir() {
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [clienteNuevo, setClienteNuevo] = useState({ nombre: "", telefono: "", correo: "" });
   const [buscandoCliente, setBuscandoCliente] = useState(false);
+  // Varios clientes coinciden (p. ej. el mismo teléfono): se elige uno.
+  const [opcionesCliente, setOpcionesCliente] = useState<ClienteEncontrado[]>([]);
+  const [sinCoincidencia, setSinCoincidencia] = useState(false);
+  const busquedaCliente = useRef(0);
   // Número alternativo de contacto (0054_orden_telefono_alterno.sql): el
   // cliente de un taller de celulares deja su teléfono, así que por ahí
   // no contesta. "Enviar por WhatsApp" de la orden escribe a este número.
@@ -197,14 +202,65 @@ export default function PaginaRecibir() {
       .catch(() => {});
   }, []);
 
-  async function buscarCliente() {
-    if (!documento.trim()) return;
+  // Busca por documento o teléfono (lib/busqueda-cliente.ts). Si hay un
+  // solo cliente, queda elegido y sus datos llenan el paso; si hay
+  // varios, se listan. Solo cuenta la última búsqueda lanzada.
+  async function buscarCliente(texto: string, desde: "documento" | "telefono") {
+    const valor = texto.trim();
+    if (!sePuedeBuscarCliente(valor)) return;
+    const turno = ++busquedaCliente.current;
     setBuscandoCliente(true);
-    const res = await fetch(`/api/clientes?documento=${encodeURIComponent(documento.trim())}`);
-    const data = await res.json();
-    setCliente(data);
-    setBuscandoCliente(false);
+    try {
+      const res = await fetch(`/api/clientes?q=${encodeURIComponent(valor)}`);
+      const data: { clientes?: ClienteEncontrado[] } = res.ok ? await res.json() : {};
+      if (turno !== busquedaCliente.current) return;
+      const clientes = data.clientes ?? [];
+      if (clientes.length === 1) {
+        elegirCliente(clientes[0]!);
+      } else {
+        setOpcionesCliente(clientes);
+        setSinCoincidencia(desde === "documento" && clientes.length === 0);
+        // Nadie con ese número: lo escrito arriba era el celular del cliente nuevo.
+        if (desde === "documento" && clientes.length === 0 && pareceCelular(valor)) {
+          setClienteNuevo((c) => (c.telefono.trim() ? c : { ...c, telefono: valor }));
+        }
+      }
+    } catch {
+      // Sin red: se sigue con el cliente nuevo.
+    } finally {
+      if (turno === busquedaCliente.current) setBuscandoCliente(false);
+    }
   }
+
+  function elegirCliente(c: ClienteEncontrado) {
+    setCliente(c);
+    setOpcionesCliente([]);
+    setSinCoincidencia(false);
+    if (c.documento && !documento.trim()) setDocumento(c.documento);
+  }
+
+  function cambiarCliente() {
+    busquedaCliente.current++;
+    setCliente(null);
+    setOpcionesCliente([]);
+    setSinCoincidencia(false);
+    setDocumento("");
+  }
+
+  // Busca sola mientras se escribe el documento o el teléfono.
+  useEffect(() => {
+    if (cliente || !sePuedeBuscarCliente(documento)) return;
+    const t = setTimeout(() => buscarCliente(documento, "documento"), 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documento, cliente]);
+
+  useEffect(() => {
+    if (cliente || !sePuedeBuscarCliente(clienteNuevo.telefono)) return;
+    const t = setTimeout(() => buscarCliente(clienteNuevo.telefono, "telefono"), 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteNuevo.telefono, cliente]);
 
   async function buscarProducto(valorSerial?: string) {
     const valor = (valorSerial ?? serial).trim();
@@ -251,7 +307,7 @@ export default function PaginaRecibir() {
       if (cliente) body.clienteId = cliente.id;
       else {
         if (!clienteNuevo.nombre.trim()) throw new Error("Falta el nombre del cliente");
-        body.clienteNuevo = { nombre: clienteNuevo.nombre.trim(), documento: documento.trim() || undefined, telefono: clienteNuevo.telefono || undefined, correo: clienteNuevo.correo || undefined };
+        body.clienteNuevo = { nombre: clienteNuevo.nombre.trim(), documento: (!pareceCelular(documento) && documento.trim()) || undefined, telefono: clienteNuevo.telefono || undefined, correo: clienteNuevo.correo || undefined };
       }
 
       if (producto) body.productoId = producto.id;
@@ -298,8 +354,7 @@ export default function PaginaRecibir() {
     evidencia.forEach((a) => URL.revokeObjectURL(a.url));
     setEvidencia([]);
     setErrorEvidencia(null);
-    setDocumento("");
-    setCliente(null);
+    cambiarCliente();
     setClienteNuevo({ nombre: "", telefono: "", correo: "" });
     setTelefonoAlterno("");
     setSerial("");
@@ -461,17 +516,18 @@ export default function PaginaRecibir() {
             style={{ gap: 8, flexWrap: "nowrap", marginBottom: cliente ? 12 : 14 }}
             onSubmit={(e) => {
               e.preventDefault();
-              buscarCliente();
+              buscarCliente(documento, "documento");
             }}
           >
             <input
-              placeholder="Documento"
+              placeholder="Documento o teléfono"
               value={documento}
               onChange={(e) => {
                 setDocumento(e.target.value);
                 setCliente(null);
+                setSinCoincidencia(false);
               }}
-              aria-label="Documento del cliente"
+              aria-label="Documento o teléfono del cliente"
             />
             <Boton type="submit" variante="contorno" icono={<Search size={17} strokeWidth={2} />} disabled={buscandoCliente}>
               Buscar
@@ -480,10 +536,38 @@ export default function PaginaRecibir() {
 
           {cliente ? (
             <Aviso tono="ok" icono={<Check size={17} strokeWidth={2.4} />}>
-              <strong>{cliente.nombre}</strong>
-              {cliente.telefono ? <span className="cifra"> · {cliente.telefono}</span> : ""}
+              <div className="fila" style={{ gap: 8, justifyContent: "space-between", alignItems: "center" }}>
+                <span>
+                  <strong>{cliente.nombre}</strong>
+                  {cliente.documento ? <span className="cifra"> · {cliente.documento}</span> : ""}
+                  {cliente.telefono ? <span className="cifra"> · {cliente.telefono}</span> : ""}
+                </span>
+                <Boton type="button" variante="fantasma" tamano="sm" onClick={cambiarCliente}>
+                  Cambiar
+                </Boton>
+              </div>
             </Aviso>
+          ) : opcionesCliente.length > 0 ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ color: "var(--ink-2)", fontSize: 14 }}>Varios clientes coinciden. Elige uno:</div>
+              {opcionesCliente.map((c) => (
+                <Boton key={c.id} type="button" variante="contorno" ancho onClick={() => elegirCliente(c)}>
+                  {c.nombre}
+                  {c.documento ? ` · ${c.documento}` : ""}
+                  {c.telefono ? ` · ${c.telefono}` : ""}
+                </Boton>
+              ))}
+              <Boton type="button" variante="fantasma" tamano="sm" onClick={() => setOpcionesCliente([])}>
+                Es un cliente nuevo
+              </Boton>
+            </div>
           ) : (
+            <>
+            {sinCoincidencia && !buscandoCliente && (
+              <div style={{ marginBottom: 10, color: "var(--ink-2)", fontSize: 14 }}>
+                No hay un cliente con ese documento o teléfono. Llena sus datos para registrarlo.
+              </div>
+            )}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
               <Campo etiqueta="Nombre del cliente">
                 <input
@@ -500,6 +584,7 @@ export default function PaginaRecibir() {
                 />
               </Campo>
             </div>
+            </>
           )}
 
           {pideTelefonoAlterno && (
