@@ -820,8 +820,8 @@ export default function PaginaRecibir() {
             <span className="campo-etiqueta">Repuestos que necesita</span>
             <RepuestosNecesarios repuestos={repuestos} onChange={setRepuestos} />
             <div className="campo-ayuda">
-              Opcional. Si ya se sabe qué repuesto lleva: lo que no hay en esta sede pasa solo a la lista de Compras,
-              vinculado a esta orden. Se compra cuando el cliente apruebe.
+              Opcional. Busca en todo el catálogo. Lo que no hay en esta sede, o no está en el catálogo, pasa solo a Compras
+              con el número de esta orden. Se compra cuando el cliente apruebe.
             </div>
           </div>
           <div style={{ marginTop: 14 }}>
