@@ -57,7 +57,7 @@ interface ProductoNuevo {
 }
 
 interface AccesoDispositivo {
-  tipo: "pin3" | "pin4" | "pin6" | "patron" | "otro";
+  tipo: "pin" | "patron" | "contrasena" | "otro";
   valor: string;
   nota?: string;
 }
@@ -274,14 +274,23 @@ export async function POST(req: NextRequest) {
   }
 
   if (body.acceso?.valor?.trim()) {
-    await supabase.from("orden_acceso").insert({
+    const fila = {
       empresa_id: perfil.empresa_id,
       orden_id: orden.id,
       tipo: body.acceso.tipo,
       valor: body.acceso.valor.trim(),
       nota: body.acceso.nota?.trim() || null,
       creado_por: user.id,
-    });
+    };
+    const { error } = await supabase.from("orden_acceso").insert(fila);
+    // Sin la migración 0057 la base rechaza "pin" y "contrasena" (23514):
+    // se guarda como "otro" con el tipo en la nota para no perder el acceso.
+    if (error?.code === "23514" && fila.tipo !== "otro") {
+      const etiqueta = fila.tipo === "pin" ? "PIN" : fila.tipo === "contrasena" ? "Contraseña" : "Patrón";
+      await supabase
+        .from("orden_acceso")
+        .insert({ ...fila, tipo: "otro", nota: fila.nota ? `${etiqueta} · ${fila.nota}` : etiqueta });
+    }
   }
 
   const [{ data: producto }, { data: config }] = await Promise.all([
