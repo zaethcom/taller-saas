@@ -15,11 +15,12 @@ import { Building2, Plus, Trash2 } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
-import { Campo, Aviso } from "@/componentes/ui/campo";
+import { Campo } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { ConfigImpresoras } from "@/componentes/sedes/config-impresoras";
 import { ConfigMarca } from "@/componentes/sedes/config-marca";
 import { VincularEstacion } from "@/componentes/sedes/vincular-estacion";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface Sede {
   id: string;
@@ -179,7 +180,7 @@ export default function PaginaSedes() {
           </form>
         </Tarjeta>
 
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
       </div>
     </div>
   );

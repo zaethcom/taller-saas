@@ -23,6 +23,7 @@ import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
 import { extraerTokenDeSeguimiento } from "@/lib/token-seguimiento";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface OrdenCuenta {
   id: string;
@@ -378,7 +379,7 @@ export default function PaginaAbonos() {
         {orden && orden.valor > 0 && orden.saldoPendiente === 0 && <Aviso tono="ok">Esta orden ya está pagada.</Aviso>}
 
         {aviso && <Aviso tono="ok">{aviso}</Aviso>}
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
       </div>
     </div>
   );

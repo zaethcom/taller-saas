@@ -20,9 +20,10 @@ import { useEffect, useRef, useState } from "react";
 import { PackagePlus, Printer } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
-import { Campo, Aviso } from "@/componentes/ui/campo";
+import { Campo } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { CONDICIONES_ARTICULO } from "@/lib/edicion-producto";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface ArticuloRegistrado {
   codigo: string;
@@ -239,7 +240,7 @@ export default function PaginaRecepcionMercancia() {
               </Boton>
             </div>
 
-            {error && <Aviso tono="peligro">{error}</Aviso>}
+            <VentanaError mensaje={error} onCerrar={() => setError(null)} />
           </form>
         </Tarjeta>
 

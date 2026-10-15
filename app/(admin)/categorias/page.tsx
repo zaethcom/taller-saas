@@ -15,8 +15,9 @@ import { useEffect, useState } from "react";
 import { Tags, Plus, Pencil, Trash2, Check, X } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
-import { Campo, Aviso } from "@/componentes/ui/campo";
+import { Campo } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface Categoria {
   id: string;
@@ -219,7 +220,7 @@ export default function PaginaCategorias() {
           </form>
         </Tarjeta>
 
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
       </div>
     </div>
   );

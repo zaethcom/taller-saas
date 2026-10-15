@@ -20,6 +20,7 @@ import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
 import { TIPOS_EQUIPO, lineas } from "@/lib/tipos-empresa";
 import type { TipoNegocio } from "@/lib/configuracion";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface Tipo {
   id: string;
@@ -252,7 +253,7 @@ export default function PaginaTiposEmpresa() {
             {mensaje}
           </Aviso>
         )}
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
 
         {tipos.map((t) => {
           const borrador = borradores[t.id] ?? aBorrador(t);

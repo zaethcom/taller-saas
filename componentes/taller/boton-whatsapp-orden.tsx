@@ -12,9 +12,9 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageCircle, X } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
-import { Aviso } from "@/componentes/ui/campo";
 import { enlaceWhatsapp } from "@/lib/compras/whatsapp";
 import type { DestinoWhatsapp } from "@/lib/orden-whatsapp";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface DatosWhatsapp {
   numero: string;
@@ -97,7 +97,7 @@ export function BotonWhatsappOrden({
           <Boton variante="fantasma" tamano="sm" icono={<X size={16} />} onClick={() => dialogo.current?.close()} aria-label="Cerrar" />
         </div>
         {cargando && <p style={{ margin: 0, fontSize: 14, color: "var(--ink-3)" }}>Preparando el mensaje…</p>}
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
         {datos && (
           <>
             <p style={{ margin: "0 0 8px", fontSize: 13, color: "var(--ink-3)" }}>

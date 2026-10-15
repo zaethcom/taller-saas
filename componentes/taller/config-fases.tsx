@@ -18,6 +18,7 @@ import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Aviso } from "@/componentes/ui/campo";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 const ESTADOS = Object.keys(ETIQUETA_ESTADO) as Estado[];
 
@@ -190,7 +191,7 @@ export function ConfigFases() {
       {(mensaje || error) && (
         <div style={{ marginTop: 14 }}>
           {mensaje && <Aviso tono="ok">{mensaje}</Aviso>}
-          {error && <Aviso tono="peligro">{error}</Aviso>}
+          <VentanaError mensaje={error} onCerrar={() => setError(null)} />
         </div>
       )}
     </Tarjeta>

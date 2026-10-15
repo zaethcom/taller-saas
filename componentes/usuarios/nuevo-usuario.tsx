@@ -12,8 +12,9 @@ import { useRouter } from "next/navigation";
 import { UserPlus, X } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
-import { Campo, Aviso } from "@/componentes/ui/campo";
+import { Campo } from "@/componentes/ui/campo";
 import type { Rol } from "@/lib/permisos";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface Sede {
   id: string;
@@ -162,7 +163,7 @@ export function NuevoUsuario() {
           </select>
         </Campo>
 
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
 
         <div>
           <Boton type="submit" variante="primario" disabled={enviando}>

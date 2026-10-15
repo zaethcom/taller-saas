@@ -27,8 +27,9 @@ import { ScanLine, Search, Barcode } from "lucide-react";
 import { VisorEscaner, SeparadorEscribelo } from "@/componentes/lector-codigos/visor-escaner";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
-import { Campo, Aviso } from "@/componentes/ui/campo";
+import { Campo } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 function extraerTokenDeSeguimiento(valor: string): string | null {
   try {
@@ -156,7 +157,7 @@ export default function PaginaEscanear() {
           </form>
         </Tarjeta>
 
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
       </div>
     </div>
   );

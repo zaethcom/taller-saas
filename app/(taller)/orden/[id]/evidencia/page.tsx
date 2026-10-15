@@ -24,6 +24,7 @@ import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { CabeceraOrden } from "@/componentes/taller/cabecera-orden";
 import { ETIQUETA_FASE_EVIDENCIA, etiquetaFaseEvidencia, LIMITE_EVIDENCIA_BYTES } from "@/lib/evidencia";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 type Fase = "entrada" | "salida" | "";
 
@@ -203,7 +204,7 @@ export default function PaginaEvidencia() {
             {mensaje}
           </Aviso>
         )}
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
 
         <Tarjeta>
           <h2 style={{ marginBottom: evidencias.length ? 4 : 10 }}>Ya subido</h2>

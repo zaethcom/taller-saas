@@ -10,7 +10,8 @@
 import { useEffect, useState } from "react";
 import { Check, Printer, X } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
-import { Campo, Aviso } from "@/componentes/ui/campo";
+import { Campo } from "@/componentes/ui/campo";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 type Producto = { repuestoId: string } | { articuloId: string };
 
@@ -105,11 +106,7 @@ export function ImprimirEtiqueta(props: Producto) {
             autoFocus
           />
         </Campo>
-        {error && (
-          <Aviso tono="peligro">
-            <span style={{ fontSize: 12 }}>{error}</span>
-          </Aviso>
-        )}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
         <Boton type="submit" variante="primario" tamano="sm" disabled={enviando} icono={<Printer size={14} strokeWidth={2} />}>
           {enviando ? "Enviando…" : "Imprimir"}
         </Boton>

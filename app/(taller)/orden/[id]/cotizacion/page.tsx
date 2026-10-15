@@ -32,6 +32,7 @@ import { CabeceraOrden } from "@/componentes/taller/cabecera-orden";
 import { BotonWhatsappOrden } from "@/componentes/taller/boton-whatsapp-orden";
 import { clienteNavegador } from "@/lib/supabase/cliente";
 import { ETIQUETA_ESTADO, puedeTransicionar, type Estado } from "@/lib/estados";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 type Origen = "repuesto" | "servicio" | "mano_obra" | "libre" | "acordado";
 
@@ -508,7 +509,7 @@ export default function PaginaCotizacion() {
           {enviando ? "Enviando…" : "Enviar cotización"}
         </Boton>
 
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
       </div>
     </div>
   );

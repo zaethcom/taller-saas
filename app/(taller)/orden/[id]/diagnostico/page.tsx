@@ -16,10 +16,11 @@ import { useParams, useRouter } from "next/navigation";
 import { Wrench, ArrowRight } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
-import { Campo, Aviso } from "@/componentes/ui/campo";
+import { Campo } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { CabeceraOrden } from "@/componentes/taller/cabecera-orden";
 import { AreaDictado } from "@/componentes/ui/area-dictado";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface Diagnostico {
   hallazgos: string;
@@ -159,7 +160,7 @@ export default function PaginaDiagnostico() {
           </Boton>
         </div>
 
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
       </div>
     </div>
   );

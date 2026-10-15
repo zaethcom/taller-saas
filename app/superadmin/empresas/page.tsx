@@ -35,6 +35,7 @@ import {
   textoEstadoServicio,
   tonoServicio,
 } from "@/lib/servicio-empresa";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface Empresa {
   id: string;
@@ -366,7 +367,7 @@ export default function PaginaSuperadminEmpresas() {
             {mensaje}
           </Aviso>
         )}
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
       </div>
     </div>
   );
