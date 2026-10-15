@@ -21,6 +21,7 @@ import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { PlantillasEtiqueta } from "@/componentes/etiquetas/plantillas-etiqueta";
 import { ConfigFases } from "@/componentes/taller/config-fases";
 import { ImpresorasUsbEsteEquipo } from "@/componentes/estacion/impresoras-usb";
+import { DescargaPuente } from "@/componentes/estacion/descarga-puente";
 
 interface Config {
   logoUrl: string | null;
@@ -418,6 +419,8 @@ export default function PaginaConfiguracion() {
         <PlantillasEtiqueta empresaId={empresaId} />
 
         <ConfigFases />
+
+        <DescargaPuente />
 
         <ImpresorasUsbEsteEquipo />
 
