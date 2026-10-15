@@ -18,7 +18,9 @@ import sharp from "sharp";
 
 // 96 puntos = 12mm de alto: antes eran 160 (20mm) y el logo solo se
 // comía casi un tercio del recibo de venta.
-export const TAMANO_RECIBO = { anchoDots: 384, altoMaximoDots: 96 };
+// lienzoDots: el ancho total del bitmap con el logo centrado adentro.
+// 512 cabe en cualquier impresora de 80mm (512 o 576 puntos útiles).
+export const TAMANO_RECIBO = { anchoDots: 384, altoMaximoDots: 96, lienzoDots: 512 };
 export const TAMANO_ETIQUETA = { anchoDots: 200, altoMaximoDots: 50 };
 
 export interface LogoRaster {
@@ -29,7 +31,7 @@ export interface LogoRaster {
 
 export async function generarLogoRaster(
   logoUrl: string | null | undefined,
-  tamano: { anchoDots: number; altoMaximoDots: number } = TAMANO_RECIBO,
+  tamano: { anchoDots: number; altoMaximoDots: number; lienzoDots?: number } = TAMANO_RECIBO,
 ): Promise<LogoRaster | null> {
   if (!logoUrl) return null;
 
@@ -38,9 +40,24 @@ export async function generarLogoRaster(
     if (!res.ok) return null;
     const original = Buffer.from(await res.arrayBuffer());
 
-    const { data, info } = await sharp(original)
+    // Sin transparencia (el papel térmico no tiene "detrás") y sin los
+    // bordes en blanco que traiga la imagen subida: si el logo viene con
+    // más margen a un lado, en el papel se veía corrido del centro.
+    const recortado = await sharp(original)
+      .flatten({ background: "#ffffff" })
+      .trim({ background: "#ffffff", threshold: 20 })
       .resize({ width: tamano.anchoDots, height: tamano.altoMaximoDots, fit: "inside" })
-      .flatten({ background: "#ffffff" }) // sin transparencia: el papel térmico no tiene "detrás"
+      .png()
+      .toBuffer({ resolveWithObject: true });
+
+    // Centrado dentro del propio bitmap, no solo con ESC a: hay
+    // impresoras que ignoran la alineación para imágenes GS v 0 y lo
+    // pegaban a la izquierda.
+    const lienzo = Math.max(tamano.lienzoDots ?? 0, recortado.info.width);
+    const izquierda = Math.floor((lienzo - recortado.info.width) / 2);
+    const { data, info } = await sharp(recortado.data)
+      .extend({ left: izquierda, right: lienzo - recortado.info.width - izquierda, background: "#ffffff" })
+      .flatten({ background: "#ffffff" })
       .greyscale()
       .threshold(160) // 1 bit: negro si es más oscuro que el umbral, blanco si no
       .raw()
