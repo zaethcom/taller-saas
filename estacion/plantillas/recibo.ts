@@ -1,14 +1,17 @@
 import {
   abrirCajon,
+  ajustar,
   alinear,
-  COLUMNAS_TICKET,
+  columnasPapel,
   componer,
   cortar,
   dosColumnas,
   inicializar,
   INTERLINEADO_COMPACTO,
   interlineado,
+  juntar,
   negrita,
+  renglones,
   salto,
   texto,
 } from "../escpos";
@@ -65,39 +68,45 @@ export function reciboVenta(c: CargaReciboVenta): Buffer {
     alinear("izquierda"),
   ];
 
+  const columnas = columnasPapel(c.anchoPapelMm);
+  // Texto a la izquierda y monto a la derecha; si no caben juntos, el
+  // texto se parte por palabras y el monto va al final del último renglón
+  // (o debajo, alineado a la derecha).
   const renglon = (izq: string, der: string) => {
-    const junto = dosColumnas(izq, der);
+    const lineas = ajustar(izq, columnas);
+    const ultima = lineas.pop() ?? "";
+    partes.push(...renglones(lineas));
+    const junto = dosColumnas(ultima, der, columnas);
     if (junto) partes.push(texto(junto), salto());
-    else partes.push(texto(izq), salto(), alinear("derecha"), texto(der), salto(), alinear("izquierda"));
+    else partes.push(texto(ultima), salto(), alinear("derecha"), texto(der), salto(), alinear("izquierda"));
   };
 
   for (const item of c.items) {
     renglon(`${item.cantidad} x ${item.descripcion}`, fmt(item.cantidad * item.precioUnit));
   }
 
-  partes.push(texto("-".repeat(COLUMNAS_TICKET)), salto(), negrita(true));
+  partes.push(texto("-".repeat(columnas)), salto(), negrita(true));
   renglon(c.etiquetaTotal ?? "TOTAL", fmt(c.total));
   partes.push(negrita(false));
 
   const pago = [`Pagado con ${c.medioPago}`];
   if (c.montoRecibido != null) pago.push(`Recibido ${fmt(c.montoRecibido)}`);
   if (c.cambio != null && c.cambio > 0) pago.push(`Cambio ${fmt(c.cambio)}`);
-  partes.push(texto(pago.join(" - ")), salto());
+  partes.push(...renglones(juntar(pago, columnas)));
 
   if (c.cuentaOrden) {
     const cuenta = c.cuentaOrden;
     const conPago = cuenta.estePago != null;
-    partes.push(texto(`Orden #${cuenta.numeroOrden} - Valor del servicio ${fmt(cuenta.valor)}`), salto());
-    const pagos: string[] = [];
-    if (cuenta.abonadoAntes > 0) pagos.push(`${conPago ? "Abonado antes" : "Pagado"} ${fmt(cuenta.abonadoAntes)}`);
-    if (conPago) pagos.push(`Este pago ${fmt(cuenta.estePago!)}`);
-    if (pagos.length) partes.push(texto(pagos.join(" - ")), salto());
+    const datos = [`Orden #${cuenta.numeroOrden}`, `Valor del servicio ${fmt(cuenta.valor)}`];
+    if (cuenta.abonadoAntes > 0) datos.push(`${conPago ? "Abonado antes" : "Pagado"} ${fmt(cuenta.abonadoAntes)}`);
+    if (conPago) datos.push(`Este pago ${fmt(cuenta.estePago!)}`);
+    partes.push(...renglones(juntar(datos, columnas)));
     partes.push(negrita(true));
     renglon("SALDO", fmt(cuenta.saldo));
     partes.push(negrita(false));
   }
   if (c.cajero) {
-    partes.push(texto(`Atendió: ${c.cajero}`), salto());
+    partes.push(...renglones(ajustar(`Atendió: ${c.cajero}`, columnas)));
   }
 
   // GS V 66 ya avanza el papel hasta la cuchilla antes de cortar: un
