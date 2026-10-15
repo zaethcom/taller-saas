@@ -40,9 +40,9 @@ describe("impresión de abonos y saldo", () => {
       abreCajon: false,
       cuentaOrden: { numeroOrden: 14, valor: 100000, abonadoAntes: 30000, estePago: 20000, saldo: 50000 },
     }).toString("latin1");
-    expect(texto).toContain("ABONO $20.000");
+    expect(texto).toMatch(/ABONO +\$20\.000/);
     expect(texto).toContain("Abonado antes $30.000");
-    expect(texto).toContain("SALDO $50.000");
+    expect(texto).toMatch(/SALDO +\$50\.000/);
   });
 
   it("el comprobante de recepción imprime valor, abono y saldo", () => {
@@ -61,7 +61,7 @@ describe("impresión de abonos y saldo", () => {
       abono: { monto: 50000, medio: "Nequi" },
       saldo: 100000,
     }).toString("latin1");
-    expect(texto).toContain("VALOR DEL SERVICIO: $150.000");
+    expect(texto).toContain("Valor del servicio: $150.000");
     expect(texto).toContain("Abono: $50.000 (Nequi)");
     expect(texto).toContain("SALDO: $100.000");
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { reciboVenta, type CargaReciboVenta } from "./recibo";
-import { inicializar, abrirCajon } from "../escpos";
+import { inicializar, abrirCajon, dosColumnas } from "../escpos";
 
 const BASE: CargaReciboVenta = {
   numeroVenta: 1,
@@ -30,5 +30,27 @@ describe("reciboVenta() -- imprimir desmarcado", () => {
     const conTrueExplicito = reciboVenta({ ...BASE, imprimir: true });
     expect(conDefault).toEqual(conTrueExplicito);
     expect(conDefault.length).toBeGreaterThan(inicializar().length + abrirCajon().length);
+  });
+});
+
+describe("reciboVenta() -- compacto", () => {
+  it("pone cada ítem y su monto en un solo renglón cuando caben", () => {
+    const txt = reciboVenta(BASE).toString("latin1");
+    expect(txt).toMatch(/1 x Repuesto +\$1\.000\n/);
+  });
+
+  it("parte en dos renglones un ítem demasiado largo", () => {
+    const largo = "X".repeat(60);
+    const txt = reciboVenta({ ...BASE, items: [{ descripcion: largo, cantidad: 1, precioUnit: 1000 }] }).toString("latin1");
+    expect(txt).toContain(`1 x ${largo}\n`);
+  });
+});
+
+describe("dosColumnas()", () => {
+  it("rellena con espacios hasta el ancho", () => {
+    expect(dosColumnas("A", "B", 5)).toBe("A   B");
+  });
+  it("devuelve null si no cabe", () => {
+    expect(dosColumnas("ABC", "DEF", 6)).toBeNull();
   });
 });

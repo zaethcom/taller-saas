@@ -5,7 +5,7 @@
  * lib/impresion.ts:CargaMarcaEmpresa, que agrega estos campos solo,
  * sin que la pantalla que encola el trabajo tenga que pedirlos.
  */
-import { alinear, imagenRaster, negrita, salto, tamano, texto } from "./escpos";
+import { alinear, COLUMNAS_TICKET, imagenRaster, negrita, salto, tamano, texto } from "./escpos";
 
 export interface LogoRaster {
   anchoDots: number;
@@ -33,11 +33,15 @@ export function encabezadoEmpresa(c: CargaMarcaEmpresa): Buffer[] {
 
   partes.push(negrita(true), tamano(true), texto(c.empresaNombre || "Taller SaaS"), salto(), tamano(false), negrita(false));
 
-  if (c.empresaDireccion) {
-    partes.push(texto(c.empresaDireccion), salto());
-  }
-  if (c.empresaTelefono) {
-    partes.push(texto(`Tel: ${c.empresaTelefono}`), salto());
+  // Dirección y teléfono en un solo renglón cuando caben, para no gastar
+  // papel en cada recibo.
+  const telefono = c.empresaTelefono ? `Tel: ${c.empresaTelefono}` : null;
+  const juntos = [c.empresaDireccion, telefono].filter(Boolean).join(" - ");
+  if (juntos.length <= COLUMNAS_TICKET) {
+    if (juntos) partes.push(texto(juntos), salto());
+  } else {
+    if (c.empresaDireccion) partes.push(texto(c.empresaDireccion), salto());
+    if (telefono) partes.push(texto(telefono), salto());
   }
   return partes;
 }

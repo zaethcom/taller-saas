@@ -61,6 +61,31 @@ export function alinear(a: Alineacion): Buffer {
   return Buffer.from([ESC, 0x61, n]);
 }
 
+/**
+ * ESC 3 n -- distancia entre renglones, en puntos. El valor de fábrica
+ * (1/6 de pulgada, ~30 puntos) deja aire de sobra sobre la fuente A de
+ * 24 puntos; los recibos usan INTERLINEADO_COMPACTO para gastar menos
+ * papel sin que las letras se toquen.
+ */
+export function interlineado(puntos: number): Buffer {
+  return Buffer.from([ESC, 0x33, Math.max(0, Math.min(255, Math.round(puntos)))]);
+}
+
+export const INTERLINEADO_COMPACTO = 26;
+
+/** Caracteres por renglón de la fuente A en papel de 80mm. */
+export const COLUMNAS_TICKET = 48;
+
+/**
+ * Texto a la izquierda y monto a la derecha en el mismo renglón, con
+ * espacios en medio. null si no caben juntos: quien llama lo parte en
+ * dos renglones.
+ */
+export function dosColumnas(izq: string, der: string, ancho = COLUMNAS_TICKET): string | null {
+  const espacio = ancho - izq.length - der.length;
+  return espacio >= 1 ? izq + " ".repeat(espacio) + der : null;
+}
+
 export function tamano(doble: boolean): Buffer {
   // GS ! n -- 0x11 = doble ancho y doble alto a la vez.
   return Buffer.from([GS, 0x21, doble ? 0x11 : 0x00]);

@@ -1,4 +1,17 @@
-import { alinear, componer, cortar, imagenRaster, inicializar, negrita, salto, tamano, texto } from "../escpos";
+import {
+  alinear,
+  COLUMNAS_TICKET,
+  componer,
+  cortar,
+  imagenRaster,
+  inicializar,
+  INTERLINEADO_COMPACTO,
+  interlineado,
+  negrita,
+  salto,
+  tamano,
+  texto,
+} from "../escpos";
 import { encabezadoEmpresa, piePersonalizado, type CargaMarcaEmpresa, type LogoRaster } from "../marca";
 
 export interface CargaComprobanteRecepcion extends CargaMarcaEmpresa {
@@ -30,65 +43,54 @@ function cuentaRecepcion(c: CargaComprobanteRecepcion): Buffer[] {
   const abono = c.abono?.monto ?? 0;
   const saldo = c.saldo ?? Math.max(0, c.valorServicio - abono);
   return [
-    negrita(true),
-    texto(`VALOR DEL SERVICIO: ${fmt(c.valorServicio)}`),
-    negrita(false),
+    texto(`Valor del servicio: ${fmt(c.valorServicio)}`),
     salto(),
     ...(abono > 0 ? [texto(`Abono: ${fmt(abono)} (${c.abono!.medio})`), salto()] : []),
     negrita(true),
     texto(`SALDO: ${fmt(saldo)}`),
     negrita(false),
-    salto(2),
+    salto(),
   ];
 }
 
 /**
- * El comprobante que se lleva el cliente al dejar el equipo -- rediseñado
- * a partir de la maqueta que mandó el usuario (logo, secciones Cliente/
- * Equipo, QR grande, código del equipo repetido en grande, nota legal).
- * No imprime la URL cruda: el QR ya la codifica, y el código de entrada
- * (mismo que lleva la etiqueta física) es lo que de verdad necesita
- * poder leer alguien a simple vista si no puede escanear.
+ * El comprobante que se lleva el cliente al dejar el equipo: logo,
+ * número de orden en grande, cliente, equipo, cuenta y el QR del
+ * seguimiento. Compactado para gastar menos papel: un renglón por dato
+ * (sin títulos de sección aparte), interlineado corto, QR más chico y
+ * sin el código repetido al final -- el número de orden en grande y el
+ * código de entrada arriba ya bastan para buscarla sin escanear. No
+ * imprime la URL cruda: el QR ya la codifica.
  */
 export function comprobanteRecepcion(c: CargaComprobanteRecepcion): Buffer {
+  const equipo = `Equipo: ${c.producto}`;
+  const serial = `Serial: ${c.serial}`;
+  const equipoYSerial = `${equipo} - ${serial}`;
+
   return componer(
     inicializar(),
+    interlineado(INTERLINEADO_COMPACTO),
     ...encabezadoEmpresa(c),
     salto(),
-    alinear("centro"),
     negrita(true),
+    texto("RECEPCION DE EQUIPO"),
+    salto(),
     tamano(true),
-    texto("RECEPCIÓN DE EQUIPO"),
+    texto(`ORDEN #${c.numeroOrden}`),
     tamano(false),
     negrita(false),
-    salto(2),
+    salto(),
+    texto(`${c.codigoEntrada} - ${c.fecha}`),
+    salto(),
 
     alinear("izquierda"),
-    negrita(true),
-    texto(`Orden #${c.numeroOrden}`),
-    negrita(false),
-    texto(`  -  ${c.codigoEntrada}`),
+    texto(`Cliente: ${c.clienteNombre}${c.clienteTelefono ? ` - ${c.clienteTelefono}` : ""}`),
     salto(),
-    texto(c.fecha),
-    salto(2),
-
-    negrita(true),
-    texto("CLIENTE"),
-    negrita(false),
-    salto(),
-    texto(c.clienteNombre + (c.clienteTelefono ? ` - ${c.clienteTelefono}` : "")),
-    salto(2),
-
-    negrita(true),
-    texto("EQUIPO"),
-    negrita(false),
-    salto(),
-    texto(c.producto),
-    salto(),
-    texto(`Serial: ${c.serial}`),
-    salto(),
+    ...(equipoYSerial.length <= COLUMNAS_TICKET
+      ? [texto(equipoYSerial), salto()]
+      : [texto(equipo), salto(), texto(serial), salto()]),
     texto(`Motivo: ${c.motivo}`),
-    salto(2),
+    salto(),
     ...cuentaRecepcion(c),
 
     alinear("centro"),
@@ -96,26 +98,15 @@ export function comprobanteRecepcion(c: CargaComprobanteRecepcion): Buffer {
       ? [imagenRaster(c.qrRaster.anchoDots, c.qrRaster.altoDots, Buffer.from(c.qrRaster.datosBase64, "base64")), salto()]
       : []),
     negrita(true),
-    texto("ESCANEA PARA CONSULTAR TU ORDEN"),
+    texto("Escanea para ver el estado de tu orden"),
     negrita(false),
     salto(),
-    texto("Historial - Estado - Diagnostico - Entrega"),
-    salto(2),
-
-    negrita(true),
-    tamano(true),
-    texto(`CÓDIGO: ${c.codigoEntrada}`),
-    tamano(false),
-    negrita(false),
-    salto(2),
-
-    texto("Conserve este comprobante para consultar y"),
+    texto("Conserve este recibo para reclamar su equipo"),
     salto(),
-    texto("reclamar su equipo. El QR es único para esta orden."),
-    salto(2),
 
     ...piePersonalizado(c),
-    salto(3),
+    // GS V 66 ya avanza el papel hasta la cuchilla antes de cortar.
+    salto(),
     cortar(),
     // El comprobante de recepción a menudo se cobra un anticipo al
     // mismo tiempo: abrir el cajón queda a criterio de quien construya
