@@ -16,7 +16,7 @@ import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
 
 type Protocolo = "crudo" | "puente_android";
-type Lenguaje = "pplb" | "zpl";
+type Lenguaje = "pplb" | "zpl" | "escpos";
 
 interface CuerpoDestino {
   host: string;
@@ -99,7 +99,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     );
   }
   const lenguaje = body.etiquetas.lenguaje ?? "pplb";
-  if (lenguaje !== "pplb" && lenguaje !== "zpl") {
+  if (lenguaje !== "pplb" && lenguaje !== "zpl" && lenguaje !== "escpos") {
     return NextResponse.json({ error: "idioma de etiquetadora inválido" }, { status: 400 });
   }
 
@@ -126,6 +126,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .from("impresora_sede")
     .update({ etiquetas_lenguaje: lenguaje })
     .eq("sede_id", id);
+  if (errIdioma && lenguaje === "escpos") {
+    return NextResponse.json(
+      {
+        error:
+          "Se guardaron las impresoras, pero no «Etiquetas en la POS»: falta aplicar la migración 0059_etiquetas_en_pos en la base.",
+      },
+      { status: 500 },
+    );
+  }
   if (errIdioma && lenguaje === "zpl") {
     return NextResponse.json(
       {

@@ -25,7 +25,7 @@ import { ImpresorasUsbEsteEquipo } from "@/componentes/estacion/impresoras-usb";
 import { VentanaError } from "@/componentes/ui/ventana-error";
 
 type Protocolo = "crudo" | "puente_android";
-type Lenguaje = "pplb" | "zpl";
+type Lenguaje = "pplb" | "zpl" | "escpos";
 
 interface Destino {
   host: string;
@@ -239,7 +239,11 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
       const res = await fetch(`/api/sedes/${sedeId}/impresoras`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tickets: paraGuardar(tickets), etiquetas: { ...paraGuardar(etiquetas), lenguaje } }),
+        body: JSON.stringify({
+          tickets: paraGuardar(tickets),
+          // Sin etiquetadora, las etiquetas van a la POS: lo que diga el destino de etiquetas no se usa.
+          etiquetas: { ...paraGuardar(lenguaje === "escpos" && !listo(etiquetas) ? tickets : etiquetas), lenguaje },
+        }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       setMensaje(
@@ -290,11 +294,12 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
             <CampoDestino titulo="Etiquetas (QR, artículos, repuestos)" valor={etiquetas} onCambiar={setEtiquetas} />
             <Campo
               etiqueta="Marca de la etiquetadora"
-              ayuda="Cada marca habla un idioma distinto. Si la etiqueta sale en blanco o con letras raras, prueba la otra."
+              ayuda="Cada marca habla un idioma distinto. Si la etiqueta sale en blanco o con letras raras, prueba la otra. Si la etiqueta sale en la impresora de recibos como texto raro, elige «imprimir en la POS de tickets»."
             >
               <select value={lenguaje} onChange={(e) => setLenguaje(e.target.value as Lenguaje)}>
                 <option value="pplb">Argox (PPLB)</option>
                 <option value="zpl">Zebra (ZPL)</option>
+                <option value="escpos">No tengo etiquetadora: imprimir en la POS de tickets</option>
               </select>
             </Campo>
           </div>
@@ -313,7 +318,7 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
           tamano="sm"
           icono={<Check size={15} strokeWidth={2.2} />}
           onClick={guardar}
-          disabled={guardando || cargando || !listo(tickets) || !listo(etiquetas)}
+          disabled={guardando || cargando || !listo(tickets) || (lenguaje !== "escpos" && !listo(etiquetas))}
         >
           {guardando ? "Guardando…" : "Guardar"}
         </Boton>

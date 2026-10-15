@@ -17,6 +17,7 @@ import {
   type DatosEtiquetaRepuesto,
 } from "./etiqueta";
 import { etiquetaArticuloZpl, etiquetaQrZpl, etiquetaRasterZpl, etiquetaRepuestoZpl } from "./etiqueta-zpl";
+import { etiquetaArticuloEscpos, etiquetaQrEscpos, etiquetaRepuestoEscpos } from "./etiqueta-escpos";
 import type { LenguajeEtiquetas } from "./destino";
 import { reciboVenta, type CargaReciboVenta } from "./plantillas/recibo";
 import { comprobanteRecepcion, type CargaComprobanteRecepcion } from "./plantillas/comprobante";
@@ -45,13 +46,24 @@ function zpl(texto: string): Buffer {
 /**
  * Traduce un trabajo pendiente a lo que hay que enviarle a cuál impresora.
  * Las etiquetas salen en PPLB (Argox) o ZPL (Zebra) según lo que se
- * eligió para esta sede en Configurar impresoras.
+ * eligió para esta sede en Configurar impresoras; con "escpos" (sede sin
+ * etiquetadora) salen como imagen por la impresora POS de tickets.
  */
 export function resolverImpresion(
   trabajo: TrabajoPendiente,
   lenguaje: LenguajeEtiquetas = "pplb",
 ): { destino: "tickets" | "etiquetas"; contenido: Buffer | string } {
   const esZpl = lenguaje === "zpl";
+  if (lenguaje === "escpos") {
+    switch (trabajo.tipo) {
+      case "etiqueta_qr":
+        return { destino: "tickets", contenido: etiquetaQrEscpos(trabajo.carga as DatosEtiquetaQr) };
+      case "etiqueta_articulo":
+        return { destino: "tickets", contenido: etiquetaArticuloEscpos(trabajo.carga as DatosEtiquetaArticulo) };
+      case "etiqueta_repuesto":
+        return { destino: "tickets", contenido: etiquetaRepuestoEscpos(trabajo.carga as DatosEtiquetaRepuesto) };
+    }
+  }
   switch (trabajo.tipo) {
     case "recibo_venta":
       return {
