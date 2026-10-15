@@ -248,6 +248,16 @@ textarea::placeholder {
   color: var(--ink-3);
 }
 
+/* La regla de input (ancho completo, alto de campo) no aplica a las casillas. */
+input[type="checkbox"],
+input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  flex: none;
+  accent-color: var(--accent);
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -800,4 +810,74 @@ textarea.invalido {
 .boton-icono-tarjeta:hover {
   color: var(--ink);
   border-color: var(--rule-fuerte);
+}
+
+
+/* ---------------------------------------------------------------
+   Celular (≤640px). La barra de arriba deja sitio al botón del menú
+   (bl-hamburguesa, 42px fijo arriba a la izquierda) en vez de quedar
+   debajo de él, y sus botones se acomodan en un renglón propio sin
+   cortarse. Las tablas se aprietan un poco y las columnas marcadas
+   .ocultar-movil se esconden. .fila-form apila un formulario de una
+   línea en vez de montar sus campos.
+   --------------------------------------------------------------- */
+.fila-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+.fila-form > .fila-form-ancho {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.fila-form > .fila-form-corto {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+.fila-form > .btn {
+  flex: none;
+}
+@media (max-width: 640px) {
+  .barra-superior {
+    padding: 12px 14px !important;
+    gap: 10px !important;
+  }
+  .barra-superior .bs-buscador {
+    margin-left: 52px;
+    max-width: none !important;
+  }
+  .barra-superior .bs-acciones {
+    margin-left: 0 !important;
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 8px !important;
+  }
+  .barra-superior .bs-acciones .btn {
+    padding: 0 12px;
+  }
+  .barra-superior .bs-acciones > * {
+    flex: none;
+  }
+  .barra-superior .bs-acciones > .bs-sede {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .barra-superior .bs-usuario {
+    padding: 0 7px !important;
+  }
+  .barra-superior .bs-usuario-texto {
+    display: none;
+  }
+  .ocultar-movil {
+    display: none;
+  }
+  th,
+  td {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  td .btn {
+    white-space: nowrap;
+  }
 }

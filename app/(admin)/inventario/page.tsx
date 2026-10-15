@@ -1,17 +1,26 @@
 import { redirect } from "next/navigation";
-import { Package, Boxes } from "lucide-react";
+import { Package, Boxes, PackagePlus } from "lucide-react";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
 import { FotoProducto } from "@/componentes/ui/foto-producto";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
-import { Etiqueta } from "@/componentes/ui/etiqueta";
+import { Etiqueta, type TonoEtiqueta } from "@/componentes/ui/etiqueta";
+import { BotonEnlace } from "@/componentes/ui/boton";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { FormularioRecepcion } from "@/componentes/inventario/formulario-recepcion";
-import { AjusteExistencia } from "@/componentes/inventario/ajuste-existencia";
+import { EditarProducto, type RepuestoEditable, type ArticuloEditable } from "@/componentes/inventario/editar-producto";
 import { InterruptorEnVenta } from "@/componentes/inventario/interruptor-en-venta";
 import { ImprimirEtiqueta } from "@/componentes/inventario/imprimir-etiqueta";
 import { codigoArticulo } from "@/lib/codigo-interno";
+
+/** Cómo se ve el estado de un artículo (articulo.estado, migración 0016). */
+const ESTADO_ARTICULO: Record<string, { texto: string; tono: TonoEtiqueta }> = {
+  en_stock: { texto: "En venta", tono: "ok" },
+  trasladado: { texto: "En traslado", tono: "aviso" },
+  vendido: { texto: "Vendido", tono: "neutro" },
+  anulado: { texto: "Anulado", tono: "neutro" },
+};
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
@@ -55,7 +64,9 @@ export default async function PaginaInventario() {
       .order("cantidad", { ascending: true }),
     supabase
       .from("articulo")
-      .select("id, numero, tipo, marca, modelo, precio_venta, imagen_url, estado, sede:sede_id ( nombre )")
+      .select(
+        "id, numero, tipo, marca, modelo, numero_serie, costo, precio_venta, condicion, categoria_id, imagen_url, estado, sede:sede_id ( nombre )",
+      )
       .order("numero", { ascending: false }),
   ]);
 
@@ -76,7 +87,7 @@ export default async function PaginaInventario() {
           <div className="rejilla-catalogo">
             {(existencias ?? []).map((e, i) => {
               // @ts-expect-error -- join inferido como array
-              const repuesto = e.repuesto as { id: string; codigo: string; descripcion: string; precio_venta: number; imagen_url: string | null; en_venta?: boolean };
+              const repuesto = e.repuesto as RepuestoEditable & { imagen_url: string | null; en_venta?: boolean };
               if (!repuesto) return null;
               const bajo = e.cantidad <= 2;
               return (
@@ -86,7 +97,11 @@ export default async function PaginaInventario() {
                   style={{ padding: 11, display: "flex", flexDirection: "column", gap: 8, position: "relative" }}
                 >
                   {editable && (
-                    <AjusteExistencia repuestoId={repuesto.id} sedeId={e.sede_id} cantidadActual={e.cantidad} />
+                    <EditarProducto
+                      repuesto={repuesto}
+                      // @ts-expect-error -- join inferido como array
+                      existencia={{ sedeId: e.sede_id, sedeNombre: e.sede?.nombre, cantidad: e.cantidad }}
+                    />
                   )}
                   <FotoProducto
                     tipo="repuesto"
@@ -130,6 +145,19 @@ export default async function PaginaInventario() {
           titulo="Artículos individualizados"
           aclaracion="patinetas, teléfonos… cada unidad con su etiqueta"
         />
+        {/* Se ingresan en Recibir mercancía (una etiqueta por unidad); en
+            stock quedan solos a la venta en Vender, buscándolos o
+            escaneando su etiqueta. */}
+        {editable && (
+          <BotonEnlace
+            href="/recepcion-mercancia"
+            variante="primario"
+            icono={<PackagePlus size={17} strokeWidth={2} />}
+            style={{ marginBottom: 14 }}
+          >
+            Ingresar artículos
+          </BotonEnlace>
+        )}
         {(articulos ?? []).length === 0 ? (
           <Vacio>Todavía no se ha recibido ningún artículo individualizado.</Vacio>
         ) : (
@@ -140,6 +168,7 @@ export default async function PaginaInventario() {
                 relleno={false}
                 style={{ padding: 11, display: "flex", flexDirection: "column", gap: 8, position: "relative" }}
               >
+                {editable && <EditarProducto articulo={a as ArticuloEditable} />}
                 <FotoProducto
                   tipo="articulo"
                   id={a.id}
@@ -160,8 +189,8 @@ export default async function PaginaInventario() {
                     {fmt(a.precio_venta ?? 0)}
                   </span>
                   <div className="fila" style={{ gap: 6 }}>
-                    <Etiqueta tono={a.estado === "disponible" ? "ok" : "neutro"}>
-                      <span style={{ textTransform: "capitalize" }}>{a.estado}</span>
+                    <Etiqueta tono={ESTADO_ARTICULO[a.estado]?.tono ?? "neutro"}>
+                      {ESTADO_ARTICULO[a.estado]?.texto ?? a.estado}
                     </Etiqueta>
                     {editable && <ImprimirEtiqueta articuloId={a.id} />}
                   </div>

@@ -15,6 +15,8 @@
 import { NextResponse } from "next/server";
 import { clienteAdmin, clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSuperadminActual } from "@/lib/superadmin";
+import { registrarPago, validarPago } from "@/lib/pago-servicio";
+import { aplicarTipoEmpresa, type TipoEmpresa } from "@/lib/tipos-empresa";
 
 export async function GET() {
   // Un try/catch a todo lo ancho: si algo revienta aquí adentro (por
@@ -33,7 +35,7 @@ export async function GET() {
     const admin = clienteAdmin();
     const { data: empresas, error } = await admin
       .from("empresa")
-      .select("id, nombre, nit, activa, creada_en")
+      .select("id, nombre, nit, activa, creada_en, servicio_inicio, servicio_fin, tipo_empresa(nombre)")
       .order("creada_en", { ascending: false });
 
     if (error) {
@@ -71,6 +73,11 @@ interface CuerpoEmpresa {
   adminNombre: string;
   adminCorreo: string;
   adminClave: string;
+  /** Opcional: si ya pagó, cuántos meses -- queda como su primer pago. */
+  mesesPagados?: number;
+  valorPagado?: number | null;
+  /** Opcional: el tipo de empresa (0053) -- le copia sus fases, categorías y tipo de equipo. */
+  tipoEmpresaId?: string | null;
 }
 
 export async function POST(req: Request) {
@@ -91,6 +98,11 @@ export async function POST(req: Request) {
         { error: "falta el admin inicial, o la contraseña tiene menos de 8 caracteres" },
         { status: 400 },
       );
+    }
+
+    if (body.mesesPagados != null) {
+      const invalido = validarPago({ meses: body.mesesPagados, valor: body.valorPagado });
+      if (invalido) return NextResponse.json({ error: invalido }, { status: 400 });
     }
 
     const admin = clienteAdmin();
@@ -140,10 +152,40 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: errPerfil.message }, { status: 500 });
     }
 
+    // La empresa ya existe y tiene quien entre: si el pago falla, no se
+    // revierte nada -- se avisa y se registra después desde su ficha.
+    let avisoPago: string | null = null;
+    if (body.mesesPagados != null) {
+      try {
+        await registrarPago(admin, empresa.id, { meses: body.mesesPagados, valor: body.valorPagado }, superadmin.id);
+      } catch (e) {
+        avisoPago = `La empresa se creó, pero el pago no se registró: ${e instanceof Error ? e.message : "error"}`;
+      }
+    }
+
+    // Igual que el pago: si el tipo no se aplica, la empresa ya existe
+    // y se le asigna después desde su ficha.
+    let avisoTipo: string | null = null;
+    if (body.tipoEmpresaId) {
+      try {
+        const { data: tipo } = await admin
+          .from("tipo_empresa")
+          .select("id, tipo_equipo, fases, categorias")
+          .eq("id", body.tipoEmpresaId)
+          .maybeSingle();
+        if (!tipo) throw new Error("el tipo de empresa no existe");
+        await aplicarTipoEmpresa(admin, empresa.id, tipo as TipoEmpresa);
+      } catch (e) {
+        avisoTipo = `La empresa se creó, pero el tipo no se aplicó: ${e instanceof Error ? e.message : "error"}`;
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       empresa: { id: empresa.id, nombre: empresa.nombre },
       admin: { correo: body.adminCorreo.trim() },
+      avisoPago,
+      avisoTipo,
     });
   } catch (e) {
     return NextResponse.json(

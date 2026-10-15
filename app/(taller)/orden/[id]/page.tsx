@@ -6,34 +6,133 @@
  * llegada por el QR, es donde se cumple la primera de las dos promesas
  * del proyecto.
  *
- * Los tres accesos (evidencia, diagnóstico, repuestos) son tarjetas y
- * no enlaces de texto: se tocan con guantes, con una sola mano.
+ * Arriba, el camino de la orden (lib/camino-orden.ts) y el siguiente
+ * paso con su botón: el técnico no tiene que saber a qué estado pasar.
+ * Los accesos (evidencia, diagnóstico, repuestos) son tarjetas y no
+ * enlaces de texto: se tocan con guantes, con una sola mano.
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Camera, Wrench, Package, ChevronRight, ArrowRight, KeyRound, Eye, Clock, Check, Printer } from "lucide-react";
-import { ENTREGA_DESDE_TALLER, ETIQUETA_ESTADO, siguientesEstados, type Estado } from "@/lib/estados";
+import { Camera, Wrench, Package, FileText, ChevronRight, ArrowRight, KeyRound, Eye, Clock, Check, Printer } from "lucide-react";
+import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
+import { formatearMoneda } from "@/componentes/cobro/panel-cobro";
+import { CAMINO, enlacesVisibles, pasoActual, siguientePaso, type Accion, type Destino } from "@/lib/camino-orden";
 import { puede, type Rol } from "@/lib/permisos";
-import { Boton } from "@/componentes/ui/boton";
+import { Boton, BotonEnlace } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Aviso } from "@/componentes/ui/campo";
 import { EstadoOrden } from "@/componentes/ui/estado-orden";
 import { HiloMensajes, type Mensaje } from "@/componentes/mensajeria/hilo-mensajes";
 import { SelectorFase } from "@/componentes/taller/selector-fase";
+import { EnlaceOrden } from "@/componentes/taller/enlace-orden";
 
-/** Lo que la ficha ofrece como siguiente paso: la entrega anticipada
- *  (desde recibida, diagnóstico, etc.) solo se hace en el mostrador. */
-function siguientesDesdeTaller(estado: Estado): Estado[] {
-  return siguientesEstados(estado).filter((e) => e !== "entregada" || ENTREGA_DESDE_TALLER.includes(estado));
+/** Los cambios que piden una nota, y qué se le pregunta a quien los hace. */
+const NOTA_AL_PASAR: Partial<Record<Estado, { etiqueta: string; ayuda: string; prefijo: string }>> = {
+  listo_entrega: {
+    etiqueta: "Trabajo realizado",
+    ayuda: "Qué se cambió o reparó, y cómo se probó",
+    prefijo: "Trabajo verificado: ",
+  },
+  rechazada: {
+    etiqueta: "Respuesta del cliente",
+    ayuda: "Por qué no aprobó, o qué va a decidir",
+    prefijo: "Cliente no aprobó: ",
+  },
+};
+
+const ICONO_DESTINO: Record<Destino, React.ReactNode> = {
+  evidencia: <Camera size={14} strokeWidth={2.2} color="var(--accent)" />,
+  diagnostico: <Wrench size={14} strokeWidth={2.2} color="var(--accent)" />,
+  cotizacion: <FileText size={14} strokeWidth={2.2} color="var(--accent)" />,
+  repuestos: <Package size={14} strokeWidth={2.2} color="var(--accent)" />,
+  entregar: <ArrowRight size={14} strokeWidth={2.2} color="var(--accent)" />,
+};
+
+function rutaDe(destino: Destino, orden: { id: string; numero: number }): string {
+  return destino === "entregar" ? `/entregar?numero=${orden.numero}` : `/orden/${orden.id}/${destino}`;
+}
+
+/** Los pasos del camino, con el actual marcado y, bajo cada paso al que
+ *  ya se llegó, sus pantallas (fotos, diagnóstico, cotización, repuestos). */
+function Camino({ estado, orden }: { estado: Estado; orden: { id: string; numero: number } }) {
+  const actual = pasoActual(estado);
+  return (
+    <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+      {CAMINO.map((paso, i) => {
+        const hecho = i < actual || estado === "entregada";
+        const enCurso = i === actual && estado !== "entregada";
+        return (
+          <li key={paso.titulo} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14 }}>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 24,
+                height: 24,
+                borderRadius: "50%",
+                flexShrink: 0,
+                fontSize: 12,
+                fontWeight: 800,
+                background: enCurso ? "var(--accent)" : hecho ? "var(--ok-fondo)" : "var(--surface-2)",
+                color: enCurso ? "var(--accent-texto)" : hecho ? "var(--ok)" : "var(--ink-3)",
+              }}
+            >
+              {hecho ? <Check size={14} strokeWidth={2.6} /> : i + 1}
+            </span>
+            <span style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
+              <span style={{ fontWeight: enCurso ? 800 : 500, color: hecho || enCurso ? "var(--ink)" : "var(--ink-3)" }}>
+                {paso.titulo}
+                {enCurso && paso.estados.length > 1 && (
+                  <span style={{ fontWeight: 600, color: "var(--ink-2)" }}> · {ETIQUETA_ESTADO[estado]}</span>
+                )}
+              </span>
+              {enlacesVisibles(i, estado).length > 0 && (
+                <span style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                  {enlacesVisibles(i, estado).map((e) => (
+                    <Link
+                      key={e.destino}
+                      href={rutaDe(e.destino, orden)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        height: 34,
+                        padding: "0 12px",
+                        borderRadius: "var(--r-pill)",
+                        border: "1px solid var(--rule)",
+                        background: "var(--surface-2)",
+                        color: "var(--ink)",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        textDecoration: "none",
+                      }}
+                    >
+                      {ICONO_DESTINO[e.destino]}
+                      {e.texto}
+                      <ChevronRight size={14} strokeWidth={2.2} color="var(--ink-3)" aria-hidden />
+                    </Link>
+                  ))}
+                </span>
+              )}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
 }
 
 const ETIQUETA_TIPO_ACCESO: Record<string, string> = {
-  pin3: "PIN de 3",
-  pin4: "PIN de 4",
-  pin6: "PIN de 6",
+  pin: "PIN",
+  // Órdenes guardadas antes de que el PIN fuera de cualquier largo.
+  pin3: "PIN",
+  pin4: "PIN",
+  pin6: "PIN",
   patron: "Patrón",
-  otro: "Otro",
+  contrasena: "Contraseña",
+  otro: "Otros",
 };
 
 /** Panel con el PIN/patrón del equipo -- se carga solo al tocar "Ver",
@@ -148,47 +247,10 @@ interface OrdenTecnico {
   total: number;
   fase_id: string | null;
   fase_nombre: string | null;
+  token_publico: string;
 }
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
-
-function Acceso({ href, icono, titulo, descripcion }: { href: string; icono: React.ReactNode; titulo: string; descripcion: string }) {
-  return (
-    <Link
-      href={href}
-      className="tarjeta"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 13,
-        padding: 14,
-        color: "var(--ink)",
-        textDecoration: "none",
-      }}
-    >
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 44,
-          height: 44,
-          borderRadius: "var(--r-md)",
-          background: "var(--accent-suave)",
-          color: "var(--accent)",
-          flexShrink: 0,
-        }}
-      >
-        {icono}
-      </span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: 15, fontWeight: 700 }}>{titulo}</span>
-        <span style={{ display: "block", fontSize: 12, color: "var(--ink-2)" }}>{descripcion}</span>
-      </span>
-      <ChevronRight size={19} strokeWidth={2} color="var(--ink-3)" aria-hidden />
-    </Link>
-  );
-}
 
 export default function PaginaOrdenTecnico() {
   const { id } = useParams<{ id: string }>();
@@ -196,6 +258,13 @@ export default function PaginaOrdenTecnico() {
   const [orden, setOrden] = useState<OrdenTecnico | null>(null);
   const [rol, setRol] = useState<Rol | null>(null);
   const [cambiando, setCambiando] = useState(false);
+  // Algunos cambios no son un clic: piden una nota que queda en el historial.
+  const [cerrando, setCerrando] = useState<Estado | null>(null);
+  const [notaCierre, setNotaCierre] = useState("");
+  const [verificado, setVerificado] = useState(false);
+  // "Ya viene con precio acordado": salta diagnóstico, cotización y
+  // aprobación. Arranca marcado si la orden ya trae un valor.
+  const [omitir, setOmitir] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [eventos, setEventos] = useState<Evento[]>([]);
@@ -205,7 +274,10 @@ export default function PaginaOrdenTecnico() {
   function cargarOrden() {
     fetch(`/api/ordenes/${id}`)
       .then((r) => r.json())
-      .then(setOrden)
+      .then((o: OrdenTecnico) => {
+        setOrden(o);
+        setOmitir((prev) => prev ?? Number(o.total) > 0);
+      })
       .catch(() => setError("No se pudo cargar la orden"));
   }
 
@@ -255,16 +327,21 @@ export default function PaginaOrdenTecnico() {
     }
   }
 
-  async function avanzar(aEstado: Estado) {
+  async function avanzar(aEstado: Estado, nota?: string, omitirCotizacion?: boolean) {
     setCambiando(true);
     setError(null);
     try {
       const res = await fetch(`/api/ordenes/${id}/transicion`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ aEstado }),
+        body: JSON.stringify({ aEstado, nota, omitirCotizacion }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
+      // Con precio acordado el servidor decide: reparación o esperar repuesto.
+      aEstado = (await res.json()).estado ?? aEstado;
+      setCerrando(null);
+      setNotaCierre("");
+      setVerificado(false);
       router.refresh();
       setOrden((prev) => (prev ? { ...prev, estado: aEstado } : prev));
       // La transición también le pone la primera fase del estado nuevo
@@ -278,9 +355,41 @@ export default function PaginaOrdenTecnico() {
     }
   }
 
+  // El cliente aprobó aquí o por teléfono: la misma ruta que su enlace
+  // (reserva repuestos y decide si va a reparación o a esperar repuesto).
+  async function aprobar() {
+    if (!orden) return;
+    setCambiando(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/aprobacion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: orden.token_publico, decision: "aprobada" }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      cargarOrden();
+      cargarEventos();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo registrar la aprobación");
+    } finally {
+      setCambiando(false);
+    }
+  }
+
+  function ejecutar(accion: Accion) {
+    if (accion.tipo === "ir") router.push(rutaDe(accion.destino, orden!));
+    else if (accion.tipo === "aprobar") aprobar();
+    else if (NOTA_AL_PASAR[accion.a]) setCerrando(accion.a);
+    else avanzar(accion.a);
+  }
+
   if (!orden) {
     return <Tarjeta style={{ textAlign: "center", color: "var(--ink-3)" }}>Cargando…</Tarjeta>;
   }
+
+  const paso = siguientePaso(orden.estado);
+  const antesDeCotizar = orden.estado === "recibida" || orden.estado === "en_diagnostico";
 
   return (
     <div className="pila">
@@ -316,6 +425,13 @@ export default function PaginaOrdenTecnico() {
             </div>
           )}
         </div>
+        <div style={{ marginTop: 14 }}>
+          <EnlaceOrden
+            ordenId={id}
+            tokenPublico={orden.token_publico}
+            conWhatsapp={Boolean(rol && puede(rol, "enviar_whatsapp_orden"))}
+          />
+        </div>
         {rol && puede(rol, "reimprimir_etiqueta_orden") && (
           <div style={{ marginTop: 14 }}>
             <Boton
@@ -333,6 +449,128 @@ export default function PaginaOrdenTecnico() {
         )}
       </Tarjeta>
 
+      <Tarjeta>
+        <div className="campo-etiqueta">Camino de la orden</div>
+        <Camino estado={orden.estado} orden={orden} />
+      </Tarjeta>
+
+      <Tarjeta>
+        <div className="campo-etiqueta">Siguiente paso</div>
+        {antesDeCotizar && (
+          <label
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 10,
+              padding: 12,
+              marginBottom: 14,
+              borderRadius: "var(--r-md)",
+              background: "var(--surface-2)",
+              cursor: "pointer",
+            }}
+          >
+            <input type="checkbox" checked={!!omitir} onChange={(e) => setOmitir(e.target.checked)} style={{ marginTop: 2 }} />
+            <span>
+              <span style={{ display: "block", fontSize: 14, fontWeight: 700 }}>Ya viene con precio acordado</span>
+              <span style={{ display: "block", fontSize: 12, color: "var(--ink-2)" }}>
+                Omite diagnóstico, cotización y aprobación del cliente.
+                {Number(orden.total) > 0 ? ` Precio: ${formatearMoneda(Number(orden.total))}.` : ""}
+              </span>
+            </span>
+          </label>
+        )}
+        {antesDeCotizar && omitir ? (
+          <>
+            <h2 style={{ fontSize: 18, marginBottom: 4 }}>Reparar</h2>
+            <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--ink-2)" }}>
+              {Number(orden.total) > 0
+                ? "Pasa directo a reparación, o a esperar repuesto si falta alguno pedido a Compras."
+                : "La orden no tiene precio todavía. Agrégalo en Repuestos (servicio o mano de obra) y vuelve aquí."}
+            </p>
+            {!(Number(orden.total) > 0) && (
+              <div style={{ marginBottom: 8 }}>
+                <BotonEnlace variante="contorno" ancho href={rutaDe("repuestos", orden)} icono={<Package size={17} strokeWidth={2} />}>
+                  Repuestos
+                </BotonEnlace>
+              </div>
+            )}
+            <Boton
+              variante="primario"
+              tamano="lg"
+              ancho
+              icono={<ArrowRight size={19} strokeWidth={2} />}
+              disabled={cambiando || !(Number(orden.total) > 0)}
+              onClick={() => avanzar("en_reparacion", undefined, true)}
+            >
+              Continuar a reparación
+            </Boton>
+          </>
+        ) : (
+          <>
+        <h2 style={{ fontSize: 18, marginBottom: 4 }}>{paso.titulo}</h2>
+        <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--ink-2)" }}>{paso.ayuda}</p>
+        {paso.acciones.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {paso.acciones.map((accion, i) => (
+              <Boton
+                key={accion.texto}
+                variante={i === 0 ? "primario" : "contorno"}
+                tamano={i === 0 ? "lg" : undefined}
+                ancho
+                icono={i === 0 ? <ArrowRight size={19} strokeWidth={2} /> : undefined}
+                disabled={cambiando || (accion.tipo === "estado" && cerrando === accion.a)}
+                onClick={() => ejecutar(accion)}
+              >
+                {accion.texto}
+              </Boton>
+            ))}
+          </div>
+        )}
+          </>
+        )}
+          {cerrando && NOTA_AL_PASAR[cerrando] && (
+            <div className="pila" style={{ gap: 10, marginTop: 14 }}>
+              <label style={{ display: "block" }}>
+                <span className="campo-etiqueta">{NOTA_AL_PASAR[cerrando]!.etiqueta}</span>
+                <textarea
+                  rows={3}
+                  value={notaCierre}
+                  onChange={(ev) => setNotaCierre(ev.target.value)}
+                  placeholder={NOTA_AL_PASAR[cerrando]!.ayuda}
+                  autoFocus
+                />
+              </label>
+              {cerrando === "listo_entrega" && (
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={verificado}
+                    onChange={(ev) => setVerificado(ev.target.checked)}
+                    style={{ width: 18, height: 18, padding: 0, accentColor: "var(--accent)" }}
+                  />
+                  Verifiqué que el equipo funciona
+                </label>
+              )}
+              <div className="fila" style={{ gap: 8 }}>
+                <Boton
+                  variante="primario"
+                  icono={<Check size={18} strokeWidth={2.4} />}
+                  disabled={cambiando || !notaCierre.trim() || (cerrando === "listo_entrega" && !verificado)}
+                  onClick={() => avanzar(cerrando, `${NOTA_AL_PASAR[cerrando]!.prefijo}${notaCierre.trim()}`)}
+                >
+                  Confirmar: {ETIQUETA_ESTADO[cerrando]}
+                </Boton>
+                <Boton variante="fantasma" onClick={() => setCerrando(null)}>
+                  Cancelar
+                </Boton>
+              </div>
+            </div>
+          )}
+      </Tarjeta>
+
+      {rol && puede(rol, "ver_acceso_dispositivo") && <PanelAcceso ordenId={id} />}
+
+      {/* Las fases de la empresa son detalle opcional dentro de cada paso. */}
       {rol && puede(rol, "diagnosticar") && (
         <SelectorFase
           ordenId={id}
@@ -343,50 +581,6 @@ export default function PaginaOrdenTecnico() {
             cargarEventos();
           }}
         />
-      )}
-
-      {rol && puede(rol, "ver_acceso_dispositivo") && <PanelAcceso ordenId={id} />}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <Acceso
-          href={`/orden/${id}/evidencia`}
-          icono={<Camera size={21} strokeWidth={2} />}
-          titulo="Evidencia"
-          descripcion="Fotos y videos del equipo"
-        />
-        <Acceso
-          href={`/orden/${id}/diagnostico`}
-          icono={<Wrench size={21} strokeWidth={2} />}
-          titulo="Diagnóstico"
-          descripcion="Qué se encontró, y de ahí a la cotización"
-        />
-        <Acceso
-          href={`/orden/${id}/repuestos`}
-          icono={<Package size={21} strokeWidth={2} />}
-          titulo="Repuestos"
-          descripcion="Consumir del inventario o marcar faltante"
-        />
-      </div>
-
-      {siguientesDesdeTaller(orden.estado).length > 0 && (
-        <Tarjeta>
-          <div className="campo-etiqueta">Avanzar a</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {siguientesDesdeTaller(orden.estado).map((e) => (
-              <Boton
-                key={e}
-                variante="primario"
-                tamano="lg"
-                ancho
-                icono={<ArrowRight size={19} strokeWidth={2} />}
-                disabled={cambiando}
-                onClick={() => avanzar(e)}
-              >
-                {ETIQUETA_ESTADO[e]}
-              </Boton>
-            ))}
-          </div>
-        </Tarjeta>
       )}
 
       <Historial eventos={eventos} />

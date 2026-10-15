@@ -1,6 +1,16 @@
 /**
  * POST /api/ordenes/<id>/transicion
- * Body: { aEstado: Estado }
+ * Body: { aEstado: Estado, nota?: string, omitirCotizacion?: boolean }
+ *
+ * `omitirCotizacion`: el equipo ya viene con precio acordado. Desde
+ * Recibida o En diagnóstico pasa directo a reparación, o a esperar
+ * repuesto si hay alguno pedido sin llegar (estadoAlAprobar); el precio
+ * hace las veces de la cotización aprobada (sePuedeOmitirCotizacion) y
+ * queda dicho en el historial.
+ *
+ * `nota` queda en el historial con el cambio. Pasar a "Listo para
+ * entregar" la exige (qué se hizo y que se verificó), y también pasar a
+ * "Pendiente de decisión" (la respuesta del cliente que no aprobó).
  *
  * La única puerta para cambiar el estado de una orden desde la app del
  * técnico o el admin. Arma el conjunto de requisitos cumplidos
@@ -12,21 +22,36 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   RequisitoFaltanteError,
   TransicionInvalidaError,
+  estadoAlAprobar,
+  sePuedeOmitirCotizacion,
   transicionar,
   type Estado,
   type Requisito,
 } from "@/lib/estados";
-import { saldoEnCero } from "@/lib/caja";
+import { obtenerCuentaOrden } from "@/lib/cuenta-orden";
 import { buscarPrimeraFase } from "@/lib/fases";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
 import { encolarImpresion } from "@/lib/impresion";
+import { liberarReservas } from "@/lib/reservas-servidor";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const body = (await req.json()) as { aEstado?: Estado; imprimirComprobante?: boolean };
+  const body = (await req.json()) as {
+    aEstado?: Estado;
+    imprimirComprobante?: boolean;
+    nota?: string;
+    omitirCotizacion?: boolean;
+  };
   if (!body.aEstado) {
     return NextResponse.json({ error: "falta aEstado" }, { status: 400 });
+  }
+  let nota = typeof body.nota === "string" ? body.nota.trim().slice(0, 1000) : "";
+  if (body.aEstado === "listo_entrega" && !nota) {
+    return NextResponse.json({ error: "escribe qué se hizo y cómo se verificó" }, { status: 400 });
+  }
+  if (body.aEstado === "rechazada" && !nota) {
+    return NextResponse.json({ error: "escribe la respuesta del cliente" }, { status: 400 });
   }
 
   const supabase = await clienteServidor();
@@ -48,6 +73,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const cumplidos = new Set<Requisito>();
+
+  if (body.omitirCotizacion) {
+    const total = Number(orden.total) || 0;
+    if (!sePuedeOmitirCotizacion(orden.estado as Estado, total)) {
+      return NextResponse.json(
+        {
+          error:
+            total > 0
+              ? "Esta orden ya pasó la cotización."
+              : "La orden no tiene precio acordado: agrégalo (servicio o repuesto) antes de saltarte la cotización.",
+        },
+        { status: 409 },
+      );
+    }
+    const { count: pendientes } = await supabase
+      .from("repuesto_solicitud")
+      .select("id", { count: "exact", head: true })
+      .eq("orden_id", id)
+      .in("estado", ["faltante", "solicitado"]);
+    body.aEstado = estadoAlAprobar(pendientes ?? 0);
+    cumplidos.add("cotizacion_aprobada");
+    const precio = "$" + Math.round(total).toLocaleString("es-CO");
+    nota = `Precio acordado (${precio}): sin diagnóstico, cotización ni aprobación del cliente.${nota ? ` ${nota}` : ""}`;
+  }
 
   const [{ count: fotoEntrada }, { count: fotoSalida }, { count: firma }, { count: etiqueta }] =
     await Promise.all([
@@ -86,7 +135,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // El punto natural para asignarlo es este: quien mueve la orden a
   // en_diagnostico se convierte en su técnico, autoasignado por hacer el
   // trabajo -- de ahí sale la productividad por técnico de la sección 5.
-  const tecnicoId = orden.tecnico_id ?? (body.aEstado === "en_diagnostico" ? user.id : null);
+  const tecnicoId =
+    orden.tecnico_id ?? (body.aEstado === "en_diagnostico" || body.omitirCotizacion ? user.id : null);
   if (tecnicoId) cumplidos.add("tiene_tecnico");
 
   const { data: cotizacion } = await supabase
@@ -100,12 +150,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (cotizacion) cumplidos.add("tiene_cotizacion");
   if (cotizacion?.decision === "aprobada") cumplidos.add("cotizacion_aprobada");
 
-  // orden.total (Fase 5 del Plan 1, lo que de verdad se usó/hizo) es la
-  // base del saldo, no cotizacion.total (la propuesta original) -- si
-  // se agregó un repuesto después de aprobar, el saldo real lo refleja.
-  const { data: ventas } = await supabase.from("venta").select("total").eq("orden_id", id).eq("anulada", false);
-  const totalPagado = (ventas ?? []).reduce((s, v) => s + Number(v.total), 0);
-  if (saldoEnCero(Number(orden.total), totalPagado)) cumplidos.add("saldo_en_cero");
+  // El saldo sale de la misma cuenta que ven /abonos y /entregar
+  // (lib/cuenta-orden.ts): lo usado o lo cotizado, lo mayor, menos los
+  // abonos y cobros.
+  const cuenta = await obtenerCuentaOrden(supabase, id);
+  if (cuenta && cuenta.saldo === 0) cumplidos.add("saldo_en_cero");
 
   try {
     transicionar(orden.estado as Estado, body.aEstado, cumplidos);
@@ -139,6 +188,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: errUpdate.message }, { status: 500 });
   }
 
+  // El cliente respondió por teléfono o en el mostrador: la cotización
+  // enviada queda rechazada, igual que si lo hubiera hecho en el enlace.
+  if (body.aEstado === "rechazada" && cotizacion?.estado === "enviada" && !cotizacion.decision) {
+    await supabase
+      .from("cotizacion")
+      .update({ decision: "rechazada", decidida_en: new Date().toISOString() })
+      .eq("id", cotizacion.id);
+  }
+
   await supabase.from("orden_evento").insert({
     empresa_id: orden.empresa_id,
     orden_id: id,
@@ -147,6 +205,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     de_fase: faseAnterior?.nombre ?? null,
     a_fase: faseNueva?.nombre ?? null,
     autor_id: user.id,
+    nota: nota || null,
   });
 
   // El PIN/patrón del equipo ya no hace falta una vez el cliente se lo
@@ -154,6 +213,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Plan 3, supabase/migrations/0038_orden_acceso.sql).
   if (body.aEstado === "entregada") {
     await supabase.from("orden_acceso").delete().eq("orden_id", id);
+    await liberarReservas(supabase, id);
     if (body.imprimirComprobante) {
       await imprimirComprobanteEntrega(supabase, id, orden.empresa_id, user.id);
     }
@@ -178,7 +238,7 @@ async function imprimirComprobanteEntrega(
   const sedeId = await obtenerSedeActivaId(supabase);
   if (!sedeId) return;
 
-  const [{ data: items }, { data: ventas }, { data: perfil }] = await Promise.all([
+  const [{ data: items }, { data: ventas }, { data: perfil }, { data: orden }, cuenta] = await Promise.all([
     supabase.from("orden_item").select("descripcion, cantidad, precio_unit").eq("orden_id", ordenId),
     supabase
       .from("venta")
@@ -187,8 +247,11 @@ async function imprimirComprobanteEntrega(
       .eq("anulada", false)
       .order("creada_en", { ascending: true }),
     supabase.from("perfil").select("nombre, codigo").eq("id", userId).maybeSingle(),
+    supabase.from("orden").select("numero").eq("id", ordenId).maybeSingle(),
+    obtenerCuentaOrden(supabase, ordenId),
   ]);
   if (!ventas?.length) return;
+  const totalItems = (items ?? []).reduce((s, it) => s + it.cantidad * Number(it.precio_unit), 0);
 
   const medios = [
     ...new Set(ventas.flatMap((v) => ((v.pago ?? []) as { medio: string }[]).map((p) => p.medio))),
@@ -206,8 +269,13 @@ async function imprimirComprobanteEntrega(
         cantidad: it.cantidad,
         precioUnit: Number(it.precio_unit),
       })),
-      total: (items ?? []).reduce((s, it) => s + it.cantidad * Number(it.precio_unit), 0),
+      total: cuenta?.valor ?? totalItems,
       medioPago: medios.length ? `${medios.join(" + ")} (pagado)` : "Pagado",
+      // Valor, lo pagado (abonos + cobros) y el saldo con que se entrega.
+      cuentaOrden:
+        cuenta && orden
+          ? { numeroOrden: orden.numero, valor: cuenta.valor, abonadoAntes: cuenta.pagado, saldo: cuenta.saldo }
+          : null,
       abreCajon: false,
       cajero: perfil ? (perfil.codigo ? `${perfil.codigo} · ${perfil.nombre}` : perfil.nombre) : null,
       imprimir: true,

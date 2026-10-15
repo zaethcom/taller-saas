@@ -16,8 +16,11 @@ export function LectorCodigoBarras({
   etiqueta = "Ubica el código dentro del recuadro",
   onDetectado,
   onCerrar,
+  cuadrado = false,
 }: {
   formats: string[];
+  /** Recuadro cuadrado y alto (para QR): en el celular se ve grande. */
+  cuadrado?: boolean;
   etiqueta?: string;
   onDetectado: (valor: string) => void;
   onCerrar: () => void;
@@ -29,7 +32,8 @@ export function LectorCodigoBarras({
       <div
         style={{
           position: "relative",
-          aspectRatio: "16 / 9",
+          aspectRatio: cuadrado ? "1 / 1" : "16 / 9",
+          maxHeight: cuadrado ? "65vh" : undefined,
           background: "var(--surface)",
           borderRadius: "var(--r-md)",
           overflow: "hidden",

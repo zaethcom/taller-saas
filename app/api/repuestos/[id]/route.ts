@@ -1,28 +1,28 @@
 /**
  * PATCH /api/repuestos/[id]
- * Body: { imagenUrl?: string, enVenta?: boolean }
+ * Body: { imagenUrl?, enVenta?, codigo?, descripcion?, precioVenta?,
+ *         costo?, marca?, modelo?, categoriaId?, observacion? }
  *
- * Lo único editable de un repuesto desde la aplicación: su foto y si
- * está en venta (si aparece o no en /vender, 0044). El resto del catálogo (código, descripción, precio) sigue siendo cosa de
- * seed.sql a propósito -- ver README, "Qué falta". RLS (repuesto está
- * bajo _aplica_rls_empresa) es lo que impide que alguien le cambie la
- * foto a un repuesto de otra empresa; este código no necesita repetir
- * esa comprobación.
+ * Edita un repuesto del catálogo desde /inventario: su foto, si está en
+ * venta (0044) y sus datos (código, descripción, precios, marca,
+ * modelo, categoría). La validación vive en lib/edicion-producto.ts.
+ * Las existencias no se tocan aquí: van por /api/inventario/ajuste, que
+ * exige motivo. RLS (repuesto está bajo _aplica_rls_empresa) es lo que
+ * impide editar un repuesto de otra empresa; este código no necesita
+ * repetir esa comprobación.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { puede } from "@/lib/permisos";
+import { cambiosRepuesto, type CuerpoRepuesto } from "@/lib/edicion-producto";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { imagenUrl, enVenta } = (await req.json()) as { imagenUrl?: string; enVenta?: boolean };
-
-  const cambios: { imagen_url?: string; en_venta?: boolean } = {};
-  if (imagenUrl) cambios.imagen_url = imagenUrl;
-  if (typeof enVenta === "boolean") cambios.en_venta = enVenta;
-  if (Object.keys(cambios).length === 0) {
-    return NextResponse.json({ error: "falta imagenUrl o enVenta" }, { status: 400 });
+  const validado = cambiosRepuesto((await req.json()) as CuerpoRepuesto);
+  if ("error" in validado) {
+    return NextResponse.json({ error: validado.error }, { status: 400 });
   }
+  const { cambios } = validado;
 
   const supabase = await clienteServidor();
   const {
@@ -43,6 +43,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       { error: "falta aplicar la migración 0044 (en venta) en la base de datos" },
       { status: 503 },
     );
+  }
+  if (error?.code === "23505") {
+    return NextResponse.json({ error: `Ya existe otro repuesto con el código "${cambios.codigo}"` }, { status: 409 });
   }
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

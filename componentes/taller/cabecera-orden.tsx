@@ -6,7 +6,8 @@
  * la pantalla-hub (/orden/[id]) mostraba número/estado/cliente/equipo;
  * las demás eran ciegas a ese contexto. No se dibuja un QR gráfico:
  * el que ya va impreso en la etiqueta física cumple ese rol; aquí basta
- * el código de seguimiento copiable.
+ * el código de seguimiento copiable, o enviado por WhatsApp
+ * (EnlaceOrden).
  *
  * `anterior`/`siguiente` son opcionales: solo los tres pasos
  * secuenciales (diagnóstico → cotización → repuestos) los usan --
@@ -16,10 +17,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Copy, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { EstadoOrden } from "@/componentes/ui/estado-orden";
 import { Boton } from "@/componentes/ui/boton";
+import { EnlaceOrden } from "@/componentes/taller/enlace-orden";
 import type { Estado } from "@/lib/estados";
 
 interface OrdenContexto {
@@ -52,7 +54,6 @@ export function CabeceraOrden({
 }) {
   const router = useRouter();
   const [orden, setOrden] = useState<OrdenContexto | null>(null);
-  const [copiado, setCopiado] = useState(false);
 
   useEffect(() => {
     fetch(`/api/ordenes/${ordenId}`)
@@ -60,14 +61,6 @@ export function CabeceraOrden({
       .then(setOrden)
       .catch(() => {});
   }, [ordenId]);
-
-  async function copiarEnlace() {
-    if (!orden) return;
-    const url = `${window.location.origin}/seguimiento/${orden.token_publico}`;
-    await navigator.clipboard.writeText(url);
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 2000);
-  }
 
   return (
     <Tarjeta style={{ marginBottom: 16 }}>
@@ -96,15 +89,10 @@ export function CabeceraOrden({
             </div>
           </div>
         )}
-        <Boton
-          variante="fantasma"
-          tamano="sm"
-          icono={copiado ? <Check size={14} strokeWidth={2.4} /> : <Copy size={14} strokeWidth={2} />}
-          onClick={copiarEnlace}
-          disabled={!orden}
-        >
-          {copiado ? "Copiado" : "Copiar enlace"}
-        </Boton>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <EnlaceOrden ordenId={ordenId} tokenPublico={orden?.token_publico} />
       </div>
 
       {(anterior || siguiente) && (

@@ -125,7 +125,7 @@ export default function PaginaMetodosPago() {
               <tr>
                 <th>Nombre</th>
                 <th>Es efectivo</th>
-                <th>Estado</th>
+                <th className="ocultar-movil">Estado</th>
                 <th></th>
               </tr>
             </thead>
@@ -152,7 +152,7 @@ export default function PaginaMetodosPago() {
                         Efectivo
                       </label>
                     </td>
-                    <td>
+                    <td className="ocultar-movil">
                       <Etiqueta tono={m.activo ? "ok" : "neutro"} punto>
                         {m.activo ? "Activo" : "Inactivo"}
                       </Etiqueta>
@@ -187,7 +187,7 @@ export default function PaginaMetodosPago() {
                         <span style={{ color: "var(--ink-3)" }}>No</span>
                       )}
                     </td>
-                    <td>
+                    <td className="ocultar-movil">
                       <Etiqueta tono={m.activo ? "ok" : "neutro"} punto>
                         {m.activo ? "Activo" : "Inactivo"}
                       </Etiqueta>
@@ -219,7 +219,7 @@ export default function PaginaMetodosPago() {
               crear();
             }}
           >
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto auto", gap: 12, alignItems: "end" }}>
+            <div className="fila-form">
               <Campo etiqueta="Nombre">
                 <input
                   placeholder="Ej. Nequi, DaviPlata, Bre-B…"

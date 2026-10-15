@@ -22,6 +22,7 @@ import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { CONDICIONES_ARTICULO } from "@/lib/edicion-producto";
 
 interface ArticuloRegistrado {
   codigo: string;
@@ -35,12 +36,7 @@ interface Categoria {
   nombre: string;
 }
 
-const CONDICIONES: { valor: string; etiqueta: string }[] = [
-  { valor: "nuevo_original", etiqueta: "Nuevo / Original" },
-  { valor: "nuevo_generico", etiqueta: "Nuevo / Genérico" },
-  { valor: "usado_segunda", etiqueta: "Segunda mano / Usado" },
-  { valor: "desmontado_recuperado", etiqueta: "Desmontado / Recuperado" },
-];
+const CONDICIONES = CONDICIONES_ARTICULO;
 
 export default function PaginaRecepcionMercancia() {
   const [tipo, setTipo] = useState("");

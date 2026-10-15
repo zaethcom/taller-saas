@@ -18,6 +18,7 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Aviso } from "@/componentes/ui/campo";
 import { HiloMensajes, type Mensaje } from "@/componentes/mensajeria/hilo-mensajes";
+import { etiquetaFaseEvidencia } from "@/lib/evidencia";
 
 interface Diagnostico {
   hallazgos: string | null;
@@ -45,7 +46,13 @@ interface Seguimiento {
     decision: string | null;
     cotizacion_item: { descripcion: string; cantidad: number; precio_unit: number }[];
   } | null;
-  evidencias: { tipo: "foto" | "video"; tomadaEn: string; url: string | null }[];
+  cuenta: {
+    valor: number;
+    pagado: number;
+    saldo: number;
+    pagos: { tipo: string; monto: number; fecha: string }[];
+  } | null;
+  evidencias: { tipo: "foto" | "video"; fase: string | null; tomadaEn: string; url: string | null }[];
   itemsPendientes: { id: string; descripcion: string; cantidad: number; precioUnit: number; decision: string | null }[];
   mensajes: Mensaje[];
 }
@@ -58,12 +65,24 @@ function tieneDiagnostico(d: Diagnostico | null): d is Diagnostico {
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
+const filaCuenta: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 12,
+  padding: "9px 0",
+  borderBottom: "1px solid var(--rule)",
+  fontSize: 14,
+};
+
 export default function PaginaSeguimiento() {
   const { token } = useParams<{ token: string }>();
   const [datos, setDatos] = useState<Seguimiento | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [decidiendoItem, setDecidiendoItem] = useState<string | null>(null);
+  // Rechazar pide el motivo (opcional) antes de enviar: queda en el historial.
+  const [rechazando, setRechazando] = useState(false);
+  const [motivoRechazo, setMotivoRechazo] = useState("");
 
   useEffect(() => {
     fetch(`/api/seguimiento/${token}`)
@@ -81,9 +100,10 @@ export default function PaginaSeguimiento() {
       const res = await fetch("/api/aprobacion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, decision }),
+        body: JSON.stringify({ token, decision, motivo: decision === "rechazada" ? motivoRechazo.trim() || undefined : undefined }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
+      setRechazando(false);
       // Recargar para reflejar el nuevo estado.
       const actualizado = await fetch(`/api/seguimiento/${token}`).then((r) => r.json());
       setDatos(actualizado);
@@ -306,21 +326,76 @@ export default function PaginaSeguimiento() {
                     variante="contorno"
                     tamano="lg"
                     icono={<X size={19} strokeWidth={2.4} />}
-                    disabled={enviando}
-                    onClick={() => decidir("rechazada")}
+                    disabled={enviando || rechazando}
+                    onClick={() => setRechazando(true)}
                   >
                     Rechazar
                   </Boton>
                 </div>
               )}
 
+              {puedeDecidir && rechazando && (
+                <div className="pila" style={{ gap: 10, padding: "0 16px 16px" }}>
+                  <label style={{ display: "block" }}>
+                    <span className="campo-etiqueta">¿Por qué la rechazas? (opcional)</span>
+                    <textarea
+                      rows={2}
+                      value={motivoRechazo}
+                      onChange={(e) => setMotivoRechazo(e.target.value)}
+                      placeholder="Ej. muy costoso, lo pienso y les aviso"
+                    />
+                  </label>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <Boton variante="peligro" disabled={enviando} onClick={() => decidir("rechazada")}>
+                      Confirmar rechazo
+                    </Boton>
+                    <Boton variante="fantasma" disabled={enviando} onClick={() => setRechazando(false)}>
+                      Volver
+                    </Boton>
+                  </div>
+                </div>
+              )}
+
               {datos.cotizacion.decision && (
                 <div style={{ padding: "0 16px 16px" }}>
                   <Etiqueta tono={datos.cotizacion.decision === "aprobada" ? "ok" : "neutro"} punto>
-                    {datos.cotizacion.decision === "aprobada" ? "Aprobada por ti" : "Rechazada por ti"}
+                    {datos.cotizacion.decision === "aprobada" ? "Aprobada por ti" : "Rechazada"}
                   </Etiqueta>
                 </div>
               )}
+            </Tarjeta>
+          </section>
+        )}
+
+        {datos.cuenta && (datos.cuenta.valor > 0 || datos.cuenta.pagos.length > 0) && (
+          <section>
+            <h2 style={{ marginBottom: 12 }}>Cuenta</h2>
+            <Tarjeta relleno={false}>
+              <div style={{ padding: "14px 16px" }}>
+                <div style={filaCuenta}>
+                  <span>Valor del servicio</span>
+                  <span className="cifra" style={{ fontWeight: 700 }}>{fmt(datos.cuenta.valor)}</span>
+                </div>
+                {datos.cuenta.pagos.map((p, i) => (
+                  <div key={i} style={filaCuenta}>
+                    <span>
+                      {p.tipo === "anticipo" ? "Abono" : "Pago"}{" "}
+                      <span className="cifra" style={{ color: "var(--ink-3)", fontSize: 12 }}>
+                        {new Date(p.fecha).toLocaleDateString("es-CO")}
+                      </span>
+                    </span>
+                    <span className="cifra" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>
+                      −{fmt(p.monto)}
+                    </span>
+                  </div>
+                ))}
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", paddingTop: 14 }}>
+                  <span style={{ fontSize: 18, fontWeight: 800 }}>Saldo</span>
+                  <span className="cifra" style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em" }}>
+                    {fmt(datos.cuenta.saldo)}
+                  </span>
+                </div>
+              </div>
             </Tarjeta>
           </section>
         )}
@@ -383,6 +458,7 @@ export default function PaginaSeguimiento() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {datos.evidencias.map((ev, i) => {
                 if (!ev.url) return null;
+                const etiqueta = etiquetaFaseEvidencia(ev.fase);
                 const estilo: React.CSSProperties = {
                   width: "100%",
                   borderRadius: "var(--r-md)",
@@ -394,11 +470,24 @@ export default function PaginaSeguimiento() {
                   aspectRatio: "1",
                   objectFit: "cover",
                 };
-                return ev.tipo === "video" ? (
-                  <video key={i} src={ev.url} controls preload="none" style={estilo} />
-                ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img key={i} src={ev.url} alt="Evidencia del equipo" style={estilo} />
+                return (
+                  <figure key={i} style={{ margin: 0, position: "relative" }}>
+                    {ev.tipo === "video" ? (
+                      <video src={ev.url} controls preload="none" style={estilo} />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={ev.url} alt={etiqueta ? `Equipo ${etiqueta.toLowerCase()}` : "Evidencia del equipo"} style={estilo} />
+                    )}
+                    {etiqueta && (
+                      // Arriba, no abajo: abajo quedan los controles del video.
+                      <span style={{ position: "absolute", left: 6, top: 6, pointerEvents: "none" }}>
+                        <Etiqueta tono="ok">{etiqueta}</Etiqueta>
+                      </span>
+                    )}
+                    <figcaption className="cifra" style={{ marginTop: 4, fontSize: 12, color: "var(--ink-3)" }}>
+                      {new Date(ev.tomadaEn).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
+                    </figcaption>
+                  </figure>
                 );
               })}
             </div>

@@ -18,8 +18,9 @@
  * catálogo no cambie después.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { RequisitoFaltanteError, TransicionInvalidaError, transicionar, type Estado } from "@/lib/estados";
+import { RequisitoFaltanteError, TransicionInvalidaError, transicionar } from "@/lib/estados";
 import { buscarPrimeraFase } from "@/lib/fases";
+import { asegurarDiagnostico } from "@/lib/diagnostico-auto";
 import { clienteServidor } from "@/lib/supabase/servidor";
 
 interface ItemCotizacion {
@@ -48,6 +49,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
+  // Revisar y cotizar ya es diagnosticar: si la orden sigue en Recibida
+  // (o se recotiza tras un rechazo) entra sola a diagnóstico.
+  const enDiagnostico = await asegurarDiagnostico(supabase, id, user.id);
+  if ("error" in enDiagnostico) {
+    return NextResponse.json({ error: enDiagnostico.error }, { status: 409 });
+  }
+  const estadoActual = enDiagnostico.estado;
+
+  // Se lee después: si entró sola a diagnóstico, el estado y la fase
+  // de antes son esos.
   const { data: orden, error: errOrden } = await supabase
     .from("orden")
     .select("id, empresa_id, estado, token_publico, fase:fase_id ( nombre )")
@@ -56,6 +67,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (errOrden || !orden) {
     return NextResponse.json({ error: "orden no encontrada" }, { status: 404 });
+  }
+
+  // Antes de guardar nada: una cotización que no se puede enviar no se
+  // guarda como "enviada" (contaría en la cuenta de la orden sin que el
+  // cliente la haya visto).
+  try {
+    transicionar(estadoActual, "esperando_aprobacion", new Set(["tiene_cotizacion"]));
+  } catch (e) {
+    if (e instanceof TransicionInvalidaError || e instanceof RequisitoFaltanteError) {
+      return NextResponse.json({ error: `No se puede enviar la cotización: ${e.message}` }, { status: 409 });
+    }
+    throw e;
   }
 
   const totalItems = body.items.reduce((s, i) => s + i.cantidad * i.precioUnit, 0);
@@ -91,22 +114,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   );
 
   if (errItems) {
+    // Sin sus líneas no es una cotización: no se deja a medias.
+    await supabase.from("cotizacion").delete().eq("id", cotizacion.id);
     return NextResponse.json({ error: errItems.message }, { status: 500 });
   }
 
-  try {
-    transicionar(orden.estado as Estado, "esperando_aprobacion", new Set(["tiene_cotizacion"]));
-  } catch (e) {
-    if (e instanceof TransicionInvalidaError || e instanceof RequisitoFaltanteError) {
-      // La cotización ya quedó guardada -- el técnico no pierde el
-      // trabajo aunque la orden no estuviera en el estado correcto.
-      return NextResponse.json(
-        { error: `Cotización guardada, pero no se pudo enviar: ${e.message}` },
-        { status: 409 },
-      );
-    }
-    throw e;
-  }
 
   // Misma regla de fases que /api/ordenes/<id>/transicion: al entrar
   // al estado, la primera fase activa que tenga configurada, o ninguna.

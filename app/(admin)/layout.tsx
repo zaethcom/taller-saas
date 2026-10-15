@@ -23,6 +23,7 @@ import {
   BarChart3,
   Wrench,
   HardHat,
+  FileSpreadsheet,
 } from "lucide-react";
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
 import { BarraSuperior } from "@/componentes/ui/barra-superior";
@@ -62,6 +63,9 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
     { href: "/categorias", etiqueta: "Categorías", icono: <Tags size={18} strokeWidth={2} /> },
     { href: "/servicios", etiqueta: "Servicios", icono: <Wrench size={18} strokeWidth={2} /> },
     { href: "/mano-obra", etiqueta: "Mano de obra", icono: <HardHat size={18} strokeWidth={2} /> },
+    ...(puede(perfil.rol, "gestionar_inventario")
+      ? [{ href: "/importar-catalogo", etiqueta: "Importar catálogo", icono: <FileSpreadsheet size={18} strokeWidth={2} /> }]
+      : []),
     ...(puede(perfil.rol, "gestionar_sedes")
       ? [{ href: "/sedes", etiqueta: "Sedes", icono: <Building2 size={18} strokeWidth={2} /> }]
       : []),

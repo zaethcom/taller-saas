@@ -5,7 +5,11 @@ import {
   RequisitoFaltanteError,
   TRANSICIONES,
   TransicionInvalidaError,
+  comprasAutorizadas,
   esFinal,
+  estadoAlAprobar,
+  itemsSeQuitan,
+  sePuedeOmitirCotizacion,
   puedeTransicionar,
   siguientesEstados,
   transicionar,
@@ -26,6 +30,15 @@ describe("el grafo de transiciones", () => {
   it("permite el rechazo del cliente y su entrega sin reparar", () => {
     expect(puedeTransicionar("esperando_aprobacion", "rechazada")).toBe(true);
     expect(puedeTransicionar("rechazada", "entregada")).toBe(true);
+    // Pendiente de decisión: si el cliente reconsidera, se vuelve a cotizar.
+    expect(puedeTransicionar("rechazada", "en_diagnostico")).toBe(true);
+  });
+
+  it("reparación termina en listo para entregar, y vuelve si la verificación falla", () => {
+    expect(puedeTransicionar("en_reparacion", "listo_entrega")).toBe(true);
+    expect(puedeTransicionar("listo_entrega", "entregada")).toBe(true);
+    expect(puedeTransicionar("listo_entrega", "en_reparacion")).toBe(true);
+    expect(puedeTransicionar("esperando_repuesto", "listo_entrega")).toBe(false);
   });
 
   it("permite la espera de repuesto y el regreso a reparación", () => {
@@ -52,7 +65,7 @@ describe("el grafo de transiciones", () => {
   });
 
   it("rechaza cualquier salto que no esté dibujado en el diagrama", () => {
-    expect(puedeTransicionar("recibida", "en_reparacion")).toBe(false);
+    expect(puedeTransicionar("recibida", "listo_entrega")).toBe(false);
     expect(puedeTransicionar("entregada", "recibida")).toBe(false);
     expect(puedeTransicionar("rechazada", "en_reparacion")).toBe(false);
   });
@@ -88,7 +101,7 @@ describe("el grafo de transiciones", () => {
 
 describe("transicionar() — la puerta única de cambio de estado", () => {
   it("lanza TransicionInvalidaError si el salto no existe en el grafo", () => {
-    expect(() => transicionar("recibida", "en_reparacion", new Set())).toThrow(
+    expect(() => transicionar("recibida", "listo_entrega", new Set())).toThrow(
       TransicionInvalidaError,
     );
   });
@@ -110,7 +123,7 @@ describe("transicionar() — la puerta única de cambio de estado", () => {
     } catch (e) {
       expect(e).toBeInstanceOf(RequisitoFaltanteError);
       const err = e as RequisitoFaltanteError;
-      expect(err.faltantes).toEqual(["tiene_etiqueta", "tiene_tecnico"]);
+      expect(err.faltantes).toEqual(["tiene_tecnico"]);
     }
   });
 
@@ -119,17 +132,13 @@ describe("transicionar() — la puerta única de cambio de estado", () => {
       transicionar(
         "recibida",
         "en_diagnostico",
-        new Set<Requisito>(["tiene_foto_entrada", "tiene_etiqueta", "tiene_tecnico"]),
+        new Set<Requisito>(["tiene_foto_entrada", "tiene_tecnico"]),
       ),
     ).not.toThrow();
   });
 
-  it("recibida -> en_diagnostico exige foto, etiqueta y técnico asignado", () => {
-    expect(REQUISITOS.en_diagnostico).toEqual([
-      "tiene_foto_entrada",
-      "tiene_etiqueta",
-      "tiene_tecnico",
-    ]);
+  it("recibida -> en_diagnostico exige foto y técnico; la etiqueta no frena", () => {
+    expect(REQUISITOS.en_diagnostico).toEqual(["tiene_foto_entrada", "tiene_tecnico"]);
   });
 
   it("no se entrega una orden sin saldo en cero, aunque tenga foto y firma", () => {
@@ -155,11 +164,25 @@ describe("transicionar() — la puerta única de cambio de estado", () => {
   it("una transición sin requisitos declarados no exige nada", () => {
     // esperando_aprobacion -> en_reparacion pasa por la aprobación del
     // cliente vía enlace, pero requiere cotizacion_aprobada explícitamente.
-    // en_reparacion -> esperando_repuesto no tiene entrada en REQUISITOS:
-    // marcar un faltante no debe bloquearse por nada más.
+    // en_reparacion -> listo_entrega no tiene entrada en REQUISITOS (la
+    // nota de verificación la exige la ruta, no la máquina de estados).
     expect(() =>
-      transicionar("en_reparacion", "esperando_repuesto", new Set()),
+      transicionar("en_reparacion", "listo_entrega", new Set()),
     ).not.toThrow();
+  });
+
+  it("esperar repuesto exige la aprobación del cliente: no se compra sin ella", () => {
+    expect(() => transicionar("esperando_aprobacion", "esperando_repuesto", new Set())).toThrow(
+      RequisitoFaltanteError,
+    );
+    expect(() =>
+      transicionar("esperando_aprobacion", "esperando_repuesto", new Set<Requisito>(["cotizacion_aprobada"])),
+    ).not.toThrow();
+  });
+
+  it("al aprobar con repuestos pendientes, la orden espera repuesto", () => {
+    expect(estadoAlAprobar(0)).toBe("en_reparacion");
+    expect(estadoAlAprobar(2)).toBe("esperando_repuesto");
   });
 });
 
@@ -203,5 +226,42 @@ describe("un escenario completo, de principio a fin", () => {
 
     cumplidos.add("tiene_foto_salida").add("tiene_firma").add("saldo_en_cero");
     expect(() => transicionar("en_reparacion", "entregada", cumplidos)).not.toThrow();
+  });
+});
+
+describe("comprasAutorizadas", () => {
+  it("solo con la cotización aprobada se compra", () => {
+    expect(comprasAutorizadas("recibida")).toBe(false);
+    expect(comprasAutorizadas("en_diagnostico")).toBe(false);
+    expect(comprasAutorizadas("esperando_aprobacion")).toBe(false);
+    expect(comprasAutorizadas("rechazada")).toBe(false);
+    expect(comprasAutorizadas("en_reparacion")).toBe(true);
+    expect(comprasAutorizadas("esperando_repuesto")).toBe(true);
+  });
+});
+
+describe("itemsSeQuitan", () => {
+  it("solo antes de enviar la cotización", () => {
+    expect(itemsSeQuitan("recibida")).toBe(true);
+    expect(itemsSeQuitan("en_diagnostico")).toBe(true);
+    expect(itemsSeQuitan("esperando_aprobacion")).toBe(false);
+    expect(itemsSeQuitan("en_reparacion")).toBe(false);
+    expect(itemsSeQuitan("entregada")).toBe(false);
+  });
+});
+
+describe("sePuedeOmitirCotizacion", () => {
+  it("solo antes de cotizar y con precio acordado", () => {
+    expect(sePuedeOmitirCotizacion("recibida", 150000)).toBe(true);
+    expect(sePuedeOmitirCotizacion("en_diagnostico", 150000)).toBe(true);
+    expect(sePuedeOmitirCotizacion("recibida", 0)).toBe(false);
+    expect(sePuedeOmitirCotizacion("esperando_aprobacion", 150000)).toBe(false);
+  });
+
+  it("aun así, saltar a reparación exige el requisito de aprobación", () => {
+    expect(() => transicionar("recibida", "en_reparacion", new Set())).toThrow(RequisitoFaltanteError);
+    expect(() =>
+      transicionar("recibida", "esperando_repuesto", new Set<Requisito>(["cotizacion_aprobada"])),
+    ).not.toThrow();
   });
 });

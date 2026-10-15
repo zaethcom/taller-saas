@@ -6,7 +6,8 @@
  * responsable, tal como sale en la plantilla de estacion/plantillas/cierre.ts.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { calcularDiferencia, efectivoEsperado } from "@/lib/caja";
+import { calcularDiferencia, efectivoEsperado, totalesMovimientos } from "@/lib/caja";
+import { movimientosDelTurno } from "@/lib/movimiento-caja";
 import { encolarImpresion } from "@/lib/impresion";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
@@ -59,11 +60,13 @@ export async function POST(req: NextRequest) {
     .filter((p) => p.es_efectivo)
     .reduce((s, p) => s + Number(p.monto), 0);
   const totalVentas = (pagos ?? []).reduce((s, p) => s + Number(p.monto), 0);
+  const { ingresos, salidas } = totalesMovimientos(await movimientosDelTurno(supabase, turno.id));
 
   const resumen = {
     baseInicial: Number(turno.base_inicial),
     ventasEfectivo,
-    aperturasManualesEfectivo: 0,
+    ingresosEfectivo: ingresos,
+    salidasEfectivo: salidas,
   };
   const diferencia = calcularDiferencia(resumen, body.efectivoContado);
 
@@ -91,6 +94,8 @@ export async function POST(req: NextRequest) {
       cierreEn: new Date().toLocaleString("es-CO"),
       baseInicial: resumen.baseInicial,
       totalVentas,
+      ingresos,
+      salidas,
       efectivoEsperado: efectivoEsperado(resumen),
       efectivoContado: body.efectivoContado,
       diferencia,

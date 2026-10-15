@@ -9,6 +9,14 @@
  * con el usuario) -- esa línea no descuenta inventario ni genera
  * movimiento de auditoría, solo suma al total.
  *
+ * Lo que la orden ya tiene acordado (el "valor del servicio" que se puso
+ * al recibir, o lo ya registrado en la orden) entra a la cotización
+ * desde el principio y no se edita: el cliente ve el total completo, y
+ * lo acordado no se cobra dos veces (la cuenta toma lo mayor entre lo
+ * usado y lo cotizado, lib/cuenta-orden.ts). Lo que se agregó por error
+ * sí se quita antes de enviar: la X lo borra de la orden (DELETE
+ * /api/ordenes/[id]/items), y un repuesto consumido vuelve a la sede.
+ *
  * Llega desde /diagnostico ("Continuar a cotización"); al enviar,
  * POST /api/ordenes/[id]/cotizacion mueve la orden a
  * esperando_aprobacion, igual que antes.
@@ -21,8 +29,11 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { CabeceraOrden } from "@/componentes/taller/cabecera-orden";
+import { BotonWhatsappOrden } from "@/componentes/taller/boton-whatsapp-orden";
+import { clienteNavegador } from "@/lib/supabase/cliente";
+import { ETIQUETA_ESTADO, puedeTransicionar, type Estado } from "@/lib/estados";
 
-type Origen = "repuesto" | "servicio" | "mano_obra" | "libre";
+type Origen = "repuesto" | "servicio" | "mano_obra" | "libre" | "acordado";
 
 interface Item {
   origen: Origen;
@@ -32,6 +43,8 @@ interface Item {
   repuestoId?: string;
   servicioId?: string;
   manoObraId?: string;
+  /** Solo en las líneas "acordado": el orden_item que la respalda. */
+  ordenItemId?: string;
 }
 
 interface ResultadoCatalogo {
@@ -49,6 +62,7 @@ const ETIQUETA_ORIGEN: Record<Origen, string> = {
   servicio: "Servicio",
   mano_obra: "Mano de obra",
   libre: "Otro",
+  acordado: "Acordado",
 };
 
 function BuscadorCatalogo({
@@ -136,8 +150,49 @@ export default function PaginaCotizacion() {
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<{ total: number; urlSeguimiento: string } | null>(null);
   const [copiado, setCopiado] = useState(false);
+  const [quitando, setQuitando] = useState<string | null>(null);
+  const [estado, setEstado] = useState<Estado | null>(null);
+  // Se avisa antes de armar la cotización, no al enviarla. Desde
+  // Recibida (o tras un rechazo) se envía igual: la orden pasa sola por
+  // diagnóstico (lib/diagnostico-auto.ts).
+  const sePuedeEnviar =
+    estado === null ||
+    estado === "recibida" ||
+    estado === "rechazada" ||
+    puedeTransicionar(estado, "esperando_aprobacion");
 
   const total = items.reduce((s, i) => s + i.cantidad * i.precioUnit, 0);
+  const hayAcordado = items.some((i) => i.origen === "acordado");
+
+  useEffect(() => {
+    clienteNavegador()
+      .from("orden")
+      .select("estado")
+      .eq("id", id)
+      .maybeSingle()
+      .then(({ data }) => setEstado((data?.estado as Estado) ?? null));
+  }, [id]);
+
+  // Lo que la orden ya tiene (orden_item) entra fijo, antes que lo nuevo.
+  useEffect(() => {
+    clienteNavegador()
+      .from("orden_item")
+      .select("id, descripcion, cantidad, precio_unit")
+      .eq("orden_id", id)
+      // Un costo agregado que el cliente rechazó (0040) no es acordado.
+      .or("decision.is.null,decision.neq.rechazada")
+      .order("creado_en", { ascending: true })
+      .then(({ data }) => {
+        const acordados: Item[] = (data ?? []).map((it) => ({
+          origen: "acordado",
+          ordenItemId: it.id,
+          descripcion: it.descripcion,
+          cantidad: it.cantidad,
+          precioUnit: Number(it.precio_unit),
+        }));
+        if (acordados.length) setItems((prev) => [...acordados, ...prev.filter((p) => p.origen !== "acordado")]);
+      });
+  }, [id]);
 
   function agregar(item: Item) {
     setItems((prev) => [...prev, item]);
@@ -149,6 +204,21 @@ export default function PaginaCotizacion() {
 
   function quitar(i: number) {
     setItems((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  // Lo acordado ya está guardado en la orden: quitarlo es borrarlo allí.
+  async function quitarAcordado(ordenItemId: string) {
+    setQuitando(ordenItemId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/ordenes/${id}/items?item=${encodeURIComponent(ordenItemId)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setItems((prev) => prev.filter((it) => it.ordenItemId !== ordenItemId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo quitar la línea");
+    } finally {
+      setQuitando(null);
+    }
   }
 
   async function enviar() {
@@ -240,6 +310,7 @@ export default function PaginaCotizacion() {
             >
               {copiado ? "¡Copiado!" : "Copiar enlace"}
             </Boton>
+            <BotonWhatsappOrden ordenId={id} tamano="md" variante="contorno" />
             <Boton
               variante="contorno"
               icono={<ArrowLeft size={17} strokeWidth={2} />}
@@ -264,6 +335,11 @@ export default function PaginaCotizacion() {
       />
 
       <div className="pila">
+        {!sePuedeEnviar && estado && (
+          <Aviso tono="aviso">
+            La orden está en &quot;{ETIQUETA_ESTADO[estado]}&quot;: la cotización ya se envió, desde aquí no se envía otra.
+          </Aviso>
+        )}
         <Tarjeta>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
             <BuscadorCatalogo
@@ -324,51 +400,93 @@ export default function PaginaCotizacion() {
               <Search size={15} strokeWidth={2} /> Busca arriba o agrega una línea libre.
             </p>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {items.map((it, i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "70px minmax(0,1fr) 64px 100px 44px", gap: 8, alignItems: "center" }}>
-                  <span className="cifra" style={{ fontSize: 11, color: "var(--ink-3)" }}>
-                    {ETIQUETA_ORIGEN[it.origen]}
-                  </span>
-                  {it.origen === "libre" ? (
-                    <input
-                      placeholder="Descripción"
-                      value={it.descripcion}
-                      onChange={(e) => actualizar(i, { descripcion: e.target.value })}
-                      aria-label={`Descripción de la línea ${i + 1}`}
-                    />
-                  ) : (
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>{it.descripcion}</span>
-                  )}
-                  <input
-                    type="number"
-                    min={1}
-                    value={it.cantidad}
-                    onChange={(e) => actualizar(i, { cantidad: Number(e.target.value) || 1 })}
-                    aria-label={`Cantidad de la línea ${i + 1}`}
-                    className="cifra"
-                    style={{ textAlign: "center" }}
-                  />
-                  <input
-                    type="number"
-                    min={0}
-                    value={it.precioUnit || ""}
-                    onChange={(e) => actualizar(i, { precioUnit: Number(e.target.value) || 0 })}
-                    aria-label={`Precio de la línea ${i + 1}`}
-                    className="cifra"
-                    style={{ textAlign: "right" }}
-                  />
-                  <Boton
-                    variante="peligro"
-                    icono={<X size={16} strokeWidth={2.4} />}
-                    onClick={() => quitar(i)}
-                    aria-label={`Quitar la línea ${i + 1}`}
-                  />
-                </div>
-              ))}
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {items.map((it, i) => {
+                const acordado = it.origen === "acordado";
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      padding: "12px 0",
+                      borderTop: i === 0 ? "none" : "1px solid var(--rule)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 8,
+                    }}
+                  >
+                    {/* Arriba qué es; abajo cuánto. La X siempre a la derecha, dentro de la tarjeta. */}
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="campo-etiqueta" style={{ marginBottom: 2 }}>
+                          {ETIQUETA_ORIGEN[it.origen]}
+                        </div>
+                        {it.origen === "libre" ? (
+                          <input
+                            placeholder="Descripción"
+                            value={it.descripcion}
+                            onChange={(e) => actualizar(i, { descripcion: e.target.value })}
+                            aria-label={`Descripción de la línea ${i + 1}`}
+                          />
+                        ) : (
+                          <div style={{ fontSize: 15, fontWeight: 700, overflowWrap: "anywhere" }}>{it.descripcion}</div>
+                        )}
+                      </div>
+                      <Boton
+                        variante="peligro"
+                        tamano="sm"
+                        icono={<X size={16} strokeWidth={2.4} />}
+                        onClick={() => (acordado ? it.ordenItemId && quitarAcordado(it.ordenItemId) : quitar(i))}
+                        disabled={acordado && quitando !== null}
+                        aria-label={acordado ? `Quitar ${it.descripcion} de la orden` : `Quitar la línea ${i + 1}`}
+                      />
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+                      {acordado ? (
+                        <span className="cifra" style={{ color: "var(--ink-2)" }}>
+                          {it.cantidad} × {fmt(it.precioUnit)}
+                        </span>
+                      ) : (
+                        <>
+                          <input
+                            type="number"
+                            min={1}
+                            value={it.cantidad}
+                            onChange={(e) => actualizar(i, { cantidad: Number(e.target.value) || 1 })}
+                            aria-label={`Cantidad de la línea ${i + 1}`}
+                            className="cifra"
+                            style={{ width: 64, flex: "none", textAlign: "center" }}
+                          />
+                          <span style={{ color: "var(--ink-3)" }}>×</span>
+                          <input
+                            type="number"
+                            min={0}
+                            placeholder="Precio"
+                            value={it.precioUnit || ""}
+                            onChange={(e) => actualizar(i, { precioUnit: Number(e.target.value) || 0 })}
+                            aria-label={`Precio de la línea ${i + 1}`}
+                            className="cifra"
+                            style={{ flex: "1 1 0", minWidth: 0, maxWidth: 160, textAlign: "right" }}
+                          />
+                        </>
+                      )}
+                      <span className="cifra" style={{ marginLeft: "auto", fontWeight: 800, whiteSpace: "nowrap" }}>
+                        {fmt(it.cantidad * it.precioUnit)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Tarjeta>
+
+        {hayAcordado && (
+          <Aviso tono="info">
+            Las líneas &quot;Acordado&quot; ya estaban en la orden (el valor que se pactó al recibir, o lo ya registrado).
+            Quedan incluidas en el total y no se cobran dos veces. Si alguna está por error, la X la quita de la orden
+            (un repuesto vuelve al inventario).
+          </Aviso>
+        )}
 
         <Tarjeta>
           <div style={{ textAlign: "right" }}>
@@ -385,7 +503,7 @@ export default function PaginaCotizacion() {
           ancho
           icono={<Send size={19} strokeWidth={2} />}
           onClick={enviar}
-          disabled={enviando}
+          disabled={enviando || !sePuedeEnviar}
         >
           {enviando ? "Enviando…" : "Enviar cotización"}
         </Boton>

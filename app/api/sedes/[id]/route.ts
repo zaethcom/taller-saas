@@ -15,22 +15,7 @@ import { NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
-
-/** Tablas que atan una sede a su historial, con cómo se nombran al usuario. */
-const USOS: { tabla: string; columna: string; nombre: string }[] = [
-  { tabla: "orden", columna: "sede_id", nombre: "órdenes" },
-  { tabla: "venta", columna: "sede_id", nombre: "ventas" },
-  { tabla: "turno_caja", columna: "sede_id", nombre: "turnos de caja" },
-  { tabla: "existencia", columna: "sede_id", nombre: "inventario" },
-  { tabla: "movimiento_inventario", columna: "sede_id", nombre: "movimientos de inventario" },
-  { tabla: "articulo", columna: "sede_id", nombre: "artículos" },
-  { tabla: "traslado", columna: "sede_origen_id", nombre: "traslados" },
-  { tabla: "traslado", columna: "sede_destino_id", nombre: "traslados" },
-  { tabla: "perfil", columna: "sede_id", nombre: "usuarios con esta sede como principal" },
-  { tabla: "trabajo_impresion", columna: "sede_id", nombre: "trabajos de impresión" },
-  { tabla: "estacion_credencial", columna: "sede_id", nombre: "estaciones de impresión" },
-  { tabla: "apertura_cajon", columna: "sede_id", nombre: "aperturas del cajón" },
-];
+import { mensajeSedeConHistorial } from "@/lib/sede-historial";
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -59,15 +44,8 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
 
   if (error) {
     if (error.code === "23503") {
-      const conteos = await Promise.all(
-        USOS.map(({ tabla, columna }) =>
-          supabase.from(tabla).select("*", { count: "exact", head: true }).eq(columna, id),
-        ),
-      );
-      const enUso = [...new Set(USOS.filter((_, i) => (conteos[i]?.count ?? 0) > 0).map((u) => u.nombre))];
-      const detalle = enUso.length > 0 ? `: tiene ${enUso.join(", ")}` : "";
       return NextResponse.json(
-        { error: `No se puede eliminar porque ya tiene historial${detalle}.` },
+        { error: await mensajeSedeConHistorial(supabase, id) },
         { status: 409 },
       );
     }

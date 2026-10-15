@@ -16,6 +16,30 @@ export interface CargaComprobanteRecepcion extends CargaMarcaEmpresa {
   // interpreta el GS ( k de escpos.ts::qr() y lo imprime como texto
   // literal.
   qrRaster?: LogoRaster;
+  /** Valor del servicio acordado al recibir; con abono, también el saldo. */
+  valorServicio?: number | null;
+  abono?: { monto: number; medio: string } | null;
+  saldo?: number | null;
+}
+
+const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
+
+/** Valor, abono y saldo, si se acordó un valor al recibir. */
+function cuentaRecepcion(c: CargaComprobanteRecepcion): Buffer[] {
+  if (!c.valorServicio || c.valorServicio <= 0) return [];
+  const abono = c.abono?.monto ?? 0;
+  const saldo = c.saldo ?? Math.max(0, c.valorServicio - abono);
+  return [
+    negrita(true),
+    texto(`VALOR DEL SERVICIO: ${fmt(c.valorServicio)}`),
+    negrita(false),
+    salto(),
+    ...(abono > 0 ? [texto(`Abono: ${fmt(abono)} (${c.abono!.medio})`), salto()] : []),
+    negrita(true),
+    texto(`SALDO: ${fmt(saldo)}`),
+    negrita(false),
+    salto(2),
+  ];
 }
 
 /**
@@ -65,6 +89,7 @@ export function comprobanteRecepcion(c: CargaComprobanteRecepcion): Buffer {
     salto(),
     texto(`Motivo: ${c.motivo}`),
     salto(2),
+    ...cuentaRecepcion(c),
 
     alinear("centro"),
     ...(c.qrRaster

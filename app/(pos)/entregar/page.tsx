@@ -14,17 +14,18 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PackageCheck, Search, Check, Camera, PenLine, Eraser, Lock, Printer, QrCode } from "lucide-react";
+import { PackageCheck, Search, Check, Camera, PenLine, Eraser, Lock, Printer, Hash } from "lucide-react";
 import { FirmaCanvas, type FirmaCanvasHandle } from "@/componentes/evidencia/firma-canvas";
-import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
+import { VisorEscaner, SeparadorEscribelo } from "@/componentes/lector-codigos/visor-escaner";
 import { PanelCobro } from "@/componentes/cobro/panel-cobro";
 import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-turno";
 import { subirEvidencia } from "@/lib/subir-evidencia";
+import { extraerTokenDeSeguimiento } from "@/lib/token-seguimiento";
 import { ETIQUETA_ESTADO, puedeTransicionar, type Estado } from "@/lib/estados";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
-import { Aviso } from "@/componentes/ui/campo";
+import { Aviso, Campo } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
 interface ItemOrden {
@@ -39,22 +40,12 @@ interface OrdenEncontrada {
   numero: number;
   estado: string;
   saldoPendiente: number;
+  /** Valor de la orden y lo ya pagado en abonos o cobros (lib/cuenta-orden.ts). */
+  valor: number;
+  pagado: number;
+  pagos: { numero: number; tipo: string; monto: number; medio: string | null; fecha: string }[];
   items: ItemOrden[];
   producto: { marca: string | null; modelo: string | null; tipo: string; serial: string };
-}
-
-/** El QR de la etiqueta trae la URL completa de seguimiento (ver
- *  app/api/ordenes/route.ts) -- se extrae el token igual que en
- *  /escanear, no el número de orden en sí. */
-function extraerTokenDeSeguimiento(valor: string): string | null {
-  try {
-    const url = new URL(valor);
-    const partes = url.pathname.split("/").filter(Boolean);
-    const i = partes.indexOf("seguimiento");
-    return i >= 0 ? (partes[i + 1] ?? null) : null;
-  } catch {
-    return null;
-  }
 }
 
 interface Metodo {
@@ -77,6 +68,10 @@ export default function PaginaEntregar() {
   const [numero, setNumero] = useState("");
   const [orden, setOrden] = useState<OrdenEncontrada | null>(null);
   const [escaneando, setEscaneando] = useState(false);
+  const [buscando, setBuscando] = useState(false);
+  // La cámara se apaga al leer un código: si la búsqueda falla, se
+  // vuelve a montar el visor para leer otro.
+  const [intentoCamara, setIntentoCamara] = useState(0);
   const [foto, setFoto] = useState<File | null>(null);
   const [metodos, setMetodos] = useState<Metodo[]>([]);
   const [metodoPagoId, setMetodoPagoId] = useState("");
@@ -109,6 +104,7 @@ export default function PaginaEntregar() {
     const parametro = query?.token
       ? `token=${encodeURIComponent(query.token)}`
       : `numero=${encodeURIComponent((query?.numero ?? numero).trim())}`;
+    setBuscando(true);
     try {
       const [resOrden, resPerfil] = await Promise.all([
         fetch(`/api/ordenes/buscar?${parametro}`),
@@ -122,11 +118,26 @@ export default function PaginaEntregar() {
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo buscar la orden");
+      setIntentoCamara((n) => n + 1);
+    } finally {
+      setBuscando(false);
     }
   }
 
+  // Desde la ficha de la orden ("Entregar") llega con ?numero=N; si no,
+  // la cámara abre de una para escanear el QR de la etiqueta.
+  useEffect(() => {
+    const n = new URLSearchParams(window.location.search).get("numero");
+    if (n) {
+      setNumero(n);
+      buscar({ numero: n });
+    } else {
+      setEscaneando(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function procesarQr(valor: string) {
-    setEscaneando(false);
     const token = extraerTokenDeSeguimiento(valor);
     if (token) {
       buscar({ token });
@@ -166,6 +177,20 @@ export default function PaginaEntregar() {
       // para estos items porque manda ordenId -- ya se descontó al
       // consumirlos durante la reparación.
       if (cobraAhora) {
+        // Se cobra ítem por ítem solo si los ítems suman justo el saldo.
+        // Con abonos antes (o una cotización mayor que lo registrado), se
+        // cobra una sola línea por el saldo: /api/ventas no deja cobrar
+        // más de lo que falta.
+        const totalItems = orden.items.reduce((s, it) => s + it.cantidad * it.precioUnit, 0);
+        const itemsCobro =
+          totalItems === orden.saldoPendiente
+            ? orden.items.map((it) => ({
+                descripcion: it.descripcion,
+                cantidad: it.cantidad,
+                precioUnit: it.precioUnit,
+                repuestoId: it.repuestoId ?? undefined,
+              }))
+            : [{ descripcion: `Saldo orden #${orden.numero}`, cantidad: 1, precioUnit: orden.saldoPendiente }];
         const resVenta = await fetch("/api/ventas", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -174,12 +199,7 @@ export default function PaginaEntregar() {
             metodoPagoId,
             montoRecibido: metodo?.es_efectivo ? montoRecibido : undefined,
             imprimir,
-            items: orden.items.map((it) => ({
-              descripcion: it.descripcion,
-              cantidad: it.cantidad,
-              precioUnit: it.precioUnit,
-              repuestoId: it.repuestoId ?? undefined,
-            })),
+            items: itemsCobro,
           }),
         });
         if (!resVenta.ok) throw new Error((await resVenta.json()).error);
@@ -272,53 +292,73 @@ export default function PaginaEntregar() {
       />
 
       {!orden ? (
-        <Tarjeta>
-          <form
-            className="fila"
-            style={{ gap: 8, flexWrap: "wrap" }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              buscar();
-            }}
-          >
-            <input
-              placeholder="Número o código de orden"
-              value={numero}
-              onChange={(e) => setNumero(e.target.value)}
-              aria-label="Número o código de orden"
-              className="cifra"
-              style={{ flex: "1 1 160px", minWidth: 0 }}
-            />
-            <Boton type="submit" variante="primario" icono={<Search size={17} strokeWidth={2} />} disabled={!numero.trim()}>
-              Buscar
-            </Boton>
-            <Boton
-              type="button"
-              variante="contorno"
-              icono={<QrCode size={17} strokeWidth={2} />}
-              onClick={() => setEscaneando(true)}
-            >
-              Escanear QR
-            </Boton>
-          </form>
-
+        <div className="pila">
           {escaneando && (
-            <div style={{ marginTop: 14 }}>
-              <LectorCodigoBarras
+            <>
+              <VisorEscaner
+                key={intentoCamara}
                 formats={["qr_code"]}
-                etiqueta="Ubica el QR de la etiqueta"
                 onDetectado={procesarQr}
-                onCerrar={() => setEscaneando(false)}
+                buscando={buscando}
+                textoSinCamara="Este navegador no lee QR con la cámara. Escribe el número de la orden abajo."
               />
-            </div>
+              <SeparadorEscribelo />
+            </>
           )}
 
-          {error && (
-            <div style={{ marginTop: 14 }}>
-              <Aviso tono="peligro">{error}</Aviso>
-            </div>
-          )}
-        </Tarjeta>
+          <Tarjeta>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (numero.trim()) buscar();
+              }}
+            >
+              <Campo etiqueta="Número o código de la orden">
+                <div className="fila" style={{ gap: 0, flexWrap: "nowrap" }}>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 46,
+                      height: 44,
+                      borderRadius: "var(--r-md) 0 0 var(--r-md)",
+                      border: "1px solid var(--rule-fuerte)",
+                      borderRight: "none",
+                      background: "var(--surface-2)",
+                      color: "var(--ink-2)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Hash size={20} strokeWidth={1.8} aria-hidden />
+                  </span>
+                  <input
+                    value={numero}
+                    onChange={(e) => setNumero(e.target.value)}
+                    placeholder="Ej. 13"
+                    aria-label="Número de orden"
+                    className="cifra"
+                    style={{ borderRadius: "0 var(--r-md) var(--r-md) 0" }}
+                  />
+                </div>
+              </Campo>
+              <div style={{ marginTop: 14 }}>
+                <Boton
+                  type="submit"
+                  variante="primario"
+                  tamano="lg"
+                  ancho
+                  icono={<Search size={19} strokeWidth={2} />}
+                  disabled={buscando || !numero.trim()}
+                >
+                  {buscando ? "Buscando…" : "Buscar orden"}
+                </Boton>
+              </div>
+            </form>
+          </Tarjeta>
+
+          {error && <Aviso tono="peligro">{error}</Aviso>}
+        </div>
       ) : (
         <div className="pila">
           <Tarjeta>
@@ -354,6 +394,29 @@ export default function PaginaEntregar() {
                     <span className="cifra">{fmt(it.cantidad * it.precioUnit)}</span>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {orden.pagos.length > 0 && (
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--rule)" }}>
+                <div className="campo-etiqueta">Cuenta del equipo</div>
+                <div className="fila" style={{ justifyContent: "space-between", fontSize: 13, padding: "4px 0" }}>
+                  <span>Valor de la orden</span>
+                  <span className="cifra">{fmt(orden.valor)}</span>
+                </div>
+                {orden.pagos.map((p) => (
+                  <div key={p.numero} className="fila" style={{ justifyContent: "space-between", fontSize: 13, padding: "4px 0", color: "var(--ink-2)" }}>
+                    <span>
+                      {p.tipo === "anticipo" ? "Abono" : "Pago"} · {new Date(p.fecha).toLocaleDateString("es-CO")}
+                      {p.medio ? ` · ${p.medio}` : ""}
+                    </span>
+                    <span className="cifra">−{fmt(p.monto)}</span>
+                  </div>
+                ))}
+                <div className="fila" style={{ justifyContent: "space-between", fontSize: 14, fontWeight: 800, padding: "4px 0" }}>
+                  <span>Saldo</span>
+                  <span className="cifra">{fmt(orden.saldoPendiente)}</span>
+                </div>
               </div>
             )}
 

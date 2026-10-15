@@ -23,6 +23,7 @@ import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { CabeceraOrden } from "@/componentes/taller/cabecera-orden";
+import { ETIQUETA_FASE_EVIDENCIA, etiquetaFaseEvidencia, LIMITE_EVIDENCIA_BYTES } from "@/lib/evidencia";
 
 type Fase = "entrada" | "salida" | "";
 
@@ -34,7 +35,6 @@ interface Evidencia {
   tomada_en: string;
 }
 
-const LIMITE_BYTES = 50 * 1024 * 1024;
 
 /** Cada tipo con su ícono, para leer la lista de un vistazo. */
 function IconoTipo({ tipo }: { tipo: Evidencia["tipo"] }) {
@@ -81,7 +81,7 @@ export default function PaginaEvidencia() {
     setError(null);
     setMensaje(null);
 
-    if (archivo.size > LIMITE_BYTES) {
+    if (archivo.size > LIMITE_EVIDENCIA_BYTES) {
       setError(
         `El archivo pesa ${(archivo.size / 1024 / 1024).toFixed(1)}MB. El límite es 50MB -- ` +
           `graba un video más corto o toma la foto de nuevo.`,
@@ -130,8 +130,8 @@ export default function PaginaEvidencia() {
             <Campo etiqueta="Fase">
               <select value={fase} onChange={(e) => setFase(e.target.value as Fase)}>
                 <option value="">General (no mueve el estado)</option>
-                <option value="entrada">Entrada</option>
-                <option value="salida">Salida</option>
+                <option value="entrada">{ETIQUETA_FASE_EVIDENCIA.entrada} (cómo llegó)</option>
+                <option value="salida">{ETIQUETA_FASE_EVIDENCIA.salida} (cómo se va)</option>
               </select>
             </Campo>
             <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 12 }}>
@@ -226,7 +226,7 @@ export default function PaginaEvidencia() {
                   <span style={{ display: "flex", color: "var(--ink-2)" }}>
                     <IconoTipo tipo={ev.tipo} />
                   </span>
-                  {ev.fase && <Etiqueta tono="info">{ev.fase}</Etiqueta>}
+                  {etiquetaFaseEvidencia(ev.fase) && <Etiqueta tono="info">{etiquetaFaseEvidencia(ev.fase)}</Etiqueta>}
                   {ev.visible_cliente && <Etiqueta tono="ok">Visible al cliente</Etiqueta>}
                   <span className="cifra" style={{ marginLeft: "auto", fontSize: 12, color: "var(--ink-3)" }}>
                     {new Date(ev.tomada_en).toLocaleString("es-CO")}

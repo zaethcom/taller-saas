@@ -182,7 +182,7 @@ export default function PaginaServicios() {
                   <th>Código</th>
                   <th>Precio</th>
                   <th>Tiempo est.</th>
-                  <th>Estado</th>
+                  <th className="ocultar-movil">Estado</th>
                   <th></th>
                 </tr>
               </thead>
@@ -225,7 +225,7 @@ export default function PaginaServicios() {
                           style={{ maxWidth: 90 }}
                         />
                       </td>
-                      <td>
+                      <td className="ocultar-movil">
                         <Etiqueta tono={s.activo ? "ok" : "neutro"} punto>
                           {s.activo ? "Activo" : "Inactivo"}
                         </Etiqueta>
@@ -277,7 +277,7 @@ export default function PaginaServicios() {
                       <td className="cifra" style={{ color: "var(--ink-2)" }}>
                         {s.tiempo_estimado_minutos ? `${s.tiempo_estimado_minutos} min` : "—"}
                       </td>
-                      <td>
+                      <td className="ocultar-movil">
                         <Etiqueta tono={s.activo ? "ok" : "neutro"} punto>
                           {s.activo ? "Activo" : "Inactivo"}
                         </Etiqueta>

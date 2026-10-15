@@ -4,7 +4,7 @@
  * plano (o peor, con su propio color inventado); el nombre ya vivía en
  * ETIQUETA_ESTADO de lib/estados.ts y ahora el color vive junto a él.
  *
- * El mapa cubre los siete estados por nombre, sin `default`: si alguien
+ * El mapa cubre todos los estados por nombre, sin `default`: si alguien
  * agrega un estado a lib/estados.ts, TypeScript rompe aquí y obliga a
  * decidir de qué color es -- que es exactamente lo que queremos.
  */
@@ -17,6 +17,7 @@ const TONO: Record<Estado, TonoEtiqueta> = {
   esperando_aprobacion: "espera",
   en_reparacion: "info",
   esperando_repuesto: "espera",
+  listo_entrega: "ok",
   rechazada: "neutro",
   entregada: "fuerte",
 };

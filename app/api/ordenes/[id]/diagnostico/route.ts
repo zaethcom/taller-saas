@@ -4,15 +4,16 @@
  *
  * PATCH /api/ordenes/<id>/diagnostico
  * Body: { hallazgos?, fallas?, observaciones?, recomendaciones? }
- * Upsert -- un diagnóstico por orden (orden_id es unique). Editable
- * solo mientras la orden esté en 'en_diagnostico': una vez que se envía
- * la cotización y la orden avanza, el diagnóstico queda fijo como parte
- * del historial del equipo.
+ * Upsert -- un diagnóstico por orden (orden_id es unique). Si la orden
+ * sigue en Recibida, guardar el diagnóstico la pasa sola a diagnóstico
+ * (lib/diagnostico-auto.ts). Una vez que se envía la cotización y la
+ * orden avanza, el diagnóstico queda fijo como parte del historial.
  */
 import { NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
+import { asegurarDiagnostico } from "@/lib/diagnostico-auto";
 
 interface CuerpoDiagnostico {
   hallazgos?: string;
@@ -52,11 +53,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "no autorizado" }, { status: 403 });
   }
 
-  const { data: orden } = await supabase.from("orden").select("estado").eq("id", id).maybeSingle();
-  if (!orden) {
-    return NextResponse.json({ error: "orden no encontrada" }, { status: 404 });
+  const enDiagnostico = await asegurarDiagnostico(supabase, id, perfil.id);
+  if ("error" in enDiagnostico) {
+    return NextResponse.json({ error: enDiagnostico.error }, { status: 409 });
   }
-  if (orden.estado !== "en_diagnostico") {
+  if (enDiagnostico.estado !== "en_diagnostico") {
     return NextResponse.json(
       { error: "el diagnóstico solo se puede editar mientras la orden está en diagnóstico" },
       { status: 409 },

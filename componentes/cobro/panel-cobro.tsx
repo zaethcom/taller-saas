@@ -29,6 +29,7 @@ export function PanelCobro({
   onCambiarMontoRecibido,
   imprimir,
   onCambiarImprimir,
+  ocultarImprimir = false,
 }: {
   total: number;
   metodos: Metodo[];
@@ -38,6 +39,8 @@ export function PanelCobro({
   onCambiarMontoRecibido: (monto: number) => void;
   imprimir: boolean;
   onCambiarImprimir: (imprimir: boolean) => void;
+  /** Sin el checkbox de recibo -- p. ej. el abono al recibir, que sale en el comprobante. */
+  ocultarImprimir?: boolean;
 }) {
   const metodo = metodos.find((m) => m.id === metodoPagoId);
   const cambio = montoRecibido - total;
@@ -47,7 +50,7 @@ export function PanelCobro({
       {metodos.length > 0 && (
         <div>
           <div className="campo-etiqueta">Forma de pago</div>
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(metodos.length, 3)}, minmax(0, 1fr))`, gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8 }}>
             {metodos.map((m) => (
               <Boton
                 key={m.id}
@@ -107,10 +110,12 @@ export function PanelCobro({
         </div>
       )}
 
-      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
-        <input type="checkbox" checked={imprimir} onChange={(e) => onCambiarImprimir(e.target.checked)} />
-        Imprimir recibo
-      </label>
+      {!ocultarImprimir && (
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+          <input type="checkbox" checked={imprimir} onChange={(e) => onCambiarImprimir(e.target.checked)} />
+          Imprimir recibo
+        </label>
+      )}
     </div>
   );
 }

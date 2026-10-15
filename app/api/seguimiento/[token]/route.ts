@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
 import { etiquetaEvento } from "@/lib/fases";
+import { obtenerCuentaOrden } from "@/lib/cuenta-orden";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
@@ -61,9 +62,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       .maybeSingle(),
     admin
       .from("evidencia")
-      .select("ruta, tipo, tomada_en")
+      .select("ruta, tipo, fase, tomada_en")
       .eq("orden_id", orden.id)
-      .eq("visible_cliente", true),
+      .eq("visible_cliente", true)
+      .order("tomada_en", { ascending: true }),
     // Ítems agregados DESPUÉS de aprobada la cotización original --
     // Fase F2 del Plan 3 -- que el cliente también tiene que decidir.
     admin
@@ -89,11 +91,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       .order("creado_en", { ascending: true }),
   ]);
 
-  const { data: config } = await admin
-    .from("empresa_config")
-    .select("logo_url, color_principal")
-    .eq("empresa_id", orden.empresa_id)
-    .maybeSingle();
+  const [{ data: config }, cuenta] = await Promise.all([
+    admin
+      .from("empresa_config")
+      .select("logo_url, color_principal")
+      .eq("empresa_id", orden.empresa_id)
+      .maybeSingle(),
+    // Valor, abonos y saldo: la misma cuenta que usan /abonos y
+    // /entregar (lib/cuenta-orden.ts), para que el cliente vea el mismo
+    // saldo que le van a cobrar.
+    obtenerCuentaOrden(admin, orden.id),
+  ]);
 
   // Se firman aquí, con service role, porque el visitante público no
   // tiene sesión -- la única autorización que tiene es haber llegado
@@ -103,7 +111,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       const { data: firmada } = await admin.storage
         .from("evidencia")
         .createSignedUrl(ev.ruta, 5 * 60);
-      return { tipo: ev.tipo, tomadaEn: ev.tomada_en, url: firmada?.signedUrl ?? null };
+      return { tipo: ev.tipo, fase: ev.fase, tomadaEn: ev.tomada_en, url: firmada?.signedUrl ?? null };
     }),
   );
 
@@ -128,6 +136,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       fecha: e.ocurrio_en,
     })),
     cotizacion,
+    // Lista blanca también aquí: ni el número de venta ni el medio de
+    // pago le dicen nada al cliente.
+    cuenta: cuenta
+      ? {
+          valor: cuenta.valor,
+          pagado: cuenta.pagado,
+          saldo: cuenta.saldo,
+          pagos: cuenta.pagos.map((p) => ({ tipo: p.tipo, monto: p.monto, fecha: p.fecha })),
+        }
+      : null,
     evidencias: evidenciasFirmadas,
     itemsPendientes: (itemsPendientes ?? []).map((it) => ({
       id: it.id,

@@ -132,7 +132,7 @@ export default function PaginaManoObra() {
                 <tr>
                   <th>Nombre</th>
                   <th>Precio</th>
-                  <th>Estado</th>
+                  <th className="ocultar-movil">Estado</th>
                   <th></th>
                 </tr>
               </thead>
@@ -152,7 +152,7 @@ export default function PaginaManoObra() {
                           style={{ maxWidth: 120 }}
                         />
                       </td>
-                      <td>
+                      <td className="ocultar-movil">
                         <Etiqueta tono={m.activo ? "ok" : "neutro"} punto>
                           {m.activo ? "Activo" : "Inactivo"}
                         </Etiqueta>
@@ -179,7 +179,7 @@ export default function PaginaManoObra() {
                     <tr key={m.id}>
                       <td style={{ fontWeight: 600 }}>{m.nombre}</td>
                       <td className="cifra">{fmt(m.precio)}</td>
-                      <td>
+                      <td className="ocultar-movil">
                         <Etiqueta tono={m.activo ? "ok" : "neutro"} punto>
                           {m.activo ? "Activo" : "Inactivo"}
                         </Etiqueta>
@@ -212,7 +212,7 @@ export default function PaginaManoObra() {
               crear();
             }}
           >
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto auto", gap: 12, alignItems: "end" }}>
+            <div className="fila-form">
               <Campo etiqueta="Nombre">
                 <input
                   placeholder="Ej. Mano de obra reparación de frenos"
