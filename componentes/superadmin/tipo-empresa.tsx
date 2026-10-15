@@ -11,6 +11,7 @@ import { Layers } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface TipoResumen {
   id: string;
@@ -112,11 +113,7 @@ export function TipoEmpresaFicha({
           <Aviso tono="ok">{mensaje}</Aviso>
         </div>
       )}
-      {error && (
-        <div style={{ marginTop: 12 }}>
-          <Aviso tono="peligro">{error}</Aviso>
-        </div>
-      )}
+      <VentanaError mensaje={error} onCerrar={() => setError(null)} />
     </Tarjeta>
   );
 }

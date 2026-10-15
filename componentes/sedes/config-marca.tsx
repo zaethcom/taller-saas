@@ -13,6 +13,7 @@ import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { subirLogoSede } from "@/lib/subir-logo";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface MarcaSede {
   logoUrl: string | null;
@@ -206,11 +207,7 @@ export function ConfigMarca({ sedeId, empresaId }: { sedeId: string; empresaId: 
           <Aviso tono="ok">{mensaje}</Aviso>
         </div>
       )}
-      {error && (
-        <div style={{ marginTop: 10 }}>
-          <Aviso tono="peligro">{error}</Aviso>
-        </div>
-      )}
+      <VentanaError mensaje={error} onCerrar={() => setError(null)} />
     </Tarjeta>
   );
 }

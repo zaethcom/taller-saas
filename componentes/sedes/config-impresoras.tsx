@@ -22,6 +22,7 @@ import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { ImpresorasUsbEsteEquipo } from "@/componentes/estacion/impresoras-usb";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 type Protocolo = "crudo" | "puente_android";
 type Lenguaje = "pplb" | "zpl";
@@ -352,11 +353,7 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
           <Aviso tono="ok">{mensaje}</Aviso>
         </div>
       )}
-      {error && (
-        <div style={{ marginTop: 10 }}>
-          <Aviso tono="peligro">{error}</Aviso>
-        </div>
-      )}
+      <VentanaError mensaje={error} onCerrar={() => setError(null)} />
     </Tarjeta>
   );
 }

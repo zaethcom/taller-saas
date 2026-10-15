@@ -16,8 +16,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, X } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
-import { Campo, Aviso } from "@/componentes/ui/campo";
+import { Campo } from "@/componentes/ui/campo";
 import { CONDICIONES_ARTICULO } from "@/lib/edicion-producto";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 export interface RepuestoEditable {
   id: string;
@@ -368,11 +369,7 @@ export function EditarProducto(props: Props) {
             </>
           )}
 
-          {error && (
-            <Aviso tono="peligro">
-              <span style={{ fontSize: 13 }}>{error}</span>
-            </Aviso>
-          )}
+          <VentanaError mensaje={error} onCerrar={() => setError(null)} />
           <div className="fila" style={{ justifyContent: "flex-end", gap: 8 }}>
             <Boton type="button" variante="fantasma" onClick={() => setAbierto(false)} disabled={enviando}>
               Cancelar

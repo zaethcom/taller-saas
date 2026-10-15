@@ -27,7 +27,8 @@ import { useRouter } from "next/navigation";
 import { LogIn, Check } from "lucide-react";
 import { clienteNavegador } from "@/lib/supabase/cliente";
 import { Boton } from "@/componentes/ui/boton";
-import { Campo, Aviso } from "@/componentes/ui/campo";
+import { Campo } from "@/componentes/ui/campo";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface MarcaEmpresa {
   nombre: string;
@@ -244,7 +245,7 @@ export default function PaginaLogin() {
             >
               {enviando ? "Entrando…" : "Entrar"}
             </Boton>
-            {error && <Aviso tono="peligro">{error}</Aviso>}
+            <VentanaError mensaje={error} onCerrar={() => setError(null)} />
           </form>
 
           <p style={{ margin: "18px 0 0", fontSize: 12, color: "#9297a0", textAlign: "center" }}>

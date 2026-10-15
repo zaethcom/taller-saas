@@ -15,7 +15,7 @@ import type { Estado } from "@/lib/estados";
 import { fasesActivasDe, type FaseOrden } from "@/lib/fases";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
-import { Aviso } from "@/componentes/ui/campo";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 export function SelectorFase({
   ordenId,
@@ -82,11 +82,7 @@ export function SelectorFase({
           </Boton>
         ))}
       </div>
-      {error && (
-        <div style={{ marginTop: 10 }}>
-          <Aviso tono="peligro">{error}</Aviso>
-        </div>
-      )}
+      <VentanaError mensaje={error} onCerrar={() => setError(null)} />
     </Tarjeta>
   );
 }

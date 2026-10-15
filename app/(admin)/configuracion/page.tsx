@@ -22,6 +22,7 @@ import { PlantillasEtiqueta } from "@/componentes/etiquetas/plantillas-etiqueta"
 import { ConfigFases } from "@/componentes/taller/config-fases";
 import { ImpresorasUsbEsteEquipo } from "@/componentes/estacion/impresoras-usb";
 import { DescargaPuente } from "@/componentes/estacion/descarga-puente";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface Config {
   logoUrl: string | null;
@@ -437,7 +438,7 @@ export default function PaginaConfiguracion() {
             {mensaje}
           </Aviso>
         )}
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
       </div>
     </div>
   );

@@ -21,11 +21,11 @@ import { CAMINO, enlacesVisibles, pasoActual, siguientePaso, type Accion, type D
 import { puede, type Rol } from "@/lib/permisos";
 import { Boton, BotonEnlace } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
-import { Aviso } from "@/componentes/ui/campo";
 import { EstadoOrden } from "@/componentes/ui/estado-orden";
 import { HiloMensajes, type Mensaje } from "@/componentes/mensajeria/hilo-mensajes";
 import { SelectorFase } from "@/componentes/taller/selector-fase";
 import { EnlaceOrden } from "@/componentes/taller/enlace-orden";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 /** Los cambios que piden una nota, y qué se le pregunta a quien los hace. */
 const NOTA_AL_PASAR: Partial<Record<Estado, { etiqueta: string; ayuda: string; prefijo: string }>> = {
@@ -590,7 +590,7 @@ export default function PaginaOrdenTecnico() {
         <HiloMensajes mensajes={mensajes} ladoPropio="staff" onEnviar={enviarMensaje} placeholder="Responder al cliente…" />
       </div>
 
-      {error && <Aviso tono="peligro">{error}</Aviso>}
+      <VentanaError mensaje={error} onCerrar={() => setError(null)} />
     </div>
   );
 }

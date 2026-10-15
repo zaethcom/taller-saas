@@ -26,6 +26,7 @@ import {
   textoEstadoServicio,
   tonoServicio,
 } from "@/lib/servicio-empresa";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface Sede {
   id: string;
@@ -222,7 +223,7 @@ export default function PaginaEmpresaSuperadmin({ params }: { params: Promise<{ 
             {mensaje}
           </Aviso>
         )}
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
         <Tarjeta>
           <div className="fila" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <span style={{ fontWeight: 700 }}>Servicio</span>

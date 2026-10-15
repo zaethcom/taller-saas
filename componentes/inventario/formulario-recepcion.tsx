@@ -18,6 +18,7 @@ import { PackagePlus, Search, X } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface ResultadoRepuesto {
   id: string;
@@ -385,7 +386,7 @@ export function FormularioRecepcion({ sedeIdDefault }: { sedeIdDefault: string |
           </>
         )}
 
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
         {confirmacion && <Aviso tono="ok">{confirmacion}</Aviso>}
       </form>
     </Tarjeta>

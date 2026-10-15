@@ -19,6 +19,7 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface TurnoActual {
   abierto: boolean;
@@ -205,7 +206,7 @@ export default function PaginaTurno() {
               </Boton>
             </div>
           </Tarjeta>
-          {error && <Aviso tono="peligro">{error}</Aviso>}
+          <VentanaError mensaje={error} onCerrar={() => setError(null)} />
         </div>
       </div>
     );
@@ -380,7 +381,7 @@ export default function PaginaTurno() {
           </div>
         </Tarjeta>
 
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
       </div>
     </div>
   );

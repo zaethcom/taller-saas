@@ -22,6 +22,7 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { configEstacion, estadoConexion } from "@/lib/estacion-estado";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface Estado {
   vinculada: boolean;
@@ -201,7 +202,7 @@ export function VincularEstacion({ sedeId }: { sedeId: string }) {
     return (
       <div className="pila" style={{ gap: 6, marginTop: 10 }}>
         {estado && <LineaEstado estado={estado} />}
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
         <div>
           <Boton
             variante="fantasma"
@@ -373,11 +374,7 @@ export function VincularEstacion({ sedeId }: { sedeId: string }) {
         </div>
       )}
 
-      {error && (
-        <div style={{ marginTop: 10 }}>
-          <Aviso tono="peligro">{error}</Aviso>
-        </div>
-      )}
+      <VentanaError mensaje={error} onCerrar={() => setError(null)} />
     </Tarjeta>
   );
 }

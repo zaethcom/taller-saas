@@ -27,6 +27,7 @@ import {
   type PlantillaEtiqueta,
   type UsoEtiqueta,
 } from "@/lib/etiquetas/plantilla";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 /**
  * `usar`: el borrador nace de "Editar" sobre la etiqueta de fábrica --
@@ -502,7 +503,7 @@ export function PlantillasEtiqueta({ empresaId }: { empresaId: string | null }) 
               {mensaje}
             </Aviso>
           )}
-          {error && <Aviso tono="peligro">{error}</Aviso>}
+          <VentanaError mensaje={error} onCerrar={() => setError(null)} />
         </div>
       )}
     </Tarjeta>

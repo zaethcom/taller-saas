@@ -19,6 +19,7 @@ import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { CabeceraOrden } from "@/componentes/taller/cabecera-orden";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface Solicitud {
   id: string;
@@ -391,7 +392,7 @@ export default function PaginaRepuestos() {
             {mensaje}
           </Aviso>
         )}
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
 
         {solicitudes.length > 0 && (
           <Tarjeta>

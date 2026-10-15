@@ -25,8 +25,9 @@ import { ETIQUETA_ESTADO, puedeTransicionar, type Estado } from "@/lib/estados";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
-import { Aviso, Campo } from "@/componentes/ui/campo";
+import { Campo } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface ItemOrden {
   descripcion: string;
@@ -357,7 +358,7 @@ export default function PaginaEntregar() {
             </form>
           </Tarjeta>
 
-          {error && <Aviso tono="peligro">{error}</Aviso>}
+          <VentanaError mensaje={error} onCerrar={() => setError(null)} />
         </div>
       ) : (
         <div className="pila">
@@ -495,7 +496,7 @@ export default function PaginaEntregar() {
             </span>
           </Boton>
 
-          {error && <Aviso tono="peligro">{error}</Aviso>}
+          <VentanaError mensaje={error} onCerrar={() => setError(null)} />
         </div>
       )}
     </div>

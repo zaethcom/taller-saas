@@ -28,6 +28,7 @@ import {
   type HuellaUsb,
   type RolImpresora,
 } from "@/lib/impresion-usb";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 export const NOMBRE_ROL: Record<RolImpresora, string> = { tickets: "Tickets", etiquetas: "Etiquetas" };
 const ROLES: RolImpresora[] = ["tickets", "etiquetas"];
@@ -145,7 +146,8 @@ export function useImpresorasUsb() {
     [refrescar],
   );
 
-  return { soportado, huellas, conectadas, error, detectar, intercambiar, quitar };
+  const limpiarError = useCallback(() => setError(null), []);
+  return { soportado, huellas, conectadas, error, limpiarError, detectar, intercambiar, quitar };
 }
 
 export function TarjetaImpresorasUsb({
@@ -155,7 +157,7 @@ export function TarjetaImpresorasUsb({
   usb: ReturnType<typeof useImpresorasUsb>;
   pie?: React.ReactNode;
 }) {
-  const { soportado, huellas, conectadas, error, detectar, intercambiar, quitar } = usb;
+  const { soportado, huellas, conectadas, error, limpiarError, detectar, intercambiar, quitar } = usb;
 
   return (
     <Tarjeta>
@@ -226,7 +228,7 @@ export function TarjetaImpresorasUsb({
               ¿No aparece? Ver todos los USB
             </Boton>
           </div>
-          {error && <Aviso tono="peligro">{error}</Aviso>}
+          <VentanaError mensaje={error} onCerrar={limpiarError} />
           <p style={{ margin: 0, fontSize: 12, color: "var(--ink-3)" }}>
             Conecta la impresora por USB y toca «Detectar». Chrome muestra las impresoras que encuentra; elige
             una y queda puesta como de tickets o de etiquetas según la marca. Repite con la otra. Chrome pide

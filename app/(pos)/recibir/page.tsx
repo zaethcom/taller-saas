@@ -22,6 +22,7 @@ import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 import { PanelCobro, formatearMoneda } from "@/componentes/cobro/panel-cobro";
 import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-turno";
 import { EvidenciaIngreso, subirEvidenciaIngreso, type ArchivoIngreso } from "@/componentes/recepcion/evidencia-ingreso";
@@ -68,6 +69,8 @@ const OTRA = "__otra__";
 /** El número del paso, para que las tres tarjetas se lean como una secuencia. */
 function Paso({ n, titulo, icono, children }: { n: number; titulo: string; icono: React.ReactNode; children: React.ReactNode }) {
   return (
+    // El id permite que la ventana de "lo que falta" lleve al paso pendiente.
+    <div id={`paso-${n}`} style={{ scrollMarginTop: 80 }}>
     <Tarjeta>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
         <span
@@ -95,6 +98,7 @@ function Paso({ n, titulo, icono, children }: { n: number; titulo: string; icono
       </div>
       {children}
     </Tarjeta>
+    </div>
   );
 }
 
@@ -171,6 +175,9 @@ export default function PaginaRecibir() {
     faltantesFallidos: boolean;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Lo que falta para guardar, en la ventana emergente; `paso` es a dónde
+  // se lleva la pantalla al cerrarla.
+  const [faltantesVisibles, setFaltantesVisibles] = useState<{ mensaje: string; paso: number }[] | null>(null);
 
   // El tipo que la empresa configuró en /configuracion (ver
   // tipo_negocio en empresa_config) decide qué aparece preseleccionado
@@ -387,17 +394,31 @@ export default function PaginaRecibir() {
   // Al menos una foto: es la evidencia de cómo llegó el equipo, y la
   // misma que exige lib/estados.ts (tiene_foto_entrada) para diagnosticar.
   const tieneFoto = evidencia.some((a) => a.tipo === "foto");
-  const faltante = !tieneFoto
-    ? "Falta la foto del equipo recibido."
-    : !motivo.trim()
-      ? "Falta el motivo para poder guardar."
-      : abono > valorServicio
-        ? "El abono no puede ser mayor al valor del servicio."
-        : abono > 0 && turnoAbierto === false
-          ? "Para recibir un abono, abre el turno de caja."
-          : abono > 0 && metodo?.es_efectivo && montoRecibido < abono
-            ? "El efectivo recibido no alcanza el abono."
-            : null;
+  const faltantes: { mensaje: string; paso: number }[] = [];
+  if (!tieneFoto) faltantes.push({ mensaje: "Falta la foto del equipo recibido.", paso: 1 });
+  if (!cliente && !clienteNuevo.nombre.trim()) faltantes.push({ mensaje: "Falta el nombre del cliente.", paso: 2 });
+  if (pideTelefonoAlterno && telefonoAlterno.replace(/\D/g, "").length < 7)
+    faltantes.push({ mensaje: "Falta el número alternativo de contacto.", paso: 2 });
+  if (!motivo.trim()) faltantes.push({ mensaje: "Falta el daño y motivo del servicio.", paso: 5 });
+  if (abono > valorServicio) faltantes.push({ mensaje: "El abono no puede ser mayor al valor del servicio.", paso: 6 });
+  else if (abono > 0 && turnoAbierto === false)
+    faltantes.push({ mensaje: "Para recibir un abono, abre el turno de caja.", paso: 6 });
+  else if (abono > 0 && metodo?.es_efectivo && montoRecibido < abono)
+    faltantes.push({ mensaje: "El efectivo recibido no alcanza el abono.", paso: 6 });
+
+  function intentarGuardar(enviarWhatsapp = false) {
+    if (faltantes.length) {
+      setFaltantesVisibles(faltantes);
+      return;
+    }
+    guardar(enviarWhatsapp);
+  }
+
+  function cerrarFaltantes() {
+    const paso = faltantesVisibles?.[0]?.paso;
+    setFaltantesVisibles(null);
+    if (paso) document.getElementById(`paso-${paso}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   if (resultado) {
     return (
@@ -905,8 +926,8 @@ export default function PaginaRecibir() {
             variante="primario"
             tamano="lg"
             icono={<Printer size={19} strokeWidth={2} />}
-            disabled={guardando || Boolean(faltante)}
-            onClick={() => guardar()}
+            disabled={guardando}
+            onClick={() => intentarGuardar()}
           >
             {guardando ? "Guardando…" : "Recibir e imprimir"}
           </Boton>
@@ -917,15 +938,19 @@ export default function PaginaRecibir() {
             variante="contorno"
             tamano="lg"
             icono={<MessageCircle size={19} strokeWidth={2} />}
-            disabled={guardando || Boolean(faltante)}
-            onClick={() => guardar(true)}
+            disabled={guardando}
+            onClick={() => intentarGuardar(true)}
           >
             Enviar por WhatsApp
           </Boton>
-          {faltante && <span style={{ fontSize: 12, color: "var(--ink-3)" }}>{faltante}</span>}
         </div>
 
-        {error && <Aviso tono="peligro">{error}</Aviso>}
+        <VentanaError
+          mensaje={faltantesVisibles?.map((f) => f.mensaje)}
+          titulo="Falta información para guardar"
+          onCerrar={cerrarFaltantes}
+        />
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
       </div>
     </div>
   );

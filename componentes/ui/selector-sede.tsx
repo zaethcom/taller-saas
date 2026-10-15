@@ -9,8 +9,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, MapPin } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
-import { Aviso } from "@/componentes/ui/campo";
 import type { SedePermitida } from "@/lib/sede-activa";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 export function SelectorSede({
   sedes,
@@ -58,7 +58,7 @@ export function SelectorSede({
           {enviando === s.id ? "Entrando…" : s.nombre}
         </Boton>
       ))}
-      {error && <Aviso tono="peligro">{error}</Aviso>}
+      <VentanaError mensaje={error} onCerrar={() => setError(null)} />
     </div>
   );
 }

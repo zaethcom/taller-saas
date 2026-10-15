@@ -28,6 +28,7 @@ import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { enlaceWhatsapp, equipoTexto, mensajePedido } from "@/lib/compras/whatsapp";
 import { comprasAutorizadas, type Estado } from "@/lib/estados";
+import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface Faltante {
   id: string;
@@ -547,11 +548,7 @@ export default function PaginaCompras() {
                                 </div>
                               </>
                             )}
-                            {error && (
-                              <Aviso tono="peligro">
-                                <span style={{ fontSize: 12 }}>{error}</span>
-                              </Aviso>
-                            )}
+                            <VentanaError mensaje={error} onCerrar={() => setError(null)} />
                           </div>
                         </td>
                       </tr>
