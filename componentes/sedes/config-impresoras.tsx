@@ -26,6 +26,7 @@ import { VentanaError } from "@/componentes/ui/ventana-error";
 
 type Protocolo = "crudo" | "puente_android";
 type Lenguaje = "pplb" | "zpl" | "escpos";
+type AnchoPapel = 58 | 80;
 
 interface Destino {
   host: string;
@@ -34,7 +35,7 @@ interface Destino {
 }
 
 interface Impresoras {
-  tickets: Destino;
+  tickets: Destino & { anchoMm?: AnchoPapel };
   etiquetas: Destino & { lenguaje?: Lenguaje };
 }
 
@@ -209,6 +210,7 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
   const [tickets, setTickets] = useState<Destino>(DESTINO_VACIO);
   const [etiquetas, setEtiquetas] = useState<Destino>(DESTINO_VACIO);
   const [lenguaje, setLenguaje] = useState<Lenguaje>("pplb");
+  const [anchoPapel, setAnchoPapel] = useState<AnchoPapel>(80);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -225,6 +227,7 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
           setTickets(data.tickets);
           setEtiquetas(data.etiquetas);
           setLenguaje(data.etiquetas.lenguaje ?? "pplb");
+          setAnchoPapel(data.tickets.anchoMm === 58 ? 58 : 80);
         }
       })
       .catch(() => {})
@@ -240,7 +243,7 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tickets: paraGuardar(tickets),
+          tickets: { ...paraGuardar(tickets), anchoMm: anchoPapel },
           // Sin etiquetadora, las etiquetas van a la POS: lo que diga el destino de etiquetas no se usa.
           etiquetas: { ...paraGuardar(lenguaje === "escpos" && !listo(etiquetas) ? tickets : etiquetas), lenguaje },
         }),
@@ -289,7 +292,18 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
         <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>Cargando…</p>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20 }}>
-          <CampoDestino titulo="Tickets (recibos, comprobantes)" valor={tickets} onCambiar={setTickets} />
+          <div className="pila" style={{ gap: 10 }}>
+            <CampoDestino titulo="Tickets (recibos, comprobantes)" valor={tickets} onCambiar={setTickets} />
+            <Campo
+              etiqueta="Ancho del papel de tickets"
+              ayuda="Mide el rollo: el ancho cambia cuántas letras caben por renglón y el tamaño del logo y del QR."
+            >
+              <select value={anchoPapel} onChange={(e) => setAnchoPapel(Number(e.target.value) === 58 ? 58 : 80)}>
+                <option value={80}>80 mm</option>
+                <option value={58}>58 mm</option>
+              </select>
+            </Campo>
+          </div>
           <div className="pila" style={{ gap: 10 }}>
             <CampoDestino titulo="Etiquetas (QR, artículos, repuestos)" valor={etiquetas} onCambiar={setEtiquetas} />
             <Campo

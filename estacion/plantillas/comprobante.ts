@@ -1,13 +1,16 @@
 import {
+  ajustar,
   alinear,
-  COLUMNAS_TICKET,
+  columnasPapel,
   componer,
   cortar,
   imagenRaster,
   inicializar,
   INTERLINEADO_COMPACTO,
   interlineado,
+  juntar,
   negrita,
+  renglones,
   salto,
   tamano,
   texto,
@@ -63,9 +66,8 @@ function cuentaRecepcion(c: CargaComprobanteRecepcion): Buffer[] {
  * imprime la URL cruda: el QR ya la codifica.
  */
 export function comprobanteRecepcion(c: CargaComprobanteRecepcion): Buffer {
-  const equipo = `Equipo: ${c.producto}`;
-  const serial = `Serial: ${c.serial}`;
-  const equipoYSerial = `${equipo} - ${serial}`;
+  const columnas = columnasPapel(c.anchoPapelMm);
+  const angosto = c.anchoPapelMm === 58;
 
   return componer(
     inicializar(),
@@ -80,17 +82,12 @@ export function comprobanteRecepcion(c: CargaComprobanteRecepcion): Buffer {
     tamano(false),
     negrita(false),
     salto(),
-    texto(`${c.codigoEntrada} - ${c.fecha}`),
-    salto(),
+    ...renglones(juntar([c.codigoEntrada, c.fecha], columnas)),
 
     alinear("izquierda"),
-    texto(`Cliente: ${c.clienteNombre}${c.clienteTelefono ? ` - ${c.clienteTelefono}` : ""}`),
-    salto(),
-    ...(equipoYSerial.length <= COLUMNAS_TICKET
-      ? [texto(equipoYSerial), salto()]
-      : [texto(equipo), salto(), texto(serial), salto()]),
-    texto(`Motivo: ${c.motivo}`),
-    salto(),
+    ...renglones(juntar([`Cliente: ${c.clienteNombre}`, c.clienteTelefono ?? ""], columnas)),
+    ...renglones(juntar([`Equipo: ${c.producto}`, `Serial: ${c.serial}`], columnas)),
+    ...renglones(ajustar(`Motivo: ${c.motivo}`, columnas)),
     ...cuentaRecepcion(c),
 
     alinear("centro"),
@@ -98,10 +95,10 @@ export function comprobanteRecepcion(c: CargaComprobanteRecepcion): Buffer {
       ? [imagenRaster(c.qrRaster.anchoDots, c.qrRaster.altoDots, Buffer.from(c.qrRaster.datosBase64, "base64")), salto()]
       : []),
     negrita(true),
-    texto("Escanea para ver el estado de tu orden"),
+    texto(angosto ? "Escanea para ver tu orden" : "Escanea para ver el estado de tu orden"),
     negrita(false),
     salto(),
-    texto("Conserve este recibo para reclamar su equipo"),
+    texto(angosto ? "Conserve este recibo" : "Conserve este recibo para reclamar su equipo"),
     salto(),
 
     ...piePersonalizado(c),

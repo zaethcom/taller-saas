@@ -7,7 +7,7 @@
  * Ver supabase/migrations/0005_impresion.sql para el porqué de este diseño.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { generarLogoRaster, type LogoRaster } from "./logo-bitmap";
+import { generarLogoRaster, TAMANO_RECIBO, TAMANO_RECIBO_58, type LogoRaster } from "./logo-bitmap";
 import { generarEtiquetaQrRaster } from "./etiqueta-bitmap";
 import { generarQrRaster } from "./qr-bitmap";
 import { rasterEtiqueta } from "./etiquetas/renderizar";
@@ -55,6 +55,7 @@ interface CargaMarcaEmpresa {
   empresaTelefono: string | null;
   reciboPie: string;
   logoRaster?: LogoRaster | null;
+  anchoPapelMm?: 58 | 80 | null;
 }
 
 interface CargaReciboVenta extends CargaMarcaEmpresa {
@@ -271,6 +272,18 @@ export async function encolarImpresion<T extends TipoTrabajo>(
 ): Promise<{ id: string }> {
   let carga: object = params.carga;
 
+  // Ancho del rollo de tickets de la sede (migración 0060): sin la
+  // columna o sin configurar, 80 mm como siempre.
+  let anchoPapelMm: 58 | 80 = 80;
+  if (TIPOS_CON_MARCA.has(params.tipo)) {
+    const { data: papel } = await supabase
+      .from("impresora_sede")
+      .select("tickets_ancho_mm")
+      .eq("sede_id", params.sedeId)
+      .maybeSingle();
+    if (papel?.tickets_ancho_mm === 58) anchoPapelMm = 58;
+  }
+
   // Las etiquetas (etiqueta_qr, etiqueta_articulo) y abrir_cajon no
   // llevan esto -- son demasiado pequeñas o no imprimen texto de
   // empresa en absoluto. Los cuatro tipos que sí son un recibo de
@@ -299,7 +312,11 @@ export async function encolarImpresion<T extends TipoTrabajo>(
       empresaDireccion: sedeConfig?.recibo_direccion ?? config?.recibo_direccion ?? null,
       empresaTelefono: sedeConfig?.recibo_telefono ?? config?.recibo_telefono ?? null,
       reciboPie: sedeConfig?.recibo_pie ?? config?.recibo_pie ?? "Gracias por su preferencia",
-      logoRaster: await generarLogoRaster(sedeConfig?.logo_url ?? config?.logo_url),
+      logoRaster: await generarLogoRaster(
+        sedeConfig?.logo_url ?? config?.logo_url,
+        anchoPapelMm === 58 ? TAMANO_RECIBO_58 : TAMANO_RECIBO,
+      ),
+      anchoPapelMm,
     };
     carga = { ...params.carga, ...marca };
   }
@@ -334,7 +351,10 @@ export async function encolarImpresion<T extends TipoTrabajo>(
   // interpreta el hardware real de alguna sedes).
   if (params.tipo === "comprobante_recepcion") {
     const { urlSeguimiento } = params.carga as unknown as { urlSeguimiento: string };
-    carga = { ...carga, qrRaster: await generarQrRaster(urlSeguimiento) };
+    carga = {
+      ...carga,
+      qrRaster: anchoPapelMm === 58 ? await generarQrRaster(urlSeguimiento, 192, 384) : await generarQrRaster(urlSeguimiento),
+    };
   }
 
   const { data, error } = await supabase

@@ -21,6 +21,8 @@ import sharp from "sharp";
 // lienzoDots: el ancho total del bitmap con el logo centrado adentro.
 // 512 cabe en cualquier impresora de 80mm (512 o 576 puntos útiles).
 export const TAMANO_RECIBO = { anchoDots: 384, altoMaximoDots: 96, lienzoDots: 512 };
+// Rollo de 58mm: 384 puntos útiles en total.
+export const TAMANO_RECIBO_58 = { anchoDots: 320, altoMaximoDots: 80, lienzoDots: 384 };
 export const TAMANO_ETIQUETA = { anchoDots: 200, altoMaximoDots: 50 };
 
 export interface LogoRaster {

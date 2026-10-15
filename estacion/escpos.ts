@@ -76,6 +76,60 @@ export const INTERLINEADO_COMPACTO = 26;
 /** Caracteres por renglón de la fuente A en papel de 80mm. */
 export const COLUMNAS_TICKET = 48;
 
+/** Caracteres por renglón de la fuente A según el ancho del rollo (58mm = 32). */
+export function columnasPapel(anchoMm?: number | null): number {
+  return anchoMm === 58 ? 32 : COLUMNAS_TICKET;
+}
+
+/**
+ * Parte un texto en renglones de `columnas` letras sin cortar palabras
+ * (una palabra más larga que el renglón sí se corta). La impresora
+ * parte sola, pero a mitad de palabra: "pantal" / "la".
+ */
+export function ajustar(s: string, columnas: number): string[] {
+  const renglones: string[] = [];
+  let actual = "";
+  for (const palabra of s.split(/\s+/).filter(Boolean)) {
+    let resto = palabra;
+    while (resto.length > columnas) {
+      if (actual) {
+        renglones.push(actual);
+        actual = "";
+      }
+      renglones.push(resto.slice(0, columnas));
+      resto = resto.slice(columnas);
+    }
+    if (!resto) continue;
+    if (!actual) actual = resto;
+    else if (actual.length + 1 + resto.length <= columnas) actual += " " + resto;
+    else {
+      renglones.push(actual);
+      actual = resto;
+    }
+  }
+  if (actual) renglones.push(actual);
+  return renglones;
+}
+
+/** Une datos con " - " mientras quepan en el renglón; si no, el siguiente va abajo. */
+export function juntar(datos: string[], columnas: number): string[] {
+  const renglones: string[] = [];
+  for (const dato of datos.filter(Boolean)) {
+    const ultimo = renglones[renglones.length - 1];
+    if (ultimo !== undefined && ultimo.length + 3 + dato.length <= columnas) {
+      renglones[renglones.length - 1] = `${ultimo} - ${dato}`;
+    } else {
+      renglones.push(...ajustar(dato, columnas));
+    }
+  }
+  return renglones;
+}
+
+/** Cada renglón de ajustar()/juntar() como texto + salto. */
+export function renglones(lineas: string[]): Buffer[] {
+  return lineas.flatMap((l) => [texto(l), salto()]);
+}
+
 /**
  * Texto a la izquierda y monto a la derecha en el mismo renglón, con
  * espacios en medio. null si no caben juntos: quien llama lo parte en

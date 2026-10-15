@@ -25,7 +25,7 @@ interface CuerpoDestino {
 }
 
 interface CuerpoImpresoras {
-  tickets: CuerpoDestino;
+  tickets: CuerpoDestino & { anchoMm?: 58 | 80 };
   etiquetas: CuerpoDestino & { lenguaje?: Lenguaje };
 }
 
@@ -69,8 +69,20 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .eq("sede_id", id)
     .maybeSingle();
 
+  // Columna de la migración 0060: sin ella, el papel se toma como de 80 mm.
+  const { data: papel } = await supabase
+    .from("impresora_sede")
+    .select("tickets_ancho_mm")
+    .eq("sede_id", id)
+    .maybeSingle();
+
   return NextResponse.json({
-    tickets: { host: data.tickets_host, puerto: data.tickets_puerto, protocolo: data.tickets_protocolo },
+    tickets: {
+      host: data.tickets_host,
+      puerto: data.tickets_puerto,
+      protocolo: data.tickets_protocolo,
+      anchoMm: papel?.tickets_ancho_mm === 58 ? 58 : 80,
+    },
     etiquetas: {
       host: data.etiquetas_host,
       puerto: data.etiquetas_puerto,
@@ -120,6 +132,24 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const anchoMm = body.tickets.anchoMm ?? 80;
+  if (anchoMm !== 58 && anchoMm !== 80) {
+    return NextResponse.json({ error: "ancho de papel inválido (58 u 80 mm)" }, { status: 400 });
+  }
+  const { error: errPapel } = await supabase
+    .from("impresora_sede")
+    .update({ tickets_ancho_mm: anchoMm })
+    .eq("sede_id", id);
+  if (errPapel && anchoMm === 58) {
+    return NextResponse.json(
+      {
+        error:
+          "Se guardaron las impresoras, pero no el papel de 58 mm: falta aplicar la migración 0060_ancho_papel_tickets en la base.",
+      },
+      { status: 500 },
+    );
   }
 
   const { error: errIdioma } = await supabase
