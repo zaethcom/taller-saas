@@ -42,6 +42,10 @@ export function useLectorCodigos(formats: string[], onDetectado: (valor: string)
   const streamRef = useRef<MediaStream | null>(null);
   const [camaraDisponible, setCamaraDisponible] = useState(true);
   const [camaraActiva, setCamaraActiva] = useState(false);
+  // El efecto corre una sola vez; con la referencia siempre se llama la
+  // versión más reciente de onDetectado, no la del primer render.
+  const onDetectadoRef = useRef(onDetectado);
+  onDetectadoRef.current = onDetectado;
 
   function detener() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -62,7 +66,7 @@ export function useLectorCodigos(formats: string[], onDetectado: (valor: string)
       clearInterval(intervalo);
       pararZxing?.();
       detener();
-      onDetectado(valor);
+      onDetectadoRef.current(valor);
     }
 
     async function iniciar() {
@@ -72,7 +76,9 @@ export function useLectorCodigos(formats: string[], onDetectado: (valor: string)
       }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
+          // Más resolución que los 640x480 por defecto: las barras de una
+          // etiqueta de 55 mm salen muy finas y a baja resolución no se leen.
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
         });
         if (cancelado) {
           stream.getTracks().forEach((t) => t.stop());
@@ -104,7 +110,8 @@ export function useLectorCodigos(formats: string[], onDetectado: (valor: string)
           import("@zxing/library"),
         ]);
         if (cancelado || !videoRef.current) return;
-        const hints = new Map();
+        const hints = new Map<number, unknown>();
+        hints.set(DecodeHintType.TRY_HARDER, true);
         hints.set(
           DecodeHintType.POSSIBLE_FORMATS,
           formats

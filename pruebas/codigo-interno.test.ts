@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { codigoArticulo, copiasValidas, siguienteCodigoRepuesto } from "../lib/codigo-interno";
+import {
+  codigoArticulo,
+  copiasValidas,
+  normalizarCodigoEscaneado,
+  numeroDeCodigoArticulo,
+  siguienteCodigoRepuesto,
+} from "../lib/codigo-interno";
 
 describe("siguienteCodigoRepuesto", () => {
   it("empieza en REP-000001 si no hay ninguno con ese formato", () => {
@@ -27,5 +33,24 @@ describe("copiasValidas", () => {
 
   it("rechaza cero, negativos, decimales y más de 100", () => {
     for (const v of [0, -1, 1.5, 101, "abc", undefined]) expect(copiasValidas(v)).toBeNull();
+  });
+});
+
+describe("normalizarCodigoEscaneado", () => {
+  it("quita espacios y caracteres de control que agregan los lectores", () => {
+    expect(normalizarCodigoEscaneado("  rep-bat-001\r\n")).toBe("REP-BAT-001");
+    expect(normalizarCodigoEscaneado("\x1dACC-BOL-001\t")).toBe("ACC-BOL-001");
+  });
+});
+
+describe("numeroDeCodigoArticulo", () => {
+  it("lee el número de un código de artículo", () => {
+    expect(numeroDeCodigoArticulo("ART-000123")).toBe(123);
+    expect(numeroDeCodigoArticulo("art123")).toBe(123);
+  });
+
+  it("no confunde un repuesto con un artículo", () => {
+    expect(numeroDeCodigoArticulo("REP-000123")).toBeNull();
+    expect(numeroDeCodigoArticulo("7701234567890")).toBeNull();
   });
 });

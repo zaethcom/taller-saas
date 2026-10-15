@@ -22,7 +22,7 @@
  * directo al carrito; si no coincide exacto con ningún código, queda
  * como búsqueda normal.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Trash2, Plus, Minus, Search, ShoppingCart, Lock, Check, ChevronDown, Tags, Printer, PlusCircle, ScanBarcode } from "lucide-react";
 import { FotoProducto } from "@/componentes/ui/foto-producto";
 import { Boton } from "@/componentes/ui/boton";
@@ -33,6 +33,7 @@ import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { PanelCobro } from "@/componentes/cobro/panel-cobro";
 import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-turno";
 import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
+import { normalizarCodigoEscaneado } from "@/lib/codigo-interno";
 
 interface LineaRepuesto {
   kind: "repuesto";
@@ -85,7 +86,18 @@ interface Categoria {
 /** Lo que imprimen las etiquetas (Code 128) y lo que traen los productos de fábrica. */
 const FORMATOS_ESCANEO = ["code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code"];
 
-const mismoCodigo = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+type RespuestaCodigo =
+  | { tipo: "repuesto"; repuesto: Repuesto }
+  | { tipo: "articulo"; articulo: Articulo }
+  | { tipo: null; motivo: "no_existe" | "sin_existencia" | "no_en_venta" | "no_disponible" | "otra_sede" };
+
+const MOTIVOS_CODIGO = {
+  no_existe: "ningún producto tiene ese código.",
+  sin_existencia: "no hay existencias en esta sede.",
+  no_en_venta: "está marcado como no disponible para la venta en Inventario.",
+  no_disponible: "este artículo ya se vendió o no está en stock.",
+  otra_sede: "este artículo está en otra sede.",
+} as const;
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
@@ -167,55 +179,105 @@ export default function PaginaVender() {
   }
 
   /**
-   * Busca el texto como de costumbre y, si alguno de los resultados
-   * tiene exactamente ese código, lo agrega al carrito y limpia el
-   * campo -- así un lector USB (que teclea el código y Enter) o la
-   * cámara cobran de una vez. Si no hay coincidencia exacta, la
-   * búsqueda queda en pantalla para elegir a mano.
+   * Primero pregunta por el código exacto (sin categoría ni límite de
+   * resultados) y, si es un producto que se puede vender aquí, lo
+   * agrega al carrito y limpia el campo -- así la cámara o un lector
+   * USB (que teclea el código y Enter) cobran de una vez. Si el código
+   * existe pero no se puede vender, dice por qué. Si no es un código,
+   * queda como búsqueda normal en el catálogo `kind`.
    */
-  async function buscarOAgregar(kind: Linea["kind"], texto: string, desdeCamara = false, donde = kind) {
-    const codigo = texto.trim();
+  async function buscarOAgregar(kind: Linea["kind"], texto: string, desdeLector = false, donde = kind) {
+    const codigo = normalizarCodigoEscaneado(texto);
     setAvisoCodigo(null);
-    if (kind === "repuesto") {
-      setBuscarRepuesto(codigo);
-      const exacto = codigo ? (await buscarRepuestos(codigo)).find((r) => mismoCodigo(r.codigo, codigo)) : undefined;
-      if (exacto) {
-        agregarRepuesto(exacto);
-        setBuscarRepuesto("");
-        setAvisoCodigo({ texto: `Agregado: ${exacto.descripcion}`, fallo: false, donde });
-        return;
-      }
-    } else {
-      setBuscarArticulo(codigo);
-      const exacto = codigo ? (await buscarArticulos(codigo)).find((a) => mismoCodigo(a.codigo, codigo)) : undefined;
-      if (exacto) {
-        agregarArticulo(exacto);
-        setBuscarArticulo("");
-        setAvisoCodigo({
-          texto: `Agregado: ${[exacto.marca, exacto.modelo].filter(Boolean).join(" ") || exacto.tipo}`,
-          fallo: false,
-          donde,
-        });
+    if (!codigo) {
+      if (kind === "repuesto") buscarRepuestos("");
+      else buscarArticulos("");
+      return;
+    }
+
+    let r: RespuestaCodigo | null = null;
+    try {
+      const res = await fetch(`/api/vender/codigo?codigo=${encodeURIComponent(codigo)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      r = data;
+    } catch (e) {
+      if (desdeLector) {
+        setAvisoCodigo({ texto: e instanceof Error && e.message ? e.message : "No se pudo buscar el código.", fallo: true, donde });
         return;
       }
     }
-    if (desdeCamara) {
-      setAvisoCodigo({ texto: `Ningún producto disponible tiene el código ${codigo}.`, fallo: true, donde });
+
+    if (r?.tipo === "repuesto") {
+      agregarRepuesto(r.repuesto);
+      setBuscarRepuesto("");
+      setAvisoCodigo({ texto: `Agregado: ${r.repuesto.descripcion}`, fallo: false, donde });
+      return;
+    }
+    if (r?.tipo === "articulo") {
+      agregarArticulo(r.articulo);
+      setBuscarArticulo("");
+      setAvisoCodigo({
+        texto: `Agregado: ${[r.articulo.marca, r.articulo.modelo].filter(Boolean).join(" ") || r.articulo.tipo}`,
+        fallo: false,
+        donde,
+      });
+      return;
+    }
+    if (r && r.motivo !== "no_existe") {
+      setAvisoCodigo({ texto: `${codigo}: ${MOTIVOS_CODIGO[r.motivo]}`, fallo: true, donde });
+      return;
+    }
+
+    // No es un código conocido: se deja como búsqueda escrita.
+    if (kind === "repuesto") {
+      setBuscarRepuesto(texto.trim());
+      buscarRepuestos(texto.trim());
+    } else {
+      setBuscarArticulo(texto.trim());
+      buscarArticulos(texto.trim());
+    }
+    if (desdeLector) {
+      setAvisoCodigo({ texto: `Ningún producto tiene el código ${codigo}.`, fallo: true, donde });
     }
   }
 
-  /**
-   * Lo leído por cámara se clasifica por su forma, no por junto a qué
-   * lupa se tocó el botón: los artículos siempre llevan ART-000123 en
-   * la etiqueta; cualquier otro código es de un repuesto. El aviso sí
-   * sale donde se abrió la cámara, que es donde está mirando quien cobra.
-   */
   async function codigoLeido(valor: string) {
     const origen = escaneando ?? "repuesto";
     setEscaneando(null);
-    const kind = /^ART-?\d+$/i.test(valor.trim()) ? "articulo" : "repuesto";
-    await buscarOAgregar(kind, valor, true, origen);
+    await buscarOAgregar(origen, valor, true, origen);
   }
+
+  /**
+   * Un lector USB o Bluetooth teclea el código muy rápido y termina en
+   * Enter. Si nadie está escribiendo en un campo, se toma igual: así no
+   * hace falta tocar la caja de búsqueda antes de cada producto.
+   */
+  const buscarOAgregarRef = useRef(buscarOAgregar);
+  buscarOAgregarRef.current = buscarOAgregar;
+  useEffect(() => {
+    let buffer = "";
+    let ultima = 0;
+    function alTeclear(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const ahora = Date.now();
+      if (ahora - ultima > 80) buffer = "";
+      ultima = ahora;
+      if (e.key === "Enter") {
+        if (buffer.length >= 3) {
+          e.preventDefault();
+          buscarOAgregarRef.current("repuesto", buffer, true);
+        }
+        buffer = "";
+      } else if (e.key.length === 1) {
+        buffer += e.key;
+      }
+    }
+    window.addEventListener("keydown", alTeclear);
+    return () => window.removeEventListener("keydown", alTeclear);
+  }, []);
 
   function botonEscanear(kind: Linea["kind"]) {
     return (
