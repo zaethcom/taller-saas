@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { resolverImpresion } from "./resolver";
+import { ajustarRaster } from "./etiqueta-escpos";
 
 const raster = { anchoDots: 16, altoDots: 2, datosBase64: Buffer.from([0xff, 0x00, 0x0f, 0xf0]).toString("base64") };
 
@@ -42,5 +43,22 @@ describe("etiquetas en la POS (escpos)", () => {
     const pplb = resolverImpresion({ id: "4", tipo: "abrir_cajon", carga: {} }, "pplb");
     const escpos = resolverImpresion({ id: "4", tipo: "abrir_cajon", carga: {} }, "escpos");
     expect(escpos).toEqual(pplb);
+  });
+});
+
+describe("etiqueta en la POS de 58 mm", () => {
+  const ancha = { anchoDots: 440, altoDots: 480, datosBase64: Buffer.alloc(55 * 480, 0xff).toString("base64") };
+
+  it("en 80 mm la etiqueta de 55 mm sale tal cual", () => {
+    expect(ajustarRaster(ancha, 576)).toBe(ancha);
+  });
+
+  it("en 58 mm se achica a 384 puntos sin deformarse", () => {
+    const r = resolverImpresion({ id: "5", tipo: "etiqueta_qr", carga: { etiquetaRaster: ancha, anchoPapelMm: 58 } }, "escpos");
+    const b = r.contenido as Buffer;
+    const i = b.indexOf(Buffer.from([0x1d, 0x76, 0x30, 0x00]));
+    expect(b[i + 4]).toBe(48); // 384 puntos = 48 bytes
+    expect(b[i + 6] | (b[i + 7] << 8)).toBe(419); // 480 * 384 / 440
+    expect(b[i + 8]).toBe(0xff);
   });
 });
