@@ -135,7 +135,8 @@ export interface ConfigImpresora {
   lenguaje?: LenguajeEtiquetas;
 }
 
-export type LenguajeEtiquetas = "pplb" | "zpl";
+/** "escpos": no hay etiquetadora; las etiquetas salen por la POS de tickets. */
+export type LenguajeEtiquetas = "pplb" | "zpl" | "escpos";
 
 export interface ConfigImpresoras {
   tickets: ConfigImpresora;

@@ -55,13 +55,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data);
   }
 
-  // Argox (PPLB) o Zebra (ZPL), lo que se eligió en Configurar impresoras.
+  // Argox (PPLB), Zebra (ZPL) o la POS de tickets (ESC/POS), lo que se eligió en Configurar impresoras.
   const { data: impresora } = await admin
     .from("impresora_sede")
     .select("etiquetas_lenguaje")
     .eq("sede_id", identidad.sedeId)
     .maybeSingle();
-  const lenguaje = impresora?.etiquetas_lenguaje === "zpl" ? "zpl" : "pplb";
+  const guardado = impresora?.etiquetas_lenguaje;
+  const lenguaje = guardado === "zpl" || guardado === "escpos" ? guardado : "pplb";
 
   return NextResponse.json(
     (data as TrabajoPendiente[]).map((trabajo) => {
