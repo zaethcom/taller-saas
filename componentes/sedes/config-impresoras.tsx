@@ -6,7 +6,7 @@
  * editando config.json a mano en el dispositivo. "Red por IP" es una
  * impresora de verdad en la red (protocolo "crudo" en
  * estacion/destino.ts); "Local por USB" es una impresora conectada por
- * USB al mismo aparato, servida por el puente Android que ya existe
+ * USB al equipo que imprime: Chrome con /estacion (WebUSB) o el puente Android
  * (protocolo "puente_android") -- no son dos conceptos nuevos, son los
  * dos que ya modela el código de la estación, solo que ahora se eligen
  * aquí en vez de en un archivo.
@@ -21,6 +21,7 @@ import { Printer, Check, X, FlaskConical } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
+import { ImpresorasUsbEsteEquipo } from "@/componentes/estacion/impresoras-usb";
 
 type Protocolo = "crudo" | "puente_android";
 type Lenguaje = "pplb" | "zpl";
@@ -38,6 +39,9 @@ interface Impresoras {
 
 const DESTINO_VACIO: Destino = { host: "", puerto: 9100, protocolo: "crudo" };
 
+/** Con USB la estación (Chrome en /estacion o la app del puente) no necesita IP. */
+const HOST_USB = "localhost";
+
 function CampoDestino({
   titulo,
   valor,
@@ -47,6 +51,8 @@ function CampoDestino({
   valor: Destino;
   onCambiar: (d: Destino) => void;
 }) {
+  const usb = valor.protocolo === "puente_android";
+  const hostVisible = usb && valor.host === HOST_USB ? "" : valor.host;
   return (
     <div className="pila" style={{ gap: 10 }}>
       <div style={{ fontWeight: 700, fontSize: 13 }}>{titulo}</div>
@@ -56,29 +62,52 @@ function CampoDestino({
           onChange={(e) => onCambiar({ ...valor, protocolo: e.target.value as Protocolo })}
         >
           <option value="crudo">Red por IP</option>
-          <option value="puente_android">Local por USB (puente Android)</option>
+          <option value="puente_android">USB (Chrome con /estacion o app del puente)</option>
         </select>
       </Campo>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 10 }}>
-        <Campo etiqueta="Host / IP">
+      {usb ? (
+        <Campo
+          etiqueta="IP del Android (opcional)"
+          ayuda="Déjalo vacío si la impresora está conectada por USB al equipo con Chrome o al Android con la app: no hace falta IP. Solo se llena si un PC con la estación le manda a un Android por la red."
+        >
           <input
-            placeholder="192.168.1.50"
-            value={valor.host}
+            placeholder="Vacío = USB directo"
+            value={hostVisible}
             onChange={(e) => onCambiar({ ...valor, host: e.target.value })}
             className="cifra"
           />
         </Campo>
-        <Campo etiqueta="Puerto">
-          <input
-            type="number"
-            value={valor.puerto}
-            onChange={(e) => onCambiar({ ...valor, puerto: Number(e.target.value) || 9100 })}
-            className="cifra"
-          />
-        </Campo>
-      </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 10 }}>
+          <Campo etiqueta="Host / IP">
+            <input
+              placeholder="192.168.1.50"
+              value={valor.host}
+              onChange={(e) => onCambiar({ ...valor, host: e.target.value })}
+              className="cifra"
+            />
+          </Campo>
+          <Campo etiqueta="Puerto">
+            <input
+              type="number"
+              value={valor.puerto}
+              onChange={(e) => onCambiar({ ...valor, puerto: Number(e.target.value) || 9100 })}
+              className="cifra"
+            />
+          </Campo>
+        </div>
+      )}
     </div>
   );
+}
+
+/** Lo que se guarda: con USB y sin IP, un host fijo para que la base lo acepte. */
+function paraGuardar(d: Destino): Destino {
+  return d.protocolo === "puente_android" && !d.host.trim() ? { ...d, host: HOST_USB } : d;
+}
+
+function listo(d: Destino): boolean {
+  return d.protocolo === "puente_android" || !!d.host.trim();
 }
 
 type Destinos = "tickets" | "etiquetas";
@@ -133,7 +162,7 @@ function useProbarImpresora(sedeId: string) {
             setPrueba({
               destino,
               estado: "error",
-              mensaje: `La estación la recibió pero la impresora falló: ${t.error ?? "error desconocido"}. Revisa la IP, el puerto y que la impresora esté encendida.`,
+              mensaje: `La estación la recibió pero la impresora falló: ${t.error ?? "error desconocido"}. Revisa la conexión (la IP o el cable USB) y que la impresora esté encendida.`,
             });
             return;
           }
@@ -209,7 +238,7 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
       const res = await fetch(`/api/sedes/${sedeId}/impresoras`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tickets, etiquetas: { ...etiquetas, lenguaje } }),
+        body: JSON.stringify({ tickets: paraGuardar(tickets), etiquetas: { ...paraGuardar(etiquetas), lenguaje } }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       setMensaje(
@@ -271,13 +300,19 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
         </div>
       )}
 
+      {!cargando && (tickets.protocolo === "puente_android" || etiquetas.protocolo === "puente_android") && (
+        <div style={{ marginTop: 14 }}>
+          <ImpresorasUsbEsteEquipo />
+        </div>
+      )}
+
       <div className="fila" style={{ marginTop: 14, gap: 8, flexWrap: "wrap" }}>
         <Boton
           variante="primario"
           tamano="sm"
           icono={<Check size={15} strokeWidth={2.2} />}
           onClick={guardar}
-          disabled={guardando || cargando || !tickets.host.trim() || !etiquetas.host.trim()}
+          disabled={guardando || cargando || !listo(tickets) || !listo(etiquetas)}
         >
           {guardando ? "Guardando…" : "Guardar"}
         </Boton>
