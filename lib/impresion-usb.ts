@@ -172,3 +172,48 @@ export function base64ABytes(b64: string): Uint8Array {
   for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i);
   return bytes;
 }
+
+export type RolImpresora = "tickets" | "etiquetas";
+
+/**
+ * Lo que muestra el diálogo «Detectar impresora USB»: solo impresoras
+ * (clase 7) y las marcas de etiquetadoras conocidas, que a veces se
+ * anuncian como clase de fabricante. Si una térmica no aparece así, la
+ * pantalla ofrece ver todos los USB.
+ */
+export const FILTROS_IMPRESORA: object[] = [
+  { classCode: CLASE_IMPRESORA },
+  { vendorId: 0x0a5f }, // Zebra
+  { vendorId: 0x1664 }, // Argox
+  { vendorId: 0x1203 }, // TSC
+  { vendorId: 0x195f }, // Godex
+  { vendorId: 0x0dd4 }, // Custom
+];
+
+const MARCAS_ETIQUETAS = new Set([0x0a5f, 0x1664, 0x1203, 0x195f]);
+
+/**
+ * Si es de etiquetas o de tickets, por la marca (Zebra, Argox, TSC,
+ * Godex hacen etiquetadoras) o por el nombre; si no se sabe, tickets.
+ */
+export function rolSugerido(d: Pick<DispositivoUsb, "vendorId" | "productName">): RolImpresora {
+  if (MARCAS_ETIQUETAS.has(d.vendorId)) return "etiquetas";
+  if (/label|etiquet|\bZ[DPT]\d|\bGK\d|\bGX\d/i.test(d.productName ?? "")) return "etiquetas";
+  return "tickets";
+}
+
+/**
+ * A qué puesto va una impresora recién detectada: el que sugiere su
+ * marca si está libre; si no, el otro si está libre; si los dos están
+ * ocupados, reemplaza el sugerido.
+ */
+export function puestoPara(
+  d: Pick<DispositivoUsb, "vendorId" | "productName">,
+  ocupados: Partial<Record<RolImpresora, unknown>>,
+): RolImpresora {
+  const sugerido = rolSugerido(d);
+  const otro: RolImpresora = sugerido === "tickets" ? "etiquetas" : "tickets";
+  if (!ocupados[sugerido]) return sugerido;
+  if (!ocupados[otro]) return otro;
+  return sugerido;
+}

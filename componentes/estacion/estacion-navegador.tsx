@@ -17,22 +17,15 @@
  * puede esperar un minuto su recibo.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Printer, Tag, Link2, Unlink, Check, AlertTriangle, Usb as IconoUsb } from "lucide-react";
+import { Link2, Unlink, Check, AlertTriangle } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
-import {
-  base64ABytes,
-  coincide,
-  huella,
-  imprimirUsb,
-  usbDelNavegador,
-  type DispositivoUsb,
-  type HuellaUsb,
-} from "@/lib/impresion-usb";
+import { base64ABytes, imprimirUsb, type RolImpresora } from "@/lib/impresion-usb";
+import { NOMBRE_ROL, TarjetaImpresorasUsb, useImpresorasUsb } from "@/componentes/estacion/impresoras-usb";
 
-type Rol = "tickets" | "etiquetas";
+type Rol = RolImpresora;
 
 interface Vinculo {
   clave: string;
@@ -55,8 +48,6 @@ interface Registro {
 }
 
 const CLAVE_VINCULO = "estacion-navegador:vinculo";
-const CLAVE_IMPRESORAS = "estacion-navegador:impresoras";
-const NOMBRE_ROL: Record<Rol, string> = { tickets: "Tickets", etiquetas: "Etiquetas" };
 
 function leer<T>(clave: string): T | null {
   try {
@@ -94,10 +85,9 @@ function crearReloj(ms: number, alSonar: () => void): () => void {
 }
 
 export function EstacionNavegador() {
-  const [soportado, setSoportado] = useState<boolean | null>(null);
+  const usb = useImpresorasUsb();
+  const { soportado, conectadas } = usb;
   const [vinculo, setVinculo] = useState<Vinculo | null>(null);
-  const [huellas, setHuellas] = useState<Partial<Record<Rol, HuellaUsb>>>({});
-  const [conectadas, setConectadas] = useState<Partial<Record<Rol, DispositivoUsb>>>({});
   const [codigo, setCodigo] = useState("");
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,37 +104,9 @@ export function EstacionNavegador() {
     setRegistros((r) => [{ hora, texto, ok }, ...r].slice(0, 12));
   }, []);
 
-  // Lo guardado en este navegador + las impresoras USB que Chrome ya
-  // tiene permitidas para este sitio.
-  const buscarImpresoras = useCallback(async (h: Partial<Record<Rol, HuellaUsb>>) => {
-    const usb = usbDelNavegador();
-    if (!usb) return;
-    const dispositivos = await usb.getDevices();
-    const encontradas: Partial<Record<Rol, DispositivoUsb>> = {};
-    for (const rol of ["tickets", "etiquetas"] as Rol[]) {
-      const buscada = h[rol];
-      const d = buscada && dispositivos.find((x) => coincide(x, buscada));
-      if (d) encontradas[rol] = d;
-    }
-    setConectadas(encontradas);
-  }, []);
-
   useEffect(() => {
-    const usb = usbDelNavegador();
-    setSoportado(Boolean(usb));
     setVinculo(leer<Vinculo>(CLAVE_VINCULO));
-    const h = leer<Partial<Record<Rol, HuellaUsb>>>(CLAVE_IMPRESORAS) ?? {};
-    setHuellas(h);
-    if (!usb) return;
-    buscarImpresoras(h);
-    const alCambiar = () => buscarImpresoras(leer(CLAVE_IMPRESORAS) ?? {});
-    usb.addEventListener("connect", alCambiar);
-    usb.addEventListener("disconnect", alCambiar);
-    return () => {
-      usb.removeEventListener("connect", alCambiar);
-      usb.removeEventListener("disconnect", alCambiar);
-    };
-  }, [buscarImpresoras]);
+  }, []);
 
   // Que el equipo no se duerma mientras la página está a la vista: dormido
   // no imprime. Chrome suelta el bloqueo al ocultar la pestaña, así que se
@@ -264,22 +226,6 @@ export function EstacionNavegador() {
     setEsperando([]);
   }
 
-  async function elegir(rol: Rol) {
-    const usb = usbDelNavegador();
-    if (!usb) return;
-    setError(null);
-    try {
-      const d = await usb.requestDevice({ filters: [] });
-      const nuevas = { ...huellas, [rol]: huella(d) };
-      guardar(CLAVE_IMPRESORAS, nuevas);
-      setHuellas(nuevas);
-      await buscarImpresoras(nuevas);
-    } catch (e) {
-      // Cerrar el diálogo sin elegir también llega aquí (NotFoundError).
-      if (e instanceof Error && e.name !== "NotFoundError") setError(e.message);
-    }
-  }
-
   if (soportado === null) {
     return <Tarjeta style={{ textAlign: "center", color: "var(--ink-3)" }}>Cargando…</Tarjeta>;
   }
@@ -352,43 +298,22 @@ export function EstacionNavegador() {
         )}
       </Tarjeta>
 
-      <Tarjeta>
-        <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-          <IconoUsb size={16} strokeWidth={2} />
-          Impresoras conectadas por USB
-        </div>
-        <div className="pila" style={{ gap: 12 }}>
-          {(["tickets", "etiquetas"] as Rol[]).map((rol) => {
-            const h = huellas[rol];
-            const conectada = conectadas[rol];
-            return (
-              <div key={rol} className="fila" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                {rol === "tickets" ? <Printer size={16} strokeWidth={2} /> : <Tag size={16} strokeWidth={2} />}
-                <span style={{ fontWeight: 600, minWidth: 80 }}>{NOMBRE_ROL[rol]}</span>
-                {h ? (
-                  <span style={{ fontSize: 13, color: "var(--ink-2)" }}>{h.nombre}</span>
-                ) : (
-                  <span style={{ fontSize: 13, color: "var(--ink-3)" }}>Sin elegir</span>
-                )}
-                {h && (conectada ? <Etiqueta tono="ok">Conectada</Etiqueta> : <Etiqueta tono="aviso">Desconectada</Etiqueta>)}
-                <Boton variante="contorno" tamano="sm" onClick={() => elegir(rol)}>
-                  {h ? "Cambiar" : "Elegir impresora"}
-                </Boton>
-              </div>
-            );
-          })}
-          {esperando.length > 0 && (
-            <Aviso tono="aviso">
-              Hay impresiones de {esperando.map((r) => NOMBRE_ROL[r].toLowerCase()).join(" y ")} esperando: conecta
-              esa impresora (o elígela arriba) y salen solas.
-            </Aviso>
-          )}
-          <p style={{ margin: 0, fontSize: 12, color: "var(--ink-3)" }}>
-            Chrome pide permiso una sola vez por impresora. Para probar, usa «Probar impresora» en Sedes →
-            Configurar impresoras; la prueba sale por aquí.
-          </p>
-        </div>
-      </Tarjeta>
+      <TarjetaImpresorasUsb
+        usb={usb}
+        pie={
+          <>
+            {esperando.length > 0 && (
+              <Aviso tono="aviso">
+                Hay impresiones de {esperando.map((r) => NOMBRE_ROL[r].toLowerCase()).join(" y ")} esperando:
+                conecta esa impresora (o detéctala arriba) y salen solas.
+              </Aviso>
+            )}
+            <p style={{ margin: 0, fontSize: 12, color: "var(--ink-3)" }}>
+              Para probar, usa «Probar impresora» en Sedes → Configurar impresoras; la prueba sale por aquí.
+            </p>
+          </>
+        }
+      />
 
       {registros.length > 0 && (
         <Tarjeta>
