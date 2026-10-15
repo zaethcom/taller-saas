@@ -20,6 +20,7 @@ import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { PlantillasEtiqueta } from "@/componentes/etiquetas/plantillas-etiqueta";
 import { ConfigFases } from "@/componentes/taller/config-fases";
+import { ImpresorasUsbEsteEquipo } from "@/componentes/estacion/impresoras-usb";
 
 interface Config {
   logoUrl: string | null;
@@ -417,6 +418,8 @@ export default function PaginaConfiguracion() {
         <PlantillasEtiqueta empresaId={empresaId} />
 
         <ConfigFases />
+
+        <ImpresorasUsbEsteEquipo />
 
         <Tarjeta>
           <h2 style={{ marginBottom: 6 }}>Compras</h2>
