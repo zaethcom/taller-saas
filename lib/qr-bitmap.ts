@@ -16,7 +16,7 @@ import sharp from "sharp";
 import QRCode from "qrcode";
 import type { LogoRaster } from "./logo-bitmap";
 
-export async function generarQrRaster(contenido: string, anchoDots = 216): Promise<LogoRaster> {
+export async function generarQrRaster(contenido: string, anchoDots = 216, lienzoDots = 512): Promise<LogoRaster> {
   const svg = await QRCode.toString(contenido, {
     type: "svg",
     margin: 1,
@@ -25,7 +25,13 @@ export async function generarQrRaster(contenido: string, anchoDots = 216): Promi
     color: { dark: "#000000", light: "#ffffff" },
   });
 
-  const { data, info } = await sharp(Buffer.from(svg))
+  // Centrado dentro del bitmap (igual que el logo): no depender de que
+  // la impresora respete ESC a con imágenes.
+  const qrPng = await sharp(Buffer.from(svg)).png().toBuffer({ resolveWithObject: true });
+  const lienzo = Math.max(lienzoDots, qrPng.info.width);
+  const izquierda = Math.floor((lienzo - qrPng.info.width) / 2);
+  const { data, info } = await sharp(qrPng.data)
+    .extend({ left: izquierda, right: lienzo - qrPng.info.width - izquierda, background: "#ffffff" })
     .flatten({ background: "#ffffff" })
     .greyscale()
     .threshold(160)
