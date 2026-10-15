@@ -248,6 +248,10 @@ const TIPOS_CON_MARCA = new Set<TipoTrabajo>([
   "comprobante_traslado",
 ]);
 
+// Las etiquetas también: en una sede sin etiquetadora salen por la POS
+// de tickets (estacion/etiqueta-escpos.ts) y se achican al rollo de 58mm.
+const TIPOS_ETIQUETA = new Set<TipoTrabajo>(["etiqueta_qr", "etiqueta_articulo", "etiqueta_repuesto"]);
+
 export async function encolarImpresion<T extends TipoTrabajo>(
   supabase: SupabaseClient,
   params: {
@@ -275,7 +279,7 @@ export async function encolarImpresion<T extends TipoTrabajo>(
   // Ancho del rollo de tickets de la sede (migración 0060): sin la
   // columna o sin configurar, 80 mm como siempre.
   let anchoPapelMm: 58 | 80 = 80;
-  if (TIPOS_CON_MARCA.has(params.tipo)) {
+  if (TIPOS_CON_MARCA.has(params.tipo) || TIPOS_ETIQUETA.has(params.tipo)) {
     const { data: papel } = await supabase
       .from("impresora_sede")
       .select("tickets_ancho_mm")
@@ -344,6 +348,12 @@ export async function encolarImpresion<T extends TipoTrabajo>(
   } else if (params.tipo === "etiqueta_qr") {
     const { codigoEntrada } = params.carga as unknown as { codigoEntrada: string };
     carga = { etiquetaRaster: await generarEtiquetaQrRaster(codigoEntrada) };
+  }
+
+  // Solo cuenta si la etiqueta termina en la POS (estacion/etiqueta-escpos.ts);
+  // PPLB/ZPL lo ignoran. Con 80mm no se agrega nada: la carga queda igual que antes.
+  if (TIPOS_ETIQUETA.has(params.tipo) && anchoPapelMm === 58) {
+    carga = { ...carga, anchoPapelMm };
   }
 
   // El QR del comprobante de recepción se manda como bitmap, no como
