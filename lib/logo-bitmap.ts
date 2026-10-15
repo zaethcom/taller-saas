@@ -16,7 +16,9 @@
  */
 import sharp from "sharp";
 
-export const TAMANO_RECIBO = { anchoDots: 384, altoMaximoDots: 160 };
+// 96 puntos = 12mm de alto: antes eran 160 (20mm) y el logo solo se
+// comía casi un tercio del recibo de venta.
+export const TAMANO_RECIBO = { anchoDots: 384, altoMaximoDots: 96 };
 export const TAMANO_ETIQUETA = { anchoDots: 200, altoMaximoDots: 50 };
 
 export interface LogoRaster {

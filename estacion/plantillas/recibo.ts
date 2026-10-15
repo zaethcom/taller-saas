@@ -1,12 +1,15 @@
 import {
   abrirCajon,
   alinear,
+  COLUMNAS_TICKET,
   componer,
   cortar,
+  dosColumnas,
   inicializar,
+  INTERLINEADO_COMPACTO,
+  interlineado,
   negrita,
   salto,
-  tamano,
   texto,
 } from "../escpos";
 import { encabezadoEmpresa, piePersonalizado, type CargaMarcaEmpresa } from "../marca";
@@ -48,56 +51,58 @@ export function reciboVenta(c: CargaReciboVenta): Buffer {
     return componer(inicializar(), ...(c.abreCajon ? [abrirCajon()] : []));
   }
 
+  // Compacto a propósito: interlineado corto, ítem y monto en un mismo
+  // renglón, pago/recibido/cambio juntos y sin renglones en blanco de
+  // relleno -- el recibo largo gastaba demasiado papel.
   const partes = [
     inicializar(),
+    interlineado(INTERLINEADO_COMPACTO),
     ...encabezadoEmpresa(c),
-    salto(),
     negrita(true),
     texto(`Venta #${c.numeroVenta}`),
     negrita(false),
-    salto(2),
+    salto(),
     alinear("izquierda"),
   ];
 
+  const renglon = (izq: string, der: string) => {
+    const junto = dosColumnas(izq, der);
+    if (junto) partes.push(texto(junto), salto());
+    else partes.push(texto(izq), salto(), alinear("derecha"), texto(der), salto(), alinear("izquierda"));
+  };
+
   for (const item of c.items) {
-    partes.push(texto(`${item.cantidad} x ${item.descripcion}`), salto());
-    partes.push(alinear("derecha"), texto(fmt(item.cantidad * item.precioUnit)), salto());
-    partes.push(alinear("izquierda"));
+    renglon(`${item.cantidad} x ${item.descripcion}`, fmt(item.cantidad * item.precioUnit));
   }
 
-  partes.push(
-    salto(),
-    negrita(true),
-    alinear("derecha"),
-    texto(`${c.etiquetaTotal ?? "TOTAL"} ${fmt(c.total)}`),
-    salto(),
-    negrita(false),
-    texto(`Pagado con ${c.medioPago}`),
-    salto(),
-  );
+  partes.push(texto("-".repeat(COLUMNAS_TICKET)), salto(), negrita(true));
+  renglon(c.etiquetaTotal ?? "TOTAL", fmt(c.total));
+  partes.push(negrita(false));
 
-  if (c.montoRecibido != null) {
-    partes.push(texto(`Recibido ${fmt(c.montoRecibido)}`), salto());
-  }
-  if (c.cambio != null && c.cambio > 0) {
-    partes.push(texto(`Cambio ${fmt(c.cambio)}`), salto());
-  }
+  const pago = [`Pagado con ${c.medioPago}`];
+  if (c.montoRecibido != null) pago.push(`Recibido ${fmt(c.montoRecibido)}`);
+  if (c.cambio != null && c.cambio > 0) pago.push(`Cambio ${fmt(c.cambio)}`);
+  partes.push(texto(pago.join(" - ")), salto());
+
   if (c.cuentaOrden) {
     const cuenta = c.cuentaOrden;
-    partes.push(salto(), alinear("izquierda"), negrita(true), texto(`Cuenta orden #${cuenta.numeroOrden}`), negrita(false), salto());
-    partes.push(texto(`Valor del servicio ${fmt(cuenta.valor)}`), salto());
     const conPago = cuenta.estePago != null;
-    if (cuenta.abonadoAntes > 0) {
-      partes.push(texto(`${conPago ? "Abonado antes" : "Pagado"} ${fmt(cuenta.abonadoAntes)}`), salto());
-    }
-    if (conPago) partes.push(texto(`Este pago ${fmt(cuenta.estePago!)}`), salto());
-    partes.push(negrita(true), texto(`SALDO ${fmt(cuenta.saldo)}`), negrita(false), salto(), alinear("derecha"));
+    partes.push(texto(`Orden #${cuenta.numeroOrden} - Valor del servicio ${fmt(cuenta.valor)}`), salto());
+    const pagos: string[] = [];
+    if (cuenta.abonadoAntes > 0) pagos.push(`${conPago ? "Abonado antes" : "Pagado"} ${fmt(cuenta.abonadoAntes)}`);
+    if (conPago) pagos.push(`Este pago ${fmt(cuenta.estePago!)}`);
+    if (pagos.length) partes.push(texto(pagos.join(" - ")), salto());
+    partes.push(negrita(true));
+    renglon("SALDO", fmt(cuenta.saldo));
+    partes.push(negrita(false));
   }
   if (c.cajero) {
     partes.push(texto(`Atendió: ${c.cajero}`), salto());
   }
 
-  partes.push(salto(2), ...piePersonalizado(c), salto(3), cortar());
+  // GS V 66 ya avanza el papel hasta la cuchilla antes de cortar: un
+  // solo renglón de margen basta para que el pie no quede pegado al corte.
+  partes.push(...piePersonalizado(c), salto(), cortar());
 
   if (c.abreCajon) {
     partes.push(abrirCajon());

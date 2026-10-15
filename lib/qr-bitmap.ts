@@ -16,7 +16,7 @@ import sharp from "sharp";
 import QRCode from "qrcode";
 import type { LogoRaster } from "./logo-bitmap";
 
-export async function generarQrRaster(contenido: string, anchoDots = 300): Promise<LogoRaster> {
+export async function generarQrRaster(contenido: string, anchoDots = 216): Promise<LogoRaster> {
   const svg = await QRCode.toString(contenido, {
     type: "svg",
     margin: 1,
