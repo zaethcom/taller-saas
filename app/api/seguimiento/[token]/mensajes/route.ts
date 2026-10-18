@@ -9,6 +9,7 @@
  * si alguien abusa.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { crearAviso } from "@/lib/avisos-servidor";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 
 const LARGO_MAXIMO = 1000;
@@ -60,6 +61,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // El globo de la barra superior y el push: así el taller se entera
+  // sin tener que estar revisando cada orden (0061_avisos_cliente.sql).
+  await crearAviso(admin, { empresaId: orden.empresa_id, ordenId: orden.id, tipo: "mensaje", detalle: texto });
 
   return NextResponse.json({ ok: true });
 }

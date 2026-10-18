@@ -11,6 +11,7 @@
  * "esperando_aprobacion" desde "en_reparacion".
  */
 import { NextRequest, NextResponse } from "next/server";
+import { crearAviso } from "@/lib/avisos-servidor";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 
 export async function POST(req: NextRequest) {
@@ -25,14 +26,14 @@ export async function POST(req: NextRequest) {
 
   const admin = clienteAdmin();
 
-  const { data: orden } = await admin.from("orden").select("id").eq("token_publico", body.token).maybeSingle();
+  const { data: orden } = await admin.from("orden").select("id, empresa_id").eq("token_publico", body.token).maybeSingle();
   if (!orden) {
     return NextResponse.json({ error: "enlace no válido o vencido" }, { status: 404 });
   }
 
   const { data: item } = await admin
     .from("orden_item")
-    .select("id, requiere_aprobacion, decision")
+    .select("id, descripcion, requiere_aprobacion, decision")
     .eq("id", body.itemId)
     .eq("orden_id", orden.id)
     .maybeSingle();
@@ -54,6 +55,13 @@ export async function POST(req: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  await crearAviso(admin, {
+    empresaId: orden.empresa_id,
+    ordenId: orden.id,
+    tipo: body.decision === "aprobada" ? "item_aprobado" : "item_rechazado",
+    detalle: item.descripcion,
+  });
 
   return NextResponse.json({ ok: true });
 }

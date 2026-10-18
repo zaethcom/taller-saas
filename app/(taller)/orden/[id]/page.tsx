@@ -296,7 +296,23 @@ export default function PaginaOrdenTecnico() {
       .catch(() => {});
     cargarEventos();
     cargarMensajes();
+    // Abrir la orden es atender sus avisos: salen del globo de la barra
+    // superior para todo el taller (0061_avisos_cliente.sql).
+    fetch("/api/avisos/atender", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ordenId: id }),
+    }).catch(() => {});
   }, [id]);
+
+  // Desde un aviso se llega con #mensajes, pero la tarjeta aparece
+  // cuando ya cargó la orden: el navegador no alcanza a bajar solo.
+  const ordenCargada = Boolean(orden);
+  useEffect(() => {
+    if (ordenCargada && window.location.hash === "#mensajes") {
+      document.getElementById("mensajes")?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [ordenCargada]);
 
   async function cargarMensajes() {
     const res = await fetch(`/api/ordenes/${id}/mensajes`);
@@ -596,7 +612,7 @@ export default function PaginaOrdenTecnico() {
 
       <Historial eventos={eventos} />
 
-      <div>
+      <div id="mensajes" style={{ scrollMarginTop: 16 }}>
         <h2 style={{ marginBottom: 12 }}>Mensajes</h2>
         <HiloMensajes mensajes={mensajes} ladoPropio="staff" onEnviar={enviarMensaje} placeholder="Responder al cliente…" />
       </div>

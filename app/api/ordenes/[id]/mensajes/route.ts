@@ -62,5 +62,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Responder es atender: los mensajes del cliente de esta orden salen
+  // del globo de todos (0061_avisos_cliente.sql). Sin la tabla no pasa nada.
+  await supabase
+    .from("aviso")
+    .update({ atendido_en: new Date().toISOString(), atendido_por: user.id })
+    .eq("orden_id", id)
+    .eq("tipo", "mensaje")
+    .is("atendido_en", null);
+
   return NextResponse.json({ ok: true });
 }
