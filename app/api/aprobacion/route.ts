@@ -19,6 +19,7 @@ import { RequisitoFaltanteError, TransicionInvalidaError, estadoAlAprobar, trans
 import { buscarPrimeraFase } from "@/lib/fases";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 import { reservarAlAprobar } from "@/lib/reservas-servidor";
+import { crearAviso } from "@/lib/avisos-servidor";
 
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as { token?: string; decision?: string; motivo?: string };
@@ -125,6 +126,13 @@ export async function POST(req: NextRequest) {
       body.decision === "aprobada"
         ? `Cliente aprobó la cotización desde el enlace${reservados.length ? `. Reservado: ${reservados.join(", ")}` : ""}${aEstado === "esperando_repuesto" ? ". Queda esperando repuesto" : ""}`
         : `Cliente rechazó la cotización desde el enlace${motivo ? `. Motivo: ${motivo}` : ""}`,
+  });
+
+  await crearAviso(admin, {
+    empresaId: orden.empresa_id,
+    ordenId: orden.id,
+    tipo: body.decision === "aprobada" ? "cotizacion_aprobada" : "cotizacion_rechazada",
+    detalle: motivo,
   });
 
   return NextResponse.json({ ok: true, estado: aEstado });

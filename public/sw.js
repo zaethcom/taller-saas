@@ -37,3 +37,43 @@ self.addEventListener("fetch", (event) => {
     }),
   );
 });
+
+/*
+ * Avisos del cliente (0061_avisos_cliente.sql): el servidor manda por
+ * push { titulo, cuerpo, url, tag } (lib/avisos.ts, notificacionDeAviso)
+ * cuando el cliente escribe o decide una cotización desde el enlace.
+ */
+self.addEventListener("push", (event) => {
+  let datos = {};
+  try {
+    datos = event.data ? event.data.json() : {};
+  } catch {
+    datos = { cuerpo: event.data ? event.data.text() : "" };
+  }
+  event.waitUntil(
+    self.registration.showNotification(datos.titulo || "Aviso de un cliente", {
+      body: datos.cuerpo || "",
+      tag: datos.tag,
+      renotify: Boolean(datos.tag),
+      icon: "/icon.svg",
+      badge: "/icon.svg",
+      data: { url: datos.url || "/" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || "/", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((ventanas) => {
+      // Si la app ya está abierta, se usa esa pestaña en vez de abrir otra.
+      for (const v of ventanas) {
+        if (new URL(v.url).origin === self.location.origin && "focus" in v) {
+          return v.focus().then(() => v.navigate(url));
+        }
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
+});

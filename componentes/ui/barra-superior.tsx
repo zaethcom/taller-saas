@@ -1,6 +1,7 @@
 /**
  * La barra superior de las tres puertas: buscar una orden, saltar a
- * otra puerta, en qué sede se está trabajando y quién tiene la sesión.
+ * otra puerta, los avisos de los clientes (componentes/ui/avisos.tsx),
+ * en qué sede se está trabajando y quién tiene la sesión.
  *
  * Es la misma barra en las tres -- negra siempre, como el menú
  * lateral, aunque la empresa haya elegido tema claro. Que el marco de
@@ -9,9 +10,11 @@
  */
 import Link from "next/link";
 import { LogOut, MapPin } from "lucide-react";
+import { Avisos } from "@/componentes/ui/avisos";
 import { Buscador } from "@/componentes/ui/buscador";
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
 import { SelectorPuertas } from "@/componentes/ui/selector-puertas";
+import { veAvisos } from "@/lib/avisos";
 import type { Rol } from "@/lib/permisos";
 
 export function BarraSuperior({
@@ -67,6 +70,7 @@ export function BarraSuperior({
 
       <div className="bs-acciones" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
         <SelectorPuertas rol={rol} actual={puerta} />
+        {veAvisos(rol) && <Avisos rol={rol} />}
         {sedeNombre &&
           (puedeCambiarSede ? (
             <Link href="/elegir-sede" title="Cambiar de sede" className="bs-sede" style={estiloSede}>
