@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { etiquetaEvento } from "@/lib/fases";
+import { esEventoEdicion, PREFIJO_EDICION } from "@/lib/orden-edicion";
 import { clienteServidor } from "@/lib/supabase/servidor";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -32,17 +33,29 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   return NextResponse.json(
-    (eventos ?? []).map((e) => ({
-      estado: e.a_estado,
-      // Un cambio de fase (0050_fase_orden.sql) se lee como "Estado · Fase";
-      // la fase anterior va en la nota para que se vea de dónde venía.
-      etiqueta: etiquetaEvento(e),
-      fase: e.a_fase,
-      nota:
-        e.de_estado === e.a_estado && e.de_fase
-          ? [`Antes: ${e.de_fase}`, e.nota].filter(Boolean).join(" · ")
-          : e.nota,
-      fecha: e.ocurrio_en,
-    })),
+    (eventos ?? []).map((e) =>
+      // Una corrección de datos (lib/orden-edicion.ts) no es un paso:
+      // se titula así y la nota dice quién cambió qué.
+      esEventoEdicion(e)
+        ? {
+            estado: e.a_estado,
+            etiqueta: PREFIJO_EDICION,
+            fase: e.a_fase,
+            nota: (e.nota ?? "").slice(PREFIJO_EDICION.length).replace(/^[\s.]*/, "").replace(/^por /, "Por "),
+            fecha: e.ocurrio_en,
+          }
+        : {
+            estado: e.a_estado,
+            // Un cambio de fase (0050_fase_orden.sql) se lee como "Estado · Fase";
+            // la fase anterior va en la nota para que se vea de dónde venía.
+            etiqueta: etiquetaEvento(e),
+            fase: e.a_fase,
+            nota:
+              e.de_estado === e.a_estado && e.de_fase
+                ? [`Antes: ${e.de_fase}`, e.nota].filter(Boolean).join(" · ")
+                : e.nota,
+            fecha: e.ocurrio_en,
+          },
+    ),
   );
 }

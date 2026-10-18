@@ -5,9 +5,11 @@
  * de agregar un .eq("empresa_id", ...) en ningún lado.
  */
 import Link from "next/link";
-import { ClipboardList, Inbox } from "lucide-react";
+import { ClipboardList, Inbox, Pencil } from "lucide-react";
 import { type Estado } from "@/lib/estados";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { obtenerPerfilActual } from "@/lib/perfil";
+import { puede } from "@/lib/permisos";
 import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
 import { EstadoOrden } from "@/componentes/ui/estado-orden";
 import { Aviso } from "@/componentes/ui/campo";
@@ -16,6 +18,8 @@ import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
 export default async function PaginaOrdenes() {
   const supabase = await clienteServidor();
+  const perfil = await obtenerPerfilActual(supabase);
+  const puedeEditar = Boolean(perfil && puede(perfil.rol, "editar_orden"));
 
   const { data: ordenes, error } = await supabase
     .from("orden")
@@ -68,6 +72,7 @@ export default async function PaginaOrdenes() {
                 <th>Estado</th>
                 <th>Motivo</th>
                 <th>Abierta</th>
+                {puedeEditar && <th aria-label="Editar" />}
               </tr>
             </thead>
             <tbody>
@@ -99,6 +104,20 @@ export default async function PaginaOrdenes() {
                   <td className="cifra" style={{ whiteSpace: "nowrap", color: "var(--ink-2)" }}>
                     {new Date(o.abierta_en).toLocaleDateString("es-CO")}
                   </td>
+                  {puedeEditar && (
+                    <td>
+                      {o.estado !== "entregada" && (
+                        <Link
+                          href={`/ordenes/${o.id}/editar`}
+                          aria-label={`Editar orden #${o.numero}`}
+                          title="Corregir datos"
+                          style={{ display: "inline-flex", padding: 6, color: "var(--ink-2)" }}
+                        >
+                          <Pencil size={16} strokeWidth={2} />
+                        </Link>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

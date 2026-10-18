@@ -14,7 +14,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Camera, Wrench, Package, FileText, ChevronRight, ArrowRight, KeyRound, Eye, Clock, Check, Printer } from "lucide-react";
+import { Camera, Wrench, Package, FileText, ChevronRight, ArrowRight, KeyRound, Eye, Clock, Check, Printer, Pencil } from "lucide-react";
 import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
 import { formatearMoneda } from "@/componentes/cobro/panel-cobro";
 import { CAMINO, enlacesVisibles, pasoActual, siguientePaso, type Accion, type Destino } from "@/lib/camino-orden";
@@ -432,6 +432,17 @@ export default function PaginaOrdenTecnico() {
             conWhatsapp={Boolean(rol && puede(rol, "enviar_whatsapp_orden"))}
           />
         </div>
+        {rol && puede(rol, "editar_orden") && orden.estado !== "entregada" && (
+          <div style={{ marginTop: 14 }}>
+            <BotonEnlace
+              variante="contorno"
+              href={`/ordenes/${id}/editar?volver=${encodeURIComponent(`/orden/${id}`)}`}
+              icono={<Pencil size={16} strokeWidth={2} />}
+            >
+              Editar datos
+            </BotonEnlace>
+          </div>
+        )}
         {rol && puede(rol, "reimprimir_etiqueta_orden") && (
           <div style={{ marginTop: 14 }}>
             <Boton
