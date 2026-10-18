@@ -83,6 +83,9 @@ export default function PaginaLogin() {
           setCodigoNoEncontrado(false);
           try {
             localStorage.setItem(CLAVE_LOCAL, texto);
+            // Para que la app instalada desde aquí lleve el logo de esta
+            // empresa (lib/icono-app.ts): el servidor no ve localStorage.
+            document.cookie = `taller_codigo=${encodeURIComponent(texto)}; path=/; max-age=31536000; samesite=lax`;
           } catch {
             // Sin persistencia -- no es grave, solo toca escribirlo de nuevo.
           }

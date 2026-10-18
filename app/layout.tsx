@@ -5,6 +5,8 @@ import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { obtenerConfiguracion, CONFIG_POR_DEFECTO } from "@/lib/configuracion";
 import { RegistroServiceWorker } from "@/componentes/registro-service-worker";
+import { cookies } from "next/headers";
+import { COOKIE_CODIGO_EMPRESA, parametrosEmpresa } from "@/lib/icono-app";
 
 /**
  * Las dos familias del sistema, autoalojadas por next/font: se
@@ -30,17 +32,27 @@ const saira = Saira_Condensed({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "Taller 360",
-  description: "POS y servicio técnico trazable por QR",
-  // El manifest es lo que hace que Chrome/Android ofrezca "Agregar a
-  // pantalla de inicio" y abra la app en pantalla completa, sin la
-  // barra del navegador -- sin esto, técnicamente es una web que se ve
-  // bien en el celular, pero no se "instala" como una app de verdad.
-  // Lo genera app/manifest.ts dinámicamente (Next.js lo sirve solo en
-  // /manifest.webmanifest, sin declarar la ruta acá).
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Taller 360" },
-};
+/**
+ * El manifest es lo que hace que Chrome/Android ofrezca "Agregar a
+ * pantalla de inicio" y abra la app en pantalla completa, sin la barra
+ * del navegador. Lo sirve /api/app/manifest con la empresa en la URL
+ * (sesión, o la cookie del código que dejó /login) para que la app
+ * quede instalada con el logo de esa empresa -- ver lib/icono-app.ts.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const supabase = await clienteServidor();
+  const perfil = await obtenerPerfilActual(supabase);
+  const codigo = (await cookies()).get(COOKIE_CODIGO_EMPRESA)?.value ?? null;
+  const p = parametrosEmpresa({ empresaId: perfil?.empresaId, codigo });
+
+  return {
+    title: "Taller 360",
+    description: "POS y servicio técnico trazable por QR",
+    manifest: p ? `/api/app/manifest?${p}` : "/api/app/manifest",
+    icons: p ? { apple: `/api/app/icono?${p}&tam=180` } : undefined,
+    appleWebApp: { capable: true, statusBarStyle: "default", title: "Taller 360" },
+  };
+}
 
 export const viewport: Viewport = {
   width: "device-width",
