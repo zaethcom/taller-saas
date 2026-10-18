@@ -26,7 +26,8 @@ export type Accion =
   | "reimprimir_etiqueta_orden" // Volver a mandar la etiqueta QR de una orden a la etiquetadora
   | "ver_reportes" // Admin: informes de ventas, caja, inventario y taller, y su exportación
   | "configurar_fases" // Admin: las fases de cada estado de la orden (0050_fase_orden.sql)
-  | "enviar_whatsapp_orden"; // Taller: mandar el enlace de seguimiento por WhatsApp (el número no se muestra en pantalla)
+  | "enviar_whatsapp_orden" // Taller: mandar el enlace de seguimiento por WhatsApp (el número no se muestra en pantalla)
+  | "editar_orden"; // Corregir los datos del cliente, el equipo y la recepción de una orden no entregada
 
 const PERMISOS: Record<Rol, Accion[]> = {
   admin: [
@@ -50,6 +51,7 @@ const PERMISOS: Record<Rol, Accion[]> = {
     "ver_reportes",
     "configurar_fases",
     "enviar_whatsapp_orden",
+    "editar_orden",
   ],
   recepcion: [
     "recibir_equipo",
@@ -60,6 +62,7 @@ const PERMISOS: Record<Rol, Accion[]> = {
     "ver_acceso_dispositivo",
     "reimprimir_etiqueta_orden",
     "enviar_whatsapp_orden",
+    "editar_orden",
   ],
   tecnico: [
     "diagnosticar",

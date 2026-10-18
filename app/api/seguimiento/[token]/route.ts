@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
 import { etiquetaEvento } from "@/lib/fases";
+import { esEventoEdicion } from "@/lib/orden-edicion";
 import { obtenerCuentaOrden } from "@/lib/cuenta-orden";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 
@@ -50,7 +51,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   ] = await Promise.all([
     admin
       .from("orden_evento")
-      .select("de_estado, a_estado, a_fase, ocurrio_en")
+      .select("de_estado, a_estado, a_fase, nota, ocurrio_en")
       .eq("orden_id", orden.id)
       .order("ocurrio_en", { ascending: true }),
     admin
@@ -130,7 +131,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     logoUrl: config?.logo_url ?? null,
     colorPrincipal: config?.color_principal ?? null,
     diagnostico,
-    historial: (eventos ?? []).map((e) => ({
+    // Las correcciones de datos (lib/orden-edicion.ts) no son pasos del
+    // equipo, y su nota es interna: el cliente no las ve.
+    historial: (eventos ?? []).filter((e) => !esEventoEdicion(e)).map((e) => ({
       estado: e.a_estado,
       etiqueta: etiquetaEvento(e),
       fecha: e.ocurrio_en,

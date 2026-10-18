@@ -15,7 +15,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Inbox, Search, Check, User, Wrench, FileText, Printer, ClipboardList, Barcode, KeyRound, Camera, Wallet, ShoppingBag, MessageCircle } from "lucide-react";
+import { Inbox, Search, Check, User, Wrench, FileText, Printer, ClipboardList, Barcode, KeyRound, Camera, Wallet, ShoppingBag, MessageCircle, Pencil } from "lucide-react";
 import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
 import { PatronGrid } from "@/componentes/patron-android/patron-grid";
 import { Boton } from "@/componentes/ui/boton";
@@ -509,6 +509,13 @@ export default function PaginaRecibir() {
               Subir evidencia
             </Boton>
           )}
+          <Boton
+            variante="contorno"
+            icono={<Pencil size={18} strokeWidth={2} />}
+            onClick={() => router.push(`/ordenes/${resultado.ordenId}/editar`)}
+          >
+            Corregir datos
+          </Boton>
           <Boton
             variante="contorno"
             icono={<ClipboardList size={18} strokeWidth={2} />}
