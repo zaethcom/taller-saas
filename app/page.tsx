@@ -16,7 +16,7 @@ export default function Inicio() {
   return (
     <main style={{ maxWidth: 560, margin: "0 auto", padding: "72px 20px" }}>
       <div className="marca" style={{ fontSize: 34, lineHeight: 1 }}>
-        Taller SaaS
+        Taller 360
       </div>
       <p style={{ margin: "8px 0 28px", fontSize: 15, color: "var(--ink-2)" }}>
         Tres puertas, un solo sistema.

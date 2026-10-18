@@ -44,8 +44,8 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const logoUrl = perfil ? (await obtenerConfiguracion(supabase, perfil.empresaId)).logoUrl : null;
 
   return {
-    name: "Taller SaaS",
-    short_name: "Taller",
+    name: "Taller 360",
+    short_name: "Taller 360",
     description: "POS y servicio técnico trazable por QR",
     start_url: "/",
     display: "standalone",

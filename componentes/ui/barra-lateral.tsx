@@ -140,7 +140,7 @@ export function BarraLateral({
           )}
           <div className="bl-texto" style={{ minWidth: 0 }}>
             <strong style={{ fontSize: 14, lineHeight: 1.25, display: "block" }}>
-              {nombreEmpresa || "Taller SaaS"}
+              {nombreEmpresa || "Taller 360"}
             </strong>
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--chrome-apagado)" }}>
               {etiquetaPuerta}
@@ -177,7 +177,7 @@ export function BarraLateral({
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ width: 30, height: 3, borderRadius: 2, background: "var(--accent)" }} />
               <div className="marca" style={{ fontSize: 20, lineHeight: 1.05, color: "#fff" }}>
-                {nombreEmpresa || "Taller SaaS"}
+                {nombreEmpresa || "Taller 360"}
               </div>
             </div>
           )}

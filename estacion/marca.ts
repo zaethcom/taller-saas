@@ -33,7 +33,7 @@ export function encabezadoEmpresa(c: CargaMarcaEmpresa): Buffer[] {
     );
   }
 
-  partes.push(negrita(true), tamano(true), texto(c.empresaNombre || "Taller SaaS"), salto(), tamano(false), negrita(false));
+  partes.push(negrita(true), tamano(true), texto(c.empresaNombre || "Taller 360"), salto(), tamano(false), negrita(false));
 
   // Dirección y teléfono en un solo renglón cuando caben, para no gastar
   // papel en cada recibo.
