@@ -31,7 +31,7 @@ const saira = Saira_Condensed({
 });
 
 export const metadata: Metadata = {
-  title: "Taller SaaS",
+  title: "Taller 360",
   description: "POS y servicio técnico trazable por QR",
   // El manifest es lo que hace que Chrome/Android ofrezca "Agregar a
   // pantalla de inicio" y abra la app en pantalla completa, sin la
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   // bien en el celular, pero no se "instala" como una app de verdad.
   // Lo genera app/manifest.ts dinámicamente (Next.js lo sirve solo en
   // /manifest.webmanifest, sin declarar la ruta acá).
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Taller" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Taller 360" },
 };
 
 export const viewport: Viewport = {

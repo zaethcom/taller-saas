@@ -182,7 +182,7 @@ export default function PaginaLogin() {
               <img src={marca.logoUrl} alt={marca.nombre} style={{ maxHeight: 52, maxWidth: "100%", objectFit: "contain" }} />
             ) : (
               <div className="marca" style={{ fontSize: 26, color: "#131417", lineHeight: 1 }}>
-                {marca?.nombre ?? "Taller SaaS"}
+                {marca?.nombre ?? "Taller 360"}
               </div>
             )}
             <p style={{ margin: "6px 0 0", fontSize: 13, color: "#6b7078" }}>
