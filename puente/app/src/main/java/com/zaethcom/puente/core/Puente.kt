@@ -92,7 +92,7 @@ class Puente(private val context: Context) : Impresor {
                 return@withLock fallo(
                     rol,
                     "Android no ha concedido permiso USB para la impresora de ${rol.etiqueta}. " +
-                        "Acepta el aviso en la pantalla del equipo, marcando «Usar de forma predeterminada»."
+                        "Acepta el aviso en la pantalla del equipo marcando «Abrir siempre» (o «Usar de forma predeterminada»)."
                 )
             }
 

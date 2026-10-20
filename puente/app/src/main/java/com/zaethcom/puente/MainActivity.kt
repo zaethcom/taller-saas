@@ -2,8 +2,10 @@ package com.zaethcom.puente
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -54,6 +56,7 @@ class MainActivity : ComponentActivity() {
         }
 
         ServicioPuente.arrancar(this)
+        alConectarUsb(intent)
 
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
@@ -62,6 +65,48 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        alConectarUsb(intent)
+    }
+
+    /**
+     * Android abre la app al enchufar una impresora y, si se acepta su aviso, ya
+     * deja el permiso USB concedido. Si esa impresora no está en ningún rol y hay
+     * uno libre, se asigna aquí mismo: aceptar el aviso basta para dejarla guardada.
+     */
+    private fun alConectarUsb(intent: Intent?) {
+        if (intent?.action != UsbManager.ACTION_USB_DEVICE_ATTACHED) return
+        val dispositivo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
+        } ?: return
+        val puente = (applicationContext as PuenteApp).puente
+        val config = puente.config.value
+        val yaAsignada = Rol.entries.any {
+            val cfg = config.de(it)
+            cfg.vendorId == dispositivo.vendorId && cfg.productId == dispositivo.productId
+        }
+        if (yaAsignada) {
+            puente.anotar("Conectada ${descripcion(dispositivo)}")
+            return
+        }
+        val libre = Rol.entries.firstOrNull { !config.de(it).asignada } ?: run {
+            puente.anotar("Conectada ${descripcion(dispositivo)}: los dos roles ya tienen impresora; usa «Elegir impresora» para cambiarla")
+            return
+        }
+        puente.actualizar(
+            config.de(libre).copy(
+                vendorId = dispositivo.vendorId,
+                productId = dispositivo.productId,
+                descripcion = descripcion(dispositivo)
+            )
+        )
+        puente.anotar("${libre.etiqueta}: asignada ${descripcion(dispositivo)} al conectarla")
     }
 }
 
@@ -128,26 +173,21 @@ private fun Pantalla(app: PuenteApp) {
         DialogoDispositivos(
             transporte = UsbRawTransport(contexto),
             alElegir = { dispositivo ->
-                alcance.launch {
-                    val transporte = UsbRawTransport(contexto)
-                    if (!transporte.tienePermiso(dispositivo)) {
-                        val ok = transporte.pedirPermiso(dispositivo)
-                        if (!ok) {
-                            puente.anotar("Permiso USB denegado para ${dispositivo.productName}", esError = true)
-                            eligiendoPara = null
-                            return@launch
-                        }
-                    }
-                    puente.actualizar(
-                        config.de(rol).copy(
-                            vendorId = dispositivo.vendorId,
-                            productId = dispositivo.productId,
-                            descripcion = descripcion(dispositivo)
-                        )
+                // Se guarda primero y el permiso se pide después, sin esperar la
+                // respuesta: el diálogo de Android abre otra pantalla y, si esta se
+                // recrea mientras tanto (girar, poca memoria), la asignación que
+                // esperaba el «Aceptar» se perdía y la impresora quedaba sin guardar.
+                puente.actualizar(
+                    config.de(rol).copy(
+                        vendorId = dispositivo.vendorId,
+                        productId = dispositivo.productId,
+                        descripcion = descripcion(dispositivo)
                     )
-                    puente.anotar("${rol.etiqueta}: asignada ${descripcion(dispositivo)}")
-                    eligiendoPara = null
-                }
+                )
+                puente.anotar("${rol.etiqueta}: asignada ${descripcion(dispositivo)}")
+                val transporte = UsbRawTransport(contexto)
+                if (!transporte.tienePermiso(dispositivo)) transporte.pedirPermisoSinEsperar(dispositivo)
+                eligiendoPara = null
             },
             alCerrar = { eligiendoPara = null }
         )
