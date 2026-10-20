@@ -10,6 +10,7 @@
  * Storage rechaza la subida antes de que este código pueda hacer nada.
  */
 import { clienteNavegador } from "./supabase/cliente";
+import { reducirImagen } from "./reducir-imagen";
 
 async function subirImagenDeMarca(empresaId: string, archivo: File, nombre: "logo" | "marca" | "fondo-login"): Promise<string> {
   const supabase = clienteNavegador();
@@ -39,8 +40,28 @@ export function subirImagenMarca(empresaId: string, archivo: File): Promise<stri
   return subirImagenDeMarca(empresaId, archivo, "marca");
 }
 
-export function subirFondoLogin(empresaId: string, archivo: File): Promise<string> {
-  return subirImagenDeMarca(empresaId, archivo, "fondo-login");
+/**
+ * El fondo del login se achica antes de subir (lib/reducir-imagen.ts) y
+ * después se comprueba que quedó completo: una subida cortada a medias
+ * se guardaba igual y el login mostraba solo la franja de arriba de la
+ * imagen sobre negro.
+ */
+export async function subirFondoLogin(empresaId: string, archivo: File): Promise<string> {
+  const reducido = await reducirImagen(archivo);
+  const url = await subirImagenDeMarca(empresaId, reducido, "fondo-login");
+
+  let guardado: number | null = null;
+  try {
+    const r = await fetch(url, { method: "HEAD", cache: "no-store" });
+    const largo = Number(r.headers.get("content-length"));
+    if (r.ok && largo > 0) guardado = largo;
+  } catch {
+    // Sin poder comprobarlo no se bloquea: se queda con lo subido.
+  }
+  if (guardado !== null && guardado !== reducido.size) {
+    throw new Error("La imagen se subió incompleta. Vuelve a elegirla para intentarlo de nuevo.");
+  }
+  return url;
 }
 
 /**
