@@ -21,6 +21,11 @@
  * público de /seguimiento, pero para branding en vez de una orden.
  * Sin código (o mientras no coincide con ninguna empresa), se ve
  * genérica sobre el negro de la plataforma, como siempre.
+ *
+ * Fondo: la imagen de fondo de login de Configuración si la hay; si no,
+ * el logo de la empresa (ver FondoLogo). La marca resuelta se guarda en
+ * localStorage para pintarla desde el primer cuadro en la próxima visita,
+ * sin esperar a la consulta.
  */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -39,6 +44,39 @@ interface MarcaEmpresa {
 }
 
 const CLAVE_LOCAL = "taller-saas:codigo-empresa";
+const CLAVE_MARCA = "taller-saas:marca-empresa";
+
+/**
+ * El logo como fondo de pantalla. Los logos suelen ser pequeños y casi
+ * cuadrados, así que estirarlo a "cover" se vería pixelado: abajo va el
+ * mismo logo muy desenfocado y oscuro, que tiñe toda la pantalla con sus
+ * colores, y encima el logo nítido y grande (contain, sin repetir),
+ * atenuado para que el recuadro del formulario se siga leyendo.
+ */
+function FondoLogo({ url }: { url: string }) {
+  const capa: React.CSSProperties = { position: "absolute", inset: 0, pointerEvents: "none" };
+  return (
+    <div aria-hidden style={{ position: "fixed", inset: 0, overflow: "hidden", background: "#000", zIndex: 0 }}>
+      <div
+        style={{
+          ...capa,
+          inset: -60,
+          background: `url(${url}) center/cover no-repeat`,
+          filter: "blur(40px) brightness(0.55) saturate(1.3)",
+        }}
+      />
+      <div
+        style={{
+          ...capa,
+          inset: "6vmin",
+          background: `url(${url}) center/contain no-repeat`,
+          opacity: 0.5,
+        }}
+      />
+      <div style={{ ...capa, background: "radial-gradient(ellipse at center, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.6) 100%)" }} />
+    </div>
+  );
+}
 
 export default function PaginaLogin() {
   const router = useRouter();
@@ -70,6 +108,14 @@ export default function PaginaLogin() {
       setCodigoNoEncontrado(false);
       return;
     }
+    try {
+      // Mismo código que la última vez: se pinta ya con la marca guardada
+      // y la consulta de abajo la refresca.
+      const marcaGuardada = localStorage.getItem(CLAVE_MARCA);
+      if (marcaGuardada && localStorage.getItem(CLAVE_LOCAL) === texto) setMarca(JSON.parse(marcaGuardada));
+    } catch {
+      // Storage bloqueado o JSON dañado: se espera la consulta.
+    }
     const controlador = new AbortController();
     const temporizador = setTimeout(() => {
       fetch(`/api/empresas/por-codigo?codigo=${encodeURIComponent(texto)}`, { signal: controlador.signal })
@@ -79,10 +125,12 @@ export default function PaginaLogin() {
             setCodigoNoEncontrado(true);
             return;
           }
-          setMarca(await r.json());
+          const datos: MarcaEmpresa = await r.json();
+          setMarca(datos);
           setCodigoNoEncontrado(false);
           try {
             localStorage.setItem(CLAVE_LOCAL, texto);
+            localStorage.setItem(CLAVE_MARCA, JSON.stringify(datos));
             // Para que la app instalada desde aquí lleve el logo de esta
             // empresa (lib/icono-app.ts): el servidor no ve localStorage.
             document.cookie = `taller_codigo=${encodeURIComponent(texto)}; path=/; max-age=31536000; samesite=lax`;
@@ -158,16 +206,19 @@ export default function PaginaLogin() {
         alignItems: "center",
         justifyContent: "center",
         padding: 20,
+        position: "relative",
+        // Todo en un solo `background`: con `background` y `backgroundImage`
+        // a la vez, al llegar la marca React quitaba backgroundImage después
+        // de poner el atajo y borraba la imagen -- el fondo subido en
+        // Configuración nunca se veía.
         background: marca?.fondoLoginUrl
-          ? `linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.75)), #000 url(${marca.fondoLoginUrl}) center/cover no-repeat`
-          : "var(--chrome)",
-        backgroundImage: marca?.fondoLoginUrl
-          ? undefined
-          : "linear-gradient(160deg, var(--chrome-2) 0%, var(--chrome) 48%, #000 100%)",
+          ? `linear-gradient(180deg, rgba(0,0,0,0.15), rgba(0,0,0,0.4)), #000 url(${marca.fondoLoginUrl}) center/cover no-repeat`
+          : "linear-gradient(160deg, var(--chrome-2) 0%, var(--chrome) 48%, #000 100%) var(--chrome)",
       }}
     >
+      {!marca?.fondoLoginUrl && marca?.logoUrl && <FondoLogo url={marca.logoUrl} />}
       <div
-        style={{ "--accent": marca?.colorPrincipal || "#0b6c78" } as React.CSSProperties}
+        style={{ "--accent": marca?.colorPrincipal || "#0b6c78", position: "relative", zIndex: 1, width: "100%", maxWidth: 380 } as React.CSSProperties}
       >
         <div
           style={{
