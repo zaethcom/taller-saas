@@ -859,12 +859,8 @@ textarea.invalido {
   .barra-superior .bs-acciones > * {
     flex: none;
   }
-  .barra-superior .bs-acciones > .bs-sede {
-    flex: 0 1 auto;
-    min-width: 0;
-  }
-  .barra-superior .bs-usuario {
-    padding: 0 7px !important;
+  .barra-superior .bs-acciones > .bs-usuario {
+    margin-left: auto;
   }
   .barra-superior .bs-usuario-texto {
     display: none;

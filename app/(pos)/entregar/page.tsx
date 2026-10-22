@@ -14,7 +14,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PackageCheck, Search, Check, Camera, PenLine, Eraser, Lock, Printer, Hash } from "lucide-react";
+import { Search, Check, Camera, PenLine, Eraser, Lock, Printer, Hash } from "lucide-react";
 import { FirmaCanvas, type FirmaCanvasHandle } from "@/componentes/evidencia/firma-canvas";
 import { VisorEscaner, SeparadorEscribelo } from "@/componentes/lector-codigos/visor-escaner";
 import { PanelCobro } from "@/componentes/cobro/panel-cobro";
@@ -287,9 +287,7 @@ export default function PaginaEntregar() {
   return (
     <div>
       <TituloPantalla
-        icono={<PackageCheck size={24} strokeWidth={2} />}
         titulo="Entregar"
-        descripcion="Cobra el saldo, toma la foto de salida y la firma de quien recibe."
       />
 
       {!orden ? (

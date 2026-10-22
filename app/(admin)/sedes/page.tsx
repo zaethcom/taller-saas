@@ -11,7 +11,7 @@
  * /api/sedes/<id>); si ya tiene historial, la API dice qué la ata.
  */
 import { useEffect, useState } from "react";
-import { Building2, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
@@ -91,9 +91,7 @@ export default function PaginaSedes() {
   return (
     <div>
       <TituloPantalla
-        icono={<Building2 size={24} strokeWidth={2} />}
         titulo="Sedes"
-        descripcion="Cada local o taller de la empresa. Hacen falta al menos dos para poder trasladar mercancía entre ellas."
       />
 
       <div className="pila">

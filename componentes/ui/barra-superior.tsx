@@ -1,18 +1,16 @@
 /**
  * La barra superior de las tres puertas: buscar una orden, saltar a
  * otra puerta, los avisos de los clientes (componentes/ui/avisos.tsx),
- * en qué sede se está trabajando y quién tiene la sesión.
+ * y el menú del usuario (sede, quién es y cerrar sesión).
  *
  * Es la misma barra en las tres -- negra siempre, como el menú
  * lateral, aunque la empresa haya elegido tema claro. Que el marco de
  * la aplicación no cambie de color con el tema es lo que hace que el
  * color de la empresa signifique una sola cosa: la acción.
  */
-import Link from "next/link";
-import { LogOut, MapPin } from "lucide-react";
 import { Avisos } from "@/componentes/ui/avisos";
 import { Buscador } from "@/componentes/ui/buscador";
-import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
+import { MenuUsuario } from "@/componentes/ui/menu-usuario";
 import { SelectorPuertas } from "@/componentes/ui/selector-puertas";
 import { veAvisos } from "@/lib/avisos";
 import type { Rol } from "@/lib/permisos";
@@ -31,27 +29,6 @@ export function BarraSuperior({
   puedeCambiarSede?: boolean;
   puerta: "pos" | "taller" | "admin";
 }) {
-  const contenidoSede = (
-    <>
-      <MapPin size={15} strokeWidth={2} />
-      <span style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-        {sedeNombre}
-      </span>
-    </>
-  );
-  const estiloSede: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    height: 42,
-    padding: "0 12px",
-    borderRadius: "var(--r-md)",
-    background: "var(--chrome-campo)",
-    border: "1px solid var(--chrome-linea)",
-    color: "var(--chrome-texto)",
-    textDecoration: "none",
-  };
-
   return (
     <header
       className="barra-superior"
@@ -59,8 +36,8 @@ export function BarraSuperior({
         display: "flex",
         alignItems: "center",
         gap: 12,
-        minHeight: 72,
-        padding: "14px 20px",
+        minHeight: 64,
+        padding: "11px 20px",
         background: "var(--chrome)",
         backgroundImage: "linear-gradient(115deg, var(--chrome) 0%, var(--chrome-2) 62%, var(--chrome) 100%)",
         flexWrap: "wrap",
@@ -71,52 +48,7 @@ export function BarraSuperior({
       <div className="bs-acciones" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
         <SelectorPuertas rol={rol} actual={puerta} />
         {veAvisos(rol) && <Avisos rol={rol} />}
-        {sedeNombre &&
-          (puedeCambiarSede ? (
-            <Link href="/elegir-sede" title="Cambiar de sede" className="bs-sede" style={estiloSede}>
-              {contenidoSede}
-            </Link>
-          ) : (
-            <div className="bs-sede" style={estiloSede}>
-              {contenidoSede}
-            </div>
-          ))}
-        <div
-          className="bs-usuario"
-          title={`${nombre} · ${rol}`}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 9,
-            height: 42,
-            padding: "0 12px 0 8px",
-            borderRadius: "var(--r-md)",
-            background: "var(--chrome-campo)",
-            border: "1px solid var(--chrome-linea)",
-          }}
-        >
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 28,
-              height: 28,
-              borderRadius: "var(--r-sm)",
-              background: "var(--accent)",
-              color: "var(--accent-texto)",
-              fontSize: 12,
-              fontWeight: 800,
-            }}
-          >
-            {nombre.charAt(0).toUpperCase() || "?"}
-          </span>
-          <div className="bs-usuario-texto" style={{ lineHeight: 1.15 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--chrome-texto)" }}>{nombre}</div>
-            <div style={{ fontSize: 10, color: "var(--chrome-apagado)", textTransform: "capitalize" }}>{rol}</div>
-          </div>
-        </div>
-        <CerrarSesion icono={<LogOut size={17} strokeWidth={2} />} />
+        <MenuUsuario nombre={nombre} rol={rol} sedeNombre={sedeNombre} puedeCambiarSede={puedeCambiarSede} />
       </div>
     </header>
   );

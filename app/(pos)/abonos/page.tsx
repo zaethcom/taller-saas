@@ -184,9 +184,7 @@ export default function PaginaAbonos() {
   return (
     <div>
       <TituloPantalla
-        icono={<Wallet size={24} strokeWidth={2} />}
         titulo="Abonos"
-        descripcion="Busca la orden del equipo, mira su cuenta y recibe un abono del cliente."
       />
 
       <div className="pila">

@@ -7,7 +7,7 @@
  * /metodos-pago: listar, crear, editar inline, activar/desactivar.
  */
 import { useEffect, useState } from "react";
-import { HardHat, Plus, Pencil, Check, X } from "lucide-react";
+import { Plus, Pencil, Check, X } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
@@ -116,9 +116,7 @@ export default function PaginaManoObra() {
   return (
     <div>
       <TituloPantalla
-        icono={<HardHat size={24} strokeWidth={2} />}
         titulo="Mano de obra"
-        descripcion="Precio fijo por tipo de trabajo -- se agrega a una orden igual que un servicio."
       />
 
       <div className="pila">

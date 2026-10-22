@@ -7,7 +7,7 @@
  * activar/desactivar los que ya no use, sin tocar código.
  */
 import { useEffect, useState } from "react";
-import { CreditCard, Plus, Banknote, Pencil, Check, X } from "lucide-react";
+import { Plus, Banknote, Pencil, Check, X } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
@@ -114,7 +114,6 @@ export default function PaginaMetodosPago() {
   return (
     <div>
       <TituloPantalla
-        icono={<CreditCard size={24} strokeWidth={2} />}
         titulo="Métodos de pago"
         descripcion="Solo el marcado como efectivo abre el cajón y cuenta en el cierre de caja."
       />

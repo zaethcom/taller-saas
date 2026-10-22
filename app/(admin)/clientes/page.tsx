@@ -5,7 +5,7 @@
  * en cada orden. Cada cliente con teléfono tiene un botón para escribirle
  * por WhatsApp.
  */
-import { Contact } from "lucide-react";
+
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { TarjetaTabla } from "@/componentes/ui/tarjeta";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
@@ -22,9 +22,7 @@ export default async function PaginaClientes() {
   return (
     <div>
       <TituloPantalla
-        icono={<Contact size={24} strokeWidth={2} />}
         titulo="Clientes"
-        descripcion="El historial de equipos y órdenes de cada cliente vive en cada orden, no aquí."
       />
 
       {(clientes ?? []).length === 0 ? (

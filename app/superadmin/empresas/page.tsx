@@ -21,7 +21,7 @@
  * /superadmin/tipos.
  */
 import { useEffect, useState } from "react";
-import { Building2, Plus, Check, AlertTriangle, Settings2 } from "lucide-react";
+import { Plus, Check, AlertTriangle, Settings2 } from "lucide-react";
 import { Boton, BotonEnlace } from "@/componentes/ui/boton";
 import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
@@ -167,7 +167,6 @@ export default function PaginaSuperadminEmpresas() {
   return (
     <div>
       <TituloPantalla
-        icono={<Building2 size={24} strokeWidth={2} />}
         titulo="Empresas"
         descripcion="Suspender es inmediato y reversible: la empresa deja de ver sus datos en toda la aplicación."
       />

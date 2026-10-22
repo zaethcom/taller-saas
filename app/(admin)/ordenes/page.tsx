@@ -43,9 +43,7 @@ export default async function PaginaOrdenes() {
   return (
     <div>
       <TituloPantalla
-        icono={<ClipboardList size={24} strokeWidth={2} />}
         titulo="Órdenes"
-        descripcion="Las últimas 50 órdenes de las dos sedes."
         acciones={
           <BotonEnlace href="/recibir" variante="primario" icono={<Inbox size={18} strokeWidth={2} />}>
             Recibir equipo

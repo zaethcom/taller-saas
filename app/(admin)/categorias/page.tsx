@@ -12,7 +12,7 @@
  * un mensaje claro en vez de dejar productos huérfanos.
  */
 import { useEffect, useState } from "react";
-import { Tags, Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, X } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo } from "@/componentes/ui/campo";
@@ -110,9 +110,7 @@ export default function PaginaCategorias() {
   return (
     <div>
       <TituloPantalla
-        icono={<Tags size={24} strokeWidth={2} />}
         titulo="Categorías"
-        descripcion="Son las pestañas con las que caja filtra el catálogo al vender."
       />
 
       <div className="pila">

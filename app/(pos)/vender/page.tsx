@@ -343,7 +343,6 @@ export default function PaginaVender() {
       `}</style>
 
       <TituloPantalla
-        icono={<ShoppingCart size={24} strokeWidth={2} />}
         titulo="Vender"
       />
 

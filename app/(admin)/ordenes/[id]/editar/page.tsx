@@ -10,7 +10,7 @@
  */
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Pencil, User, Wrench, FileText, KeyRound, Check } from "lucide-react";
+import { User, Wrench, FileText, KeyRound, Check } from "lucide-react";
 import { Boton, BotonEnlace } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
@@ -153,9 +153,7 @@ export default function PaginaEditarOrden() {
   return (
     <div style={{ maxWidth: 760, margin: "0 auto" }}>
       <TituloPantalla
-        icono={<Pencil size={24} strokeWidth={2} />}
         titulo={`Editar orden #${datos.numero}`}
-        descripcion="Corrige lo que se anotó mal al recibir. El cambio queda en el historial de la orden."
       />
 
       {!datos.editable ? (

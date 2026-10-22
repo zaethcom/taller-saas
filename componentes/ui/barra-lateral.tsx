@@ -13,10 +13,11 @@
  * Cliente porque necesita usePathname() para resaltar la página activa
  * y para el estado del cajón en móvil.
  */
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
+import { dentroDe } from "@/componentes/ui/pestanas-seccion";
 
 export interface ItemNavLateral {
   href: string;
@@ -30,6 +31,10 @@ export interface ItemNavLateral {
   // de verdad, `next build` no llega a renderizarlas). Un elemento ya
   // renderizado sí es serializable a través de esa frontera.
   icono: React.ReactNode;
+  /** Otras pantallas que cuentan como esta entrada (sus pestañas). */
+  incluye?: string[];
+  /** Rótulo pequeño que se pinta antes de esta entrada ("Ajustes"). */
+  grupo?: string;
 }
 
 export function BarraLateral({
@@ -84,6 +89,7 @@ export function BarraLateral({
           .barra-lateral .bl-link:hover{background:rgba(255,255,255,.07);color:#fff;text-decoration:none;}
           .barra-lateral .bl-link[aria-current="page"]{background:var(--accent);color:var(--accent-texto);box-shadow:0 10px 20px -12px rgba(0,0,0,.9);}
           .barra-lateral .bl-link:focus-visible{outline:none;box-shadow:0 0 0 2px var(--chrome),0 0 0 5px var(--accent-aro);}
+          .barra-lateral .bl-grupo{margin:14px 13px 4px;font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--chrome-apagado);}
           .bl-hamburguesa{display:none;}
           .bl-fondo{display:none;}
           @media (max-width:640px){
@@ -149,19 +155,16 @@ export function BarraLateral({
         </div>
 
         <nav style={{ display: "flex", flexDirection: "column", padding: 8, gap: 2, flex: 1, overflowY: "auto" }}>
-          {items.map(({ href, etiqueta, icono }) => {
-            const activo = pathname === href;
+          {items.map(({ href, etiqueta, icono, incluye, grupo }) => {
+            const activo = [href, ...(incluye ?? [])].some((h) => dentroDe(pathname, h));
             return (
-              <Link
-                key={href}
-                href={href}
-                className="bl-link"
-                title={etiqueta}
-                aria-current={activo ? "page" : undefined}
-              >
-                <span style={{ display: "flex", flexShrink: 0 }}>{icono}</span>
-                <span className="bl-texto">{etiqueta}</span>
-              </Link>
+              <Fragment key={href}>
+                {grupo && <div className="bl-grupo">{grupo}</div>}
+                <Link href={href} className="bl-link" title={etiqueta} aria-current={activo ? "page" : undefined}>
+                  <span style={{ display: "flex", flexShrink: 0 }}>{icono}</span>
+                  <span className="bl-texto">{etiqueta}</span>
+                </Link>
+              </Fragment>
             );
           })}
         </nav>

@@ -64,9 +64,7 @@ export default function PaginaImportarCatalogo() {
   return (
     <div>
       <TituloPantalla
-        icono={<FileSpreadsheet size={24} strokeWidth={2} />}
         titulo="Importar catálogo"
-        descripcion="Carga repuestos, accesorios y servicios desde un Excel. Repetir la importación actualiza por código, no duplica."
       />
 
       <div className="pila">

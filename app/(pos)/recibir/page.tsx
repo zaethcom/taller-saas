@@ -528,9 +528,7 @@ export default function PaginaRecibir() {
   return (
     <div>
       <TituloPantalla
-        icono={<Inbox size={24} strokeWidth={2} />}
         titulo="Recibir equipo"
-        descripcion="Evidencia, cliente, equipo y motivo. Al guardar se imprime el comprobante y la etiqueta."
       />
 
       <div className="pila">

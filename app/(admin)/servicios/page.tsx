@@ -8,7 +8,7 @@
  * /categorias, con los campos propios de un servicio.
  */
 import { useEffect, useState } from "react";
-import { Wrench, Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, X } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
@@ -164,9 +164,7 @@ export default function PaginaServicios() {
   return (
     <div>
       <TituloPantalla
-        icono={<Wrench size={24} strokeWidth={2} />}
         titulo="Servicios"
-        descripcion="El catálogo de trabajos que ofrece el taller, para elegir al cotizar en vez de escribirlos a mano."
       />
 
       <div className="pila">

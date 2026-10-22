@@ -19,7 +19,7 @@
  * escrito -- sin backend, sin cuenta de negocio de Meta.
  */
 import { Fragment, useEffect, useState } from "react";
-import { ShoppingBag, PackageCheck, MessageCircle, X, Plus, Trash2 } from "lucide-react";
+import { PackageCheck, MessageCircle, X, Plus, Trash2 } from "lucide-react";
 import { clienteNavegador } from "@/lib/supabase/cliente";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
@@ -303,9 +303,7 @@ export default function PaginaCompras() {
   return (
     <div>
       <TituloPantalla
-        icono={<ShoppingBag size={24} strokeWidth={2} />}
         titulo="Compras"
-        descripcion="Lo que el taller pidió y todavía no llega, en orden de antigüedad."
         acciones={
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
             <input
