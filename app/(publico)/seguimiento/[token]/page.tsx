@@ -12,7 +12,7 @@
  */
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Check, X, Clock, Stethoscope } from "lucide-react";
+import { Check, X, Clock } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
@@ -162,6 +162,151 @@ export default function PaginaSeguimiento() {
   const puedeDecidir =
     datos.cotizacion && datos.cotizacion.estado === "enviada" && !datos.cotizacion.decision;
 
+  // Lo que espera una respuesta del cliente va arriba, junto al estado;
+  // lo demás (diagnóstico, historial, fotos, la cotización ya decidida)
+  // queda plegado para que la pantalla se lea de un vistazo.
+  const costosPorDecidir = datos.itemsPendientes.some((it) => !it.decision);
+  const tarjetaCotizacion = datos.cotizacion && (
+    <>
+    <Tarjeta relleno={false}>
+      <div style={{ padding: "14px 16px" }}>
+        {datos.cotizacion.cotizacion_item.map((it, i) => (
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              padding: "9px 0",
+              borderBottom: "1px solid var(--rule)",
+              fontSize: 14,
+            }}
+          >
+            <span>
+              <span className="cifra" style={{ color: "var(--ink-3)" }}>
+                {it.cantidad}×
+              </span>{" "}
+              {it.descripcion}
+            </span>
+            <span className="cifra" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>
+              {fmt(it.cantidad * it.precio_unit)}
+            </span>
+          </div>
+        ))}
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", paddingTop: 14 }}>
+          <span style={{ fontSize: 18, fontWeight: 800 }}>Total</span>
+          <span className="cifra" style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em" }}>
+            {fmt(datos.cotizacion.total)}
+          </span>
+        </div>
+      </div>
+
+      {puedeDecidir && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, padding: "0 16px 16px" }}>
+          <Boton
+            variante="primario"
+            tamano="lg"
+            icono={<Check size={19} strokeWidth={2.4} />}
+            disabled={enviando}
+            onClick={() => decidir("aprobada")}
+          >
+            Aprobar
+          </Boton>
+          <Boton
+            variante="contorno"
+            tamano="lg"
+            icono={<X size={19} strokeWidth={2.4} />}
+            disabled={enviando || rechazando}
+            onClick={() => setRechazando(true)}
+          >
+            Rechazar
+          </Boton>
+        </div>
+      )}
+
+      {puedeDecidir && rechazando && (
+        <div className="pila" style={{ gap: 10, padding: "0 16px 16px" }}>
+          <label style={{ display: "block" }}>
+            <span className="campo-etiqueta">¿Por qué la rechazas? (opcional)</span>
+            <textarea
+              rows={2}
+              value={motivoRechazo}
+              onChange={(e) => setMotivoRechazo(e.target.value)}
+              placeholder="Ej. muy costoso, lo pienso y les aviso"
+            />
+          </label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <Boton variante="peligro" disabled={enviando} onClick={() => decidir("rechazada")}>
+              Confirmar rechazo
+            </Boton>
+            <Boton variante="fantasma" disabled={enviando} onClick={() => setRechazando(false)}>
+              Volver
+            </Boton>
+          </div>
+        </div>
+      )}
+
+      {datos.cotizacion.decision && (
+        <div style={{ padding: "0 16px 16px" }}>
+          <Etiqueta tono={datos.cotizacion.decision === "aprobada" ? "ok" : "neutro"} punto>
+            {datos.cotizacion.decision === "aprobada" ? "Aprobada por ti" : "Rechazada"}
+          </Etiqueta>
+        </div>
+      )}
+    </Tarjeta>
+    </>
+  );
+  const bloqueCostos = (
+    <>
+    <Tarjeta relleno={false}>
+      {datos.itemsPendientes.map((it) => (
+        <div key={it.id} style={{ padding: "14px 16px", borderBottom: "1px solid var(--rule)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 14, marginBottom: 10 }}>
+            <span>
+              <span className="cifra" style={{ color: "var(--ink-3)" }}>
+                {it.cantidad}×
+              </span>{" "}
+              {it.descripcion}
+            </span>
+            <span className="cifra" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>
+              {fmt(it.cantidad * it.precioUnit)}
+            </span>
+          </div>
+          {it.decision ? (
+            <Etiqueta tono={it.decision === "aprobada" ? "ok" : "neutro"} punto>
+              {it.decision === "aprobada" ? "Aprobado por ti" : "Rechazado por ti"}
+            </Etiqueta>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <Boton
+                variante="primario"
+                tamano="sm"
+                icono={<Check size={15} strokeWidth={2.4} />}
+                disabled={decidiendoItem === it.id}
+                onClick={() => decidirItem(it.id, "aprobada")}
+              >
+                Aprobar
+              </Boton>
+              <Boton
+                variante="contorno"
+                tamano="sm"
+                icono={<X size={15} strokeWidth={2.4} />}
+                disabled={decidiendoItem === it.id}
+                onClick={() => decidirItem(it.id, "rechazada")}
+              >
+                Rechazar
+              </Boton>
+            </div>
+          )}
+        </div>
+      ))}
+    </Tarjeta>
+    <p className="campo-ayuda" style={{ marginTop: 8 }}>
+      Se agregaron después de que aprobaste la cotización original -- por eso se piden aparte.
+    </p>
+    </>
+  );
+
   return (
     <main style={{ padding: "28px 20px 48px", maxWidth: 520, margin: "0 auto" }}>
       <div className="pila">
@@ -207,166 +352,18 @@ export default function PaginaSeguimiento() {
           )}
         </Tarjeta>
 
-        {tieneDiagnostico(datos.diagnostico) && (
-          <section>
-            <h2 style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-              <Stethoscope size={18} strokeWidth={2} color="var(--ink-2)" aria-hidden />
-              Diagnóstico
-            </h2>
-            <Tarjeta style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {datos.diagnostico.hallazgos && (
-                <div>
-                  <div className="campo-etiqueta">Hallazgos</div>
-                  <p style={{ margin: 0, fontSize: 14 }}>{datos.diagnostico.hallazgos}</p>
-                </div>
-              )}
-              {datos.diagnostico.fallas && (
-                <div>
-                  <div className="campo-etiqueta">Fallas encontradas</div>
-                  <p style={{ margin: 0, fontSize: 14 }}>{datos.diagnostico.fallas}</p>
-                </div>
-              )}
-              {datos.diagnostico.recomendaciones && (
-                <div>
-                  <div className="campo-etiqueta">Recomendaciones</div>
-                  <p style={{ margin: 0, fontSize: 14 }}>{datos.diagnostico.recomendaciones}</p>
-                </div>
-              )}
-              {datos.diagnostico.observaciones && (
-                <div>
-                  <div className="campo-etiqueta">Observaciones</div>
-                  <p style={{ margin: 0, fontSize: 14 }}>{datos.diagnostico.observaciones}</p>
-                </div>
-              )}
-            </Tarjeta>
-          </section>
-        )}
-
-        <section>
-          <h2 style={{ marginBottom: 12 }}>Historial</h2>
-          <Tarjeta>
-            <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 14 }}>
-              {datos.historial.map((h, i) => (
-                <li key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 26,
-                      height: 26,
-                      borderRadius: "50%",
-                      background: i === 0 ? "var(--accent)" : "var(--surface-2)",
-                      color: i === 0 ? "var(--accent-texto)" : "var(--ink-3)",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {i === 0 ? <Clock size={14} strokeWidth={2.4} /> : <Check size={14} strokeWidth={2.6} />}
-                  </span>
-                  <span>
-                    <span style={{ display: "block", fontSize: 14, fontWeight: 700 }}>{h.etiqueta}</span>
-                    <span className="cifra" style={{ display: "block", fontSize: 12, color: "var(--ink-3)" }}>
-                      {new Date(h.fecha).toLocaleString("es-CO")}
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </Tarjeta>
-        </section>
-
-        {datos.cotizacion && (
+        {puedeDecidir && (
           <section>
             <h2 style={{ marginBottom: 12 }}>Cotización</h2>
-            <Tarjeta relleno={false}>
-              <div style={{ padding: "14px 16px" }}>
-                {datos.cotizacion.cotizacion_item.map((it, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      padding: "9px 0",
-                      borderBottom: "1px solid var(--rule)",
-                      fontSize: 14,
-                    }}
-                  >
-                    <span>
-                      <span className="cifra" style={{ color: "var(--ink-3)" }}>
-                        {it.cantidad}×
-                      </span>{" "}
-                      {it.descripcion}
-                    </span>
-                    <span className="cifra" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>
-                      {fmt(it.cantidad * it.precio_unit)}
-                    </span>
-                  </div>
-                ))}
-                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", paddingTop: 14 }}>
-                  <span style={{ fontSize: 18, fontWeight: 800 }}>Total</span>
-                  <span className="cifra" style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em" }}>
-                    {fmt(datos.cotizacion.total)}
-                  </span>
-                </div>
-              </div>
-
-              {puedeDecidir && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, padding: "0 16px 16px" }}>
-                  <Boton
-                    variante="primario"
-                    tamano="lg"
-                    icono={<Check size={19} strokeWidth={2.4} />}
-                    disabled={enviando}
-                    onClick={() => decidir("aprobada")}
-                  >
-                    Aprobar
-                  </Boton>
-                  <Boton
-                    variante="contorno"
-                    tamano="lg"
-                    icono={<X size={19} strokeWidth={2.4} />}
-                    disabled={enviando || rechazando}
-                    onClick={() => setRechazando(true)}
-                  >
-                    Rechazar
-                  </Boton>
-                </div>
-              )}
-
-              {puedeDecidir && rechazando && (
-                <div className="pila" style={{ gap: 10, padding: "0 16px 16px" }}>
-                  <label style={{ display: "block" }}>
-                    <span className="campo-etiqueta">¿Por qué la rechazas? (opcional)</span>
-                    <textarea
-                      rows={2}
-                      value={motivoRechazo}
-                      onChange={(e) => setMotivoRechazo(e.target.value)}
-                      placeholder="Ej. muy costoso, lo pienso y les aviso"
-                    />
-                  </label>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                    <Boton variante="peligro" disabled={enviando} onClick={() => decidir("rechazada")}>
-                      Confirmar rechazo
-                    </Boton>
-                    <Boton variante="fantasma" disabled={enviando} onClick={() => setRechazando(false)}>
-                      Volver
-                    </Boton>
-                  </div>
-                </div>
-              )}
-
-              {datos.cotizacion.decision && (
-                <div style={{ padding: "0 16px 16px" }}>
-                  <Etiqueta tono={datos.cotizacion.decision === "aprobada" ? "ok" : "neutro"} punto>
-                    {datos.cotizacion.decision === "aprobada" ? "Aprobada por ti" : "Rechazada"}
-                  </Etiqueta>
-                </div>
-              )}
-            </Tarjeta>
+            {tarjetaCotizacion}
           </section>
         )}
-
+        {costosPorDecidir && (
+          <section>
+            <h2 style={{ marginBottom: 12 }}>Costos adicionales</h2>
+            {bloqueCostos}
+          </section>
+        )}
         {datos.cuenta && (datos.cuenta.valor > 0 || datos.cuenta.pagos.length > 0) && (
           <section>
             <h2 style={{ marginBottom: 12 }}>Cuenta</h2>
@@ -400,61 +397,93 @@ export default function PaginaSeguimiento() {
           </section>
         )}
 
-        {datos.itemsPendientes.length > 0 && (
-          <section>
-            <h2 style={{ marginBottom: 12 }}>Costos adicionales</h2>
-            <Tarjeta relleno={false}>
-              {datos.itemsPendientes.map((it) => (
-                <div key={it.id} style={{ padding: "14px 16px", borderBottom: "1px solid var(--rule)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 14, marginBottom: 10 }}>
-                    <span>
-                      <span className="cifra" style={{ color: "var(--ink-3)" }}>
-                        {it.cantidad}×
-                      </span>{" "}
-                      {it.descripcion}
-                    </span>
-                    <span className="cifra" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>
-                      {fmt(it.cantidad * it.precioUnit)}
-                    </span>
-                  </div>
-                  {it.decision ? (
-                    <Etiqueta tono={it.decision === "aprobada" ? "ok" : "neutro"} punto>
-                      {it.decision === "aprobada" ? "Aprobado por ti" : "Rechazado por ti"}
-                    </Etiqueta>
-                  ) : (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      <Boton
-                        variante="primario"
-                        tamano="sm"
-                        icono={<Check size={15} strokeWidth={2.4} />}
-                        disabled={decidiendoItem === it.id}
-                        onClick={() => decidirItem(it.id, "aprobada")}
-                      >
-                        Aprobar
-                      </Boton>
-                      <Boton
-                        variante="contorno"
-                        tamano="sm"
-                        icono={<X size={15} strokeWidth={2.4} />}
-                        disabled={decidiendoItem === it.id}
-                        onClick={() => decidirItem(it.id, "rechazada")}
-                      >
-                        Rechazar
-                      </Boton>
-                    </div>
-                  )}
+        {tieneDiagnostico(datos.diagnostico) && (
+          <details className="mas-opciones">
+            <summary>Diagnóstico</summary>
+            <div style={{ marginTop: 12 }}>
+            <Tarjeta style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {datos.diagnostico.hallazgos && (
+                <div>
+                  <div className="campo-etiqueta">Hallazgos</div>
+                  <p style={{ margin: 0, fontSize: 14 }}>{datos.diagnostico.hallazgos}</p>
                 </div>
-              ))}
+              )}
+              {datos.diagnostico.fallas && (
+                <div>
+                  <div className="campo-etiqueta">Fallas encontradas</div>
+                  <p style={{ margin: 0, fontSize: 14 }}>{datos.diagnostico.fallas}</p>
+                </div>
+              )}
+              {datos.diagnostico.recomendaciones && (
+                <div>
+                  <div className="campo-etiqueta">Recomendaciones</div>
+                  <p style={{ margin: 0, fontSize: 14 }}>{datos.diagnostico.recomendaciones}</p>
+                </div>
+              )}
+              {datos.diagnostico.observaciones && (
+                <div>
+                  <div className="campo-etiqueta">Observaciones</div>
+                  <p style={{ margin: 0, fontSize: 14 }}>{datos.diagnostico.observaciones}</p>
+                </div>
+              )}
             </Tarjeta>
-            <p className="campo-ayuda" style={{ marginTop: 8 }}>
-              Se agregaron después de que aprobaste la cotización original -- por eso se piden aparte.
-            </p>
-          </section>
+            </div>
+          </details>
         )}
-
+        <details className="mas-opciones">
+          <summary>Historial</summary>
+          <div style={{ marginTop: 12 }}>
+          <Tarjeta>
+            <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 14 }}>
+              {datos.historial.map((h, i) => (
+                <li key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 26,
+                      height: 26,
+                      borderRadius: "50%",
+                      background: i === 0 ? "var(--accent)" : "var(--surface-2)",
+                      color: i === 0 ? "var(--accent-texto)" : "var(--ink-3)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {i === 0 ? <Clock size={14} strokeWidth={2.4} /> : <Check size={14} strokeWidth={2.6} />}
+                  </span>
+                  <span>
+                    <span style={{ display: "block", fontSize: 14, fontWeight: 700 }}>{h.etiqueta}</span>
+                    <span className="cifra" style={{ display: "block", fontSize: 12, color: "var(--ink-3)" }}>
+                      {new Date(h.fecha).toLocaleString("es-CO")}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </Tarjeta>
+          </div>
+        </details>
+        {datos.cotizacion && !puedeDecidir && (
+          <details className="mas-opciones">
+            <summary>Cotización</summary>
+            <div style={{ marginTop: 12 }}>
+            {tarjetaCotizacion}
+            </div>
+          </details>
+        )}
+        {datos.itemsPendientes.length > 0 && !costosPorDecidir && (
+          <details className="mas-opciones">
+            <summary>Costos adicionales</summary>
+            <div style={{ marginTop: 12 }}>
+            {bloqueCostos}
+            </div>
+          </details>
+        )}
         {datos.evidencias.length > 0 && (
-          <section>
-            <h2 style={{ marginBottom: 12 }}>Fotos y videos</h2>
+          <details className="mas-opciones">
+            <summary>Fotos y videos</summary>
+            <div style={{ marginTop: 12 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {datos.evidencias.map((ev, i) => {
                 if (!ev.url) return null;
@@ -491,9 +520,9 @@ export default function PaginaSeguimiento() {
                 );
               })}
             </div>
-          </section>
+            </div>
+          </details>
         )}
-
         <section>
           <h2 style={{ marginBottom: 12 }}>Mensajes</h2>
           <HiloMensajes mensajes={datos.mensajes} ladoPropio="cliente" onEnviar={enviarMensaje} />

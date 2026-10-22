@@ -302,9 +302,10 @@ export default function PaginaLogin() {
             <VentanaError mensaje={error} onCerrar={() => setError(null)} />
           </form>
 
-          <p style={{ margin: "18px 0 0", fontSize: 12, color: "#9297a0", textAlign: "center" }}>
-            Las cuentas las crea un administrador del taller.
-          </p>
+          <details style={{ margin: "16px 0 0", fontSize: 12, color: "#9297a0", textAlign: "center" }}>
+            <summary style={{ cursor: "pointer", listStyle: "none" }}>¿No tienes cuenta?</summary>
+            <p style={{ margin: "6px 0 0" }}>Las cuentas las crea un administrador del taller.</p>
+          </details>
         </div>
       </div>
     </main>
