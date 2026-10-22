@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { etiquetaEvento } from "@/lib/fases";
 import { esEventoEdicion, PREFIJO_EDICION } from "@/lib/orden-edicion";
+import { esEventoRepuestoRecibido, PREFIJO_REPUESTO_RECIBIDO } from "@/lib/compras/recepcion-orden";
 import { clienteServidor } from "@/lib/supabase/servidor";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -36,7 +37,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     (eventos ?? []).map((e) =>
       // Una corrección de datos (lib/orden-edicion.ts) no es un paso:
       // se titula así y la nota dice quién cambió qué.
-      esEventoEdicion(e)
+      // Lo que llegó de Compras para esta orden (lib/compras/recepcion-orden.ts).
+      esEventoRepuestoRecibido(e)
+        ? {
+            estado: e.a_estado,
+            etiqueta: PREFIJO_REPUESTO_RECIBIDO,
+            fase: e.a_fase,
+            nota: (e.nota ?? "").slice(PREFIJO_REPUESTO_RECIBIDO.length).replace(/^[\s:]*/, ""),
+            fecha: e.ocurrio_en,
+          }
+        : esEventoEdicion(e)
         ? {
             estado: e.a_estado,
             etiqueta: PREFIJO_EDICION,

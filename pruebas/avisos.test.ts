@@ -75,3 +75,27 @@ describe("base64UrlABytes", () => {
     expect([...base64UrlABytes("AQID_w")]).toEqual([1, 2, 3, 255]);
   });
 });
+
+describe("aviso de repuesto recibido", () => {
+  it("dice qué llegó y que la orden puede seguir", () => {
+    expect(textoAviso("repuesto_recibido", "Pantalla A10")).toBe("Llegó Pantalla A10. La orden está lista para seguir.");
+  });
+
+  it("la notificación no habla en nombre del cliente", () => {
+    const n = notificacionDeAviso({
+      tipo: "repuesto_recibido",
+      texto: "Llegó Pantalla A10. La orden está lista para seguir.",
+      ordenId: "o1",
+      numero: 7,
+      cliente: "Ana",
+      url: "/orden/o1",
+    });
+    expect(n.titulo).toBe("Llegó el repuesto · Orden #7");
+    expect(n.cuerpo).toBe("Llegó Pantalla A10. La orden está lista para seguir.");
+  });
+
+  it("el técnico va a la orden, no a los mensajes", () => {
+    expect(urlAviso("tecnico", "o1", "/taller", "repuesto_recibido")).toBe("/orden/o1");
+    expect(urlAviso("tecnico", "o1", "/taller", "mensaje")).toBe("/orden/o1#mensajes");
+  });
+});

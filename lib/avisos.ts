@@ -12,7 +12,9 @@ export type TipoAviso =
   | "cotizacion_aprobada"
   | "cotizacion_rechazada"
   | "item_aprobado"
-  | "item_rechazado";
+  | "item_rechazado"
+  /** Compras marcó recibido un repuesto de la orden (0062_compra_por_orden.sql). */
+  | "repuesto_recibido";
 
 export const ETIQUETA_AVISO: Record<TipoAviso, string> = {
   mensaje: "Mensaje del cliente",
@@ -20,6 +22,7 @@ export const ETIQUETA_AVISO: Record<TipoAviso, string> = {
   cotizacion_rechazada: "Rechazó la cotización",
   item_aprobado: "Aprobó un costo adicional",
   item_rechazado: "Rechazó un costo adicional",
+  repuesto_recibido: "Llegó el repuesto",
 };
 
 /** Largo máximo del texto guardado en el aviso (el mensaje completo sigue en orden_mensaje). */
@@ -44,6 +47,8 @@ export function textoAviso(tipo: TipoAviso, detalle?: string | null): string {
       return recortarTexto(d ? `El cliente aprobó: ${d}` : "El cliente aprobó un costo adicional.");
     case "item_rechazado":
       return recortarTexto(d ? `El cliente rechazó: ${d}` : "El cliente rechazó un costo adicional.");
+    case "repuesto_recibido":
+      return recortarTexto(`${d ? `Llegó ${d}.` : "Llegó el repuesto."} La orden está lista para seguir.`);
   }
 }
 
@@ -71,10 +76,15 @@ export function notificacionDeAviso(a: {
     a.tipo === "mensaje" ? `${quien} escribió · ${orden}` : `${ETIQUETA_AVISO[a.tipo]} · ${orden}`;
   return {
     titulo,
-    cuerpo: a.tipo === "mensaje" ? a.texto : `${quien}: ${a.texto}`,
+    cuerpo: a.tipo === "mensaje" || !esDelCliente(a.tipo) ? a.texto : `${quien}: ${a.texto}`,
     url: a.url,
     tag: `orden-${a.ordenId}`,
   };
+}
+
+/** Los avisos que salen de algo que hizo el cliente (el resto los genera el taller). */
+export function esDelCliente(tipo: TipoAviso): boolean {
+  return tipo !== "repuesto_recibido";
 }
 
 /**
@@ -84,8 +94,8 @@ export function notificacionDeAviso(a: {
  * porque lib/perfil.ts no carga en el navegador) con el globo abierto
  * (?avisos=1), donde también se responde.
  */
-export function urlAviso(rol: Rol, ordenId: string, aterrizaje: string): string {
-  if (puedeEntrarA(rol, "taller")) return `/orden/${ordenId}#mensajes`;
+export function urlAviso(rol: Rol, ordenId: string, aterrizaje: string, tipo?: TipoAviso): string {
+  if (puedeEntrarA(rol, "taller")) return tipo && !esDelCliente(tipo) ? `/orden/${ordenId}` : `/orden/${ordenId}#mensajes`;
   return `${aterrizaje}?avisos=1`;
 }
 

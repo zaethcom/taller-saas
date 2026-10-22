@@ -174,6 +174,87 @@ function PanelAcceso({ ordenId }: { ordenId: string }) {
   );
 }
 
+interface Contabilidad {
+  cobrado: number;
+  pagado: number;
+  costoCompras: number;
+  costoInventario: number;
+  gastado: number;
+  utilidad: number;
+  margen: number | null;
+  sinCosto: number;
+  compras: { producto: string; cantidad: number; costo: number }[];
+  inventario: { descripcion: string; cantidad: number; costoUnit: number | null }[];
+}
+
+/** Cuánto se gastó, cuánto se cobra y cuánto queda: solo el
+ *  administrador (ver_utilidad_orden). Se carga al abrir la pestaña. */
+function PanelContabilidad({ ordenId }: { ordenId: string }) {
+  const [datos, setDatos] = useState<Contabilidad | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/ordenes/${ordenId}/contabilidad`)
+      .then(async (r) => {
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error);
+        setDatos(d);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar"));
+  }, [ordenId]);
+
+  if (error) return <Tarjeta style={{ color: "var(--ink-3)", fontSize: 13 }}>{error}</Tarjeta>;
+  if (!datos) return <Tarjeta style={{ color: "var(--ink-3)", fontSize: 13 }}>Cargando…</Tarjeta>;
+
+  const fila = (texto: string, valor: string, fuerte = false) => (
+    <div className="fila" style={{ justifyContent: "space-between", gap: 10, fontSize: fuerte ? 16 : 14, fontWeight: fuerte ? 800 : 500 }}>
+      <span>{texto}</span>
+      <span className="cifra">{valor}</span>
+    </div>
+  );
+
+  return (
+    <Tarjeta>
+      <div className="pila" style={{ gap: 8 }}>
+        {fila("Valor de la orden (cobrado al cliente)", fmt(datos.cobrado))}
+        {datos.compras.map((c, i) => (
+          <div key={`c${i}`}>{fila(`Compra: ${c.producto}${c.cantidad > 1 ? ` x${c.cantidad}` : ""}`, `− ${fmt(c.costo)}`)}</div>
+        ))}
+        {datos.inventario.map((r, i) => (
+          <div key={`i${i}`}>
+            {fila(
+              `Inventario: ${r.descripcion}${r.cantidad > 1 ? ` x${r.cantidad}` : ""}`,
+              r.costoUnit == null ? "sin costo" : `− ${fmt(r.costoUnit * r.cantidad)}`,
+            )}
+          </div>
+        ))}
+        {datos.compras.length + datos.inventario.length === 0 && (
+          <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>Esta orden no tiene repuestos con costo.</p>
+        )}
+        <div style={{ borderTop: "1px solid var(--rule)", paddingTop: 8 }} className="pila">
+          {fila("Gastado en repuestos", fmt(datos.gastado))}
+          {fila(
+            `Utilidad${datos.margen != null ? ` (${datos.margen.toLocaleString("es-CO")} %)` : ""}`,
+            fmt(datos.utilidad),
+            true,
+          )}
+          {datos.pagado < datos.cobrado && (
+            <p style={{ margin: 0, fontSize: 12, color: "var(--ink-3)" }}>
+              El cliente ha pagado {fmt(datos.pagado)} de {fmt(datos.cobrado)}.
+            </p>
+          )}
+          {datos.sinCosto > 0 && (
+            <p style={{ margin: 0, fontSize: 12, color: "var(--aviso, var(--ink-3))" }}>
+              {datos.sinCosto === 1 ? "Un repuesto no tiene" : `${datos.sinCosto} repuestos no tienen`} costo anotado: la
+              utilidad real es menor.
+            </p>
+          )}
+        </div>
+      </div>
+    </Tarjeta>
+  );
+}
+
 interface Evento {
   estado: string;
   etiqueta: string;
@@ -262,7 +343,7 @@ export default function PaginaOrdenTecnico() {
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [imprimiendo, setImprimiendo] = useState(false);
   const [avisoEtiqueta, setAvisoEtiqueta] = useState<string | null>(null);
-  const [pestana, setPestana] = useState<"mensajes" | "historial" | "acceso">("mensajes");
+  const [pestana, setPestana] = useState<"mensajes" | "historial" | "acceso" | "utilidad">("mensajes");
 
   function cargarOrden() {
     fetch(`/api/ordenes/${id}`)
@@ -621,6 +702,7 @@ export default function PaginaOrdenTecnico() {
               { valor: "mensajes", texto: `Mensajes${mensajes.length ? ` (${mensajes.length})` : ""}` },
               { valor: "historial", texto: "Historial" },
               ...(rol && puede(rol, "ver_acceso_dispositivo") ? [{ valor: "acceso", texto: "Acceso" }] : []),
+              ...(rol && puede(rol, "ver_utilidad_orden") ? [{ valor: "utilidad", texto: "Costos y utilidad" }] : []),
             ] as { valor: typeof pestana; texto: string }[]
           ).map((p) => (
             <button
@@ -641,6 +723,7 @@ export default function PaginaOrdenTecnico() {
           )}
           {pestana === "historial" && <Historial eventos={eventos} />}
           {pestana === "acceso" && <PanelAcceso ordenId={id} />}
+          {pestana === "utilidad" && <PanelContabilidad ordenId={id} />}
         </div>
       </div>
 

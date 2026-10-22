@@ -15,7 +15,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Bell, BellRing, CheckCircle2, ExternalLink, MessageCircle, Send, X, XCircle } from "lucide-react";
+import { Bell, BellRing, CheckCircle2, ExternalLink, MessageCircle, PackageCheck, Send, X, XCircle } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { ETIQUETA_AVISO, base64UrlABytes, type TipoAviso } from "@/lib/avisos";
 import { puedeEntrarA, type Rol } from "@/lib/permisos";
@@ -86,6 +86,7 @@ function sonar() {
 
 function IconoAviso({ tipo }: { tipo: TipoAviso }) {
   if (tipo === "mensaje") return <MessageCircle size={16} strokeWidth={2} color="var(--accent)" />;
+  if (tipo === "repuesto_recibido") return <PackageCheck size={16} strokeWidth={2} color="var(--ok)" />;
   if (tipo === "cotizacion_aprobada" || tipo === "item_aprobado")
     return <CheckCircle2 size={16} strokeWidth={2} color="var(--ok)" />;
   return <XCircle size={16} strokeWidth={2} color="var(--peligro)" />;

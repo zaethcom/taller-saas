@@ -104,12 +104,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // Fase 6: cierra el ciclo faltante -> solicitado -> recibido ->
     // consumido si esta orden tenía una solicitud ya recibida para
-    // (aparentemente) este mismo repuesto.
+    // (aparentemente) este mismo repuesto. Solo las que entraron al
+    // inventario (antes de 0062): lo que llega con costo de compra ya
+    // es de la orden y no pasa por aquí.
     await supabase
       .from("repuesto_solicitud")
       .update({ estado: "consumido" })
       .eq("orden_id", id)
       .eq("estado", "recibido")
+      .is("costo_compra", null)
       .ilike("descripcion", repuesto.descripcion);
 
     return NextResponse.json({ ok: true });

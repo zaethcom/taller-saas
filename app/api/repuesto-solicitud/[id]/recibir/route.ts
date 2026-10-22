@@ -1,32 +1,29 @@
 /**
  * POST /api/repuesto-solicitud/<id>/recibir
- * Body: { repuestoId, sedeId, cantidad }
+ * Body: { producto, cantidad, costo }
  *
- * Compras marca que llegó el repuesto -- lo que cierra el ciclo de la
- * sección 4 del documento original. La solicitud original solo trae una
- * descripción libre (lo que el técnico escribió al marcar faltante), así
- * que quien recibe confirma contra qué repuesto real del catálogo
- * corresponde y en qué sede entró. Antes esto solo cambiaba el estado
- * sin tocar `existencia` -- ahora pasa por mover_existencia (tipo
- * 'compra_recibida', referencia_id: la orden que lo pidió) y solo si
- * eso funciona se marca recibido: si algo falla a mitad de camino, la
- * solicitud sigue viéndose como pendiente en vez de mentir.
+ * Compras marca que llegó lo que se pidió para una orden. No entra al
+ * inventario (decisión de Frank, 2026-10-22): queda asignado a esa
+ * orden. Se anota el producto que de verdad llegó y cuánto costó --
+ * interno, para la contabilidad de la orden, el técnico no lo ve -- y
+ * el historial de la orden dice que llegó.
+ *
+ * Si era lo último que la orden esperaba y estaba en "Esperando
+ * repuesto", pasa sola a reparación. En cualquier caso el técnico de la
+ * orden recibe el aviso (globo y push): "llegó el repuesto, la orden
+ * está lista para seguir".
  */
 import { NextResponse } from "next/server";
-import { clienteServidor } from "@/lib/supabase/servidor";
+import { clienteAdmin, clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
-
-interface Cuerpo {
-  repuestoId: string;
-  sedeId: string;
-  cantidad: number;
-}
+import type { Estado } from "@/lib/estados";
+import { buscarPrimeraFase } from "@/lib/fases";
+import { crearAviso } from "@/lib/avisos-servidor";
+import { normalizarRecepcion, notaRepuestoRecibido, siguePorRepuesto } from "@/lib/compras/recepcion-orden";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const body = (await req.json()) as Partial<Cuerpo>;
-
   const supabase = await clienteServidor();
   const perfil = await obtenerPerfilActual(supabase);
   if (!perfil) {
@@ -37,44 +34,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!puede(perfil.rol, "gestionar_compras") && !puede(perfil.rol, "gestionar_inventario")) {
     return NextResponse.json({ error: "no autorizado" }, { status: 403 });
   }
-  if (!body.repuestoId || !body.sedeId) {
-    return NextResponse.json({ error: "falta indicar el repuesto y la sede" }, { status: 400 });
-  }
-  if (!body.cantidad || body.cantidad <= 0) {
-    return NextResponse.json({ error: "la cantidad debe ser mayor a cero" }, { status: 400 });
-  }
 
-  const { data: solicitud, error: errSolicitud } = await supabase
-    .from("repuesto_solicitud")
-    .select("id, orden_id, estado")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (errSolicitud || !solicitud) {
-    return NextResponse.json({ error: "el faltante no existe" }, { status: 404 });
+  const recepcion = normalizarRecepcion(await req.json().catch(() => null));
+  if (!recepcion.ok) {
+    return NextResponse.json({ error: recepcion.error }, { status: 400 });
   }
-  if (solicitud.estado !== "faltante") {
-    return NextResponse.json({ error: "este faltante ya fue procesado" }, { status: 409 });
-  }
-
-  const { error: errMovimiento } = await supabase.rpc("mover_existencia", {
-    p_repuesto_id: body.repuestoId,
-    p_sede_id: body.sedeId,
-    p_delta: body.cantidad,
-    p_tipo: "compra_recibida",
-    p_motivo: null,
-    p_referencia_id: solicitud.orden_id,
-  });
-  if (errMovimiento) {
-    return NextResponse.json({ error: errMovimiento.message }, { status: 500 });
-  }
+  const { producto, cantidad, costo } = recepcion.datos;
 
   const { data, error } = await supabase
     .from("repuesto_solicitud")
-    .update({ estado: "recibido", recibido_en: new Date().toISOString() })
+    .update({
+      estado: "recibido",
+      recibido_en: new Date().toISOString(),
+      recibido_por: perfil.id,
+      producto,
+      cantidad,
+      costo_compra: costo,
+    })
     .eq("id", id)
     .eq("estado", "faltante")
-    .select("id, orden_id")
+    .select("id, orden_id, empresa_id")
     .maybeSingle();
 
   if (error) {
@@ -84,5 +63,62 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "el faltante no existe o ya fue procesado" }, { status: 409 });
   }
 
-  return NextResponse.json({ ok: true, ordenId: data.orden_id });
+  const { data: orden } = await supabase
+    .from("orden")
+    .select("id, empresa_id, estado, fase:fase_id ( nombre )")
+    .eq("id", data.orden_id)
+    .maybeSingle();
+
+  let estado: Estado | null = (orden?.estado as Estado | undefined) ?? null;
+  if (orden) {
+    const faseActual = (orden.fase as unknown as { nombre: string } | null)?.nombre ?? null;
+    // Sin cambio de estado: es un paso del historial, como una corrección de datos.
+    await supabase.from("orden_evento").insert({
+      empresa_id: orden.empresa_id,
+      orden_id: orden.id,
+      de_estado: orden.estado,
+      a_estado: orden.estado,
+      de_fase: faseActual,
+      a_fase: faseActual,
+      nota: notaRepuestoRecibido({ producto, cantidad }),
+      autor_id: perfil.id,
+    });
+
+    const { count: pendientes } = await supabase
+      .from("repuesto_solicitud")
+      .select("id", { count: "exact", head: true })
+      .eq("orden_id", orden.id)
+      .in("estado", ["faltante", "solicitado"]);
+
+    if (siguePorRepuesto(orden.estado as Estado, pendientes ?? 0)) {
+      const faseNueva = await buscarPrimeraFase(supabase, orden.empresa_id, "en_reparacion");
+      const { error: errEstado } = await supabase
+        .from("orden")
+        .update({ estado: "en_reparacion", fase_id: faseNueva?.id ?? null })
+        .eq("id", orden.id)
+        .eq("estado", "esperando_repuesto");
+      if (!errEstado) {
+        estado = "en_reparacion";
+        await supabase.from("orden_evento").insert({
+          empresa_id: orden.empresa_id,
+          orden_id: orden.id,
+          de_estado: "esperando_repuesto",
+          a_estado: "en_reparacion",
+          de_fase: faseActual,
+          a_fase: faseNueva?.nombre ?? null,
+          nota: "Llegaron los repuestos pedidos: sigue la reparación",
+          autor_id: perfil.id,
+        });
+      }
+    }
+
+    await crearAviso(clienteAdmin(), {
+      empresaId: orden.empresa_id,
+      ordenId: orden.id,
+      tipo: "repuesto_recibido",
+      detalle: producto,
+    });
+  }
+
+  return NextResponse.json({ ok: true, ordenId: data.orden_id, estado });
 }
