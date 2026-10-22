@@ -119,6 +119,7 @@ const TIPO_VENTA: Record<string, string> = {
   mostrador: "Mostrador",
   servicio: "Servicio (orden)",
   anticipo: "Abono a orden",
+  encargo: "Encargo (abono o saldo)",
 };
 
 function etiquetaTipoMovimiento(tipo: string): string {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mensajeEncargoListo, normalizarEncargo } from "../lib/compras/encargo";
+import { cuentaEncargo, descripcionEncargo, mensajeEncargoListo, normalizarEncargo } from "../lib/compras/encargo";
 
 describe("normalizarEncargo", () => {
   it("pide qué traer, nombre y teléfono del cliente", () => {
@@ -13,6 +13,7 @@ describe("normalizarEncargo", () => {
         clienteId: null,
         clienteNombre: "Ana Pérez",
         clienteTelefono: "300 123 4567",
+        precioVenta: null,
       },
     });
     expect(normalizarEncargo({ descripcion: "", clienteNombre: "Ana", clienteTelefono: "3001234567" }).ok).toBe(false);
@@ -40,5 +41,29 @@ describe("mensajeEncargoListo", () => {
     expect(mensajeEncargoListo({ clienteNombre: "Luis", producto: "A12 batería" })).toBe(
       "Hola Luis, ya llegó tu A12 batería. Pasa lo más pronto posible.",
     );
+  });
+});
+
+describe("valor y abono del encargo", () => {
+  const base = { descripcion: "Vidrio", clienteNombre: "Ana", clienteTelefono: "3001234567" };
+
+  it("el valor es opcional y se redondea", () => {
+    const sin = normalizarEncargo({ ...base, precioVenta: "" });
+    expect(sin.ok && sin.datos.precioVenta).toBeNull();
+    const con = normalizarEncargo({ ...base, precioVenta: "25000.4" });
+    expect(con.ok && con.datos.precioVenta).toBe(25000);
+    expect(normalizarEncargo({ ...base, precioVenta: "abc" }).ok).toBe(false);
+    expect(normalizarEncargo({ ...base, precioVenta: -5 }).ok).toBe(false);
+  });
+
+  it("cuentaEncargo suma lo pagado y no deja saldo negativo", () => {
+    expect(cuentaEncargo(50000, [20000])).toEqual({ valor: 50000, pagado: 20000, saldo: 30000 });
+    expect(cuentaEncargo(50000, [20000, 30000])).toEqual({ valor: 50000, pagado: 50000, saldo: 0 });
+    expect(cuentaEncargo(null, [])).toEqual({ valor: 0, pagado: 0, saldo: 0 });
+  });
+
+  it("descripcionEncargo dice qué es y para quién", () => {
+    expect(descripcionEncargo({ descripcion: "Vidrio", clienteNombre: "Ana", clienteTelefono: "300" })).toBe("Encargo Vidrio (Ana · 300)");
+    expect(descripcionEncargo({ descripcion: "Vidrio", clienteNombre: null, clienteTelefono: null })).toBe("Encargo Vidrio");
   });
 });

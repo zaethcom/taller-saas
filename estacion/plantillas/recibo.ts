@@ -37,7 +37,11 @@ export interface CargaReciboVenta extends CargaMarcaEmpresa {
   etiquetaTotal?: string;
   /** Cobro ligado a una orden: valor, lo abonado antes y el saldo que queda. */
   cuentaOrden?: {
-    numeroOrden: number;
+    numeroOrden?: number;
+    /** En vez de "Orden #N": p. ej. "Encargo: vidrio templado". */
+    titulo?: string;
+    /** "Valor del servicio" por defecto. */
+    etiquetaValor?: string;
     valor: number;
     abonadoAntes: number;
     /** Lo pagado en este recibo; sin él (reimpresión al entregar), solo valor, abonado y saldo. */
@@ -105,7 +109,10 @@ export function reciboVenta(c: CargaReciboVenta): Buffer {
   if (c.cuentaOrden) {
     const cuenta = c.cuentaOrden;
     const conPago = cuenta.estePago != null;
-    const datos = [`Orden #${cuenta.numeroOrden}`, `Valor del servicio ${fmt(cuenta.valor)}`];
+    const datos = [
+      cuenta.titulo ?? `Orden #${cuenta.numeroOrden}`,
+      `${cuenta.etiquetaValor ?? "Valor del servicio"} ${fmt(cuenta.valor)}`,
+    ];
     if (cuenta.abonadoAntes > 0) datos.push(`${conPago ? "Abonado antes" : "Pagado"} ${fmt(cuenta.abonadoAntes)}`);
     if (conPago) datos.push(`Este pago ${fmt(cuenta.estePago!)}`);
     partes.push(...renglones(juntar(datos, columnas)));
