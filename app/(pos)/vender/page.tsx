@@ -249,11 +249,15 @@ export default function PaginaVender() {
       <style>{`
         .pos{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:18px;align-items:start;}
         .pos-carrito{position:sticky;top:20px;}
+        /* El carrito es sticky: si la lista creciera sin tope, el total y
+           "Cobrar" se saldrían de la pantalla sin forma de alcanzarlos. */
+        .pos-lista{max-height:calc(100vh - 470px);min-height:180px;overflow-y:auto;}
         .categorias-movil{display:none;}
         @media (max-width:1000px){
           .pos{grid-template-columns:minmax(0,1fr);}
           .pos-catalogo{order:2;}
           .pos-carrito{order:1;position:static;}
+          .pos-lista{max-height:none;min-height:0;overflow-y:visible;}
         }
         /* Con 30+ categorías reales, la fila de pastillas envueltas se
            come media pantalla del celular antes de llegar al catálogo --
@@ -408,7 +412,6 @@ export default function PaginaVender() {
                       </div>
                       <Boton
                         variante="primario"
-                        tamano="sm"
                         ancho
                         icono={<Plus size={15} strokeWidth={2.2} />}
                         onClick={() => agregarRepuesto(r)}
@@ -473,7 +476,6 @@ export default function PaginaVender() {
                       </span>
                       <Boton
                         variante="primario"
-                        tamano="sm"
                         ancho
                         icono={enCarrito ? <Check size={15} strokeWidth={2.6} /> : <Plus size={15} strokeWidth={2.2} />}
                         onClick={() => agregarArticulo(a)}
@@ -508,7 +510,6 @@ export default function PaginaVender() {
               {carrito.length > 0 && (
                 <Boton
                   variante="peligro"
-                  tamano="sm"
                   icono={<Trash2 size={15} strokeWidth={2} />}
                   onClick={() => setCarrito([])}
                 >
@@ -528,7 +529,7 @@ export default function PaginaVender() {
                 </p>
               </div>
             ) : (
-              <div style={{ padding: "10px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="pos-lista" style={{ padding: "10px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
                 {carrito.map((l, i) => {
                   const cantidad = l.kind === "repuesto" ? l.cantidad : 1;
                   return (
@@ -537,13 +538,14 @@ export default function PaginaVender() {
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: 10,
+                        flexWrap: "wrap",
+                        gap: 8,
                         padding: 9,
                         border: "1px solid var(--rule)",
                         borderRadius: "var(--r-md)",
                       }}
                     >
-                      <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ flex: "1 1 100%", minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 700 }}>{l.descripcion}</div>
                         <div className="cifra" style={{ fontSize: 11, color: "var(--ink-3)" }}>
                           {l.kind === "articulo" ? `${l.codigo} · ` : ""}
@@ -556,7 +558,7 @@ export default function PaginaVender() {
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
-                            height: 32,
+                            height: 44,
                             border: "1px solid var(--rule-fuerte)",
                             borderRadius: "var(--r-sm)",
                             overflow: "hidden",
@@ -567,13 +569,13 @@ export default function PaginaVender() {
                             type="button"
                             onClick={() => cambiarCantidad(i, -1)}
                             aria-label={`Quitar una unidad de ${l.descripcion}`}
-                            style={{ display: "flex", width: 30, height: 30, alignItems: "center", justifyContent: "center", border: "none", background: "var(--surface)", cursor: "pointer" }}
+                            style={{ display: "flex", width: 44, height: 42, alignItems: "center", justifyContent: "center", border: "none", background: "var(--surface)", color: "var(--ink)", cursor: "pointer" }}
                           >
-                            <Minus size={14} strokeWidth={2.4} />
+                            <Minus size={16} strokeWidth={2.4} />
                           </button>
                           <span
                             className="cifra"
-                            style={{ width: 32, textAlign: "center", fontSize: 13, fontWeight: 700, borderLeft: "1px solid var(--rule)", borderRight: "1px solid var(--rule)", lineHeight: "30px" }}
+                            style={{ width: 36, textAlign: "center", fontSize: 14, fontWeight: 700, borderLeft: "1px solid var(--rule)", borderRight: "1px solid var(--rule)", lineHeight: "42px" }}
                           >
                             {l.cantidad}
                           </span>
@@ -581,22 +583,21 @@ export default function PaginaVender() {
                             type="button"
                             onClick={() => cambiarCantidad(i, 1)}
                             aria-label={`Agregar una unidad de ${l.descripcion}`}
-                            style={{ display: "flex", width: 30, height: 30, alignItems: "center", justifyContent: "center", border: "none", background: "var(--surface)", cursor: "pointer" }}
+                            style={{ display: "flex", width: 44, height: 42, alignItems: "center", justifyContent: "center", border: "none", background: "var(--surface)", color: "var(--ink)", cursor: "pointer" }}
                           >
-                            <Plus size={14} strokeWidth={2.4} />
+                            <Plus size={16} strokeWidth={2.4} />
                           </button>
                         </div>
                       ) : (
                         <Etiqueta tono="neutro">1 unidad</Etiqueta>
                       )}
 
-                      <span className="cifra" style={{ width: 86, textAlign: "right", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>
+                      <span className="cifra" style={{ flex: 1, minWidth: 70, textAlign: "right", fontSize: 14, fontWeight: 800 }}>
                         {fmt(cantidad * l.precioUnit)}
                       </span>
 
                       <Boton
                         variante="peligro"
-                        tamano="sm"
                         icono={<Trash2 size={15} strokeWidth={2} />}
                         onClick={() => quitar(i)}
                         aria-label={`Quitar ${l.descripcion} del carrito`}

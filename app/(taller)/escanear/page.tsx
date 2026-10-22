@@ -24,7 +24,7 @@
  */
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ScanLine, Search, Barcode } from "lucide-react";
+import { ScanLine, Search, Barcode, Flashlight, FlashlightOff } from "lucide-react";
 import { useLectorCodigos } from "@/componentes/lector-codigos/use-lector-codigos";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
@@ -69,7 +69,8 @@ export default function PaginaEscanear() {
   const [buscando, setBuscando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { videoRef, camaraDisponible, camaraActiva } = useLectorCodigos(["qr_code"], procesarCodigo);
+  const { videoRef, camaraDisponible, camaraActiva, camaraDenegada, linternaDisponible, linternaEncendida, alternarLinterna } =
+    useLectorCodigos(["qr_code"], procesarCodigo);
 
   async function procesarCodigo(valor: string) {
     const token = extraerTokenDeSeguimiento(valor);
@@ -121,7 +122,10 @@ export default function PaginaEscanear() {
         <div
           style={{
             position: "relative",
-            aspectRatio: "1",
+            // 4:3 y con tope: un visor cuadrado empujaba el campo de serial
+            // fuera de la pantalla del celular.
+            aspectRatio: "4 / 3",
+            maxHeight: "55vh",
             background: "var(--surface)",
             border: "1px solid var(--rule)",
             borderRadius: "var(--r-lg)",
@@ -135,7 +139,9 @@ export default function PaginaEscanear() {
             <video ref={videoRef} playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           ) : (
             <span style={{ padding: 24, textAlign: "center", color: "var(--ink-3)", fontSize: 14 }}>
-              Este navegador no lee QR con la cámara. Usa el campo de serial de abajo.
+              {camaraDenegada
+                ? "El permiso de la cámara está bloqueado. Habilítalo en los ajustes del sitio en tu navegador y recarga, o usa el campo de serial de abajo."
+                : "Este navegador no lee QR con la cámara. Usa el campo de serial de abajo."}
             </span>
           )}
 
@@ -174,6 +180,17 @@ export default function PaginaEscanear() {
               >
                 Ubica el código dentro del recuadro
               </span>
+              {linternaDisponible && (
+                <div style={{ position: "absolute", top: 12, right: 12 }}>
+                  <Boton
+                    variante="oscuro"
+                    icono={linternaEncendida ? <FlashlightOff size={19} strokeWidth={2} /> : <Flashlight size={19} strokeWidth={2} />}
+                    onClick={alternarLinterna}
+                    aria-label={linternaEncendida ? "Apagar la linterna" : "Encender la linterna"}
+                    aria-pressed={linternaEncendida}
+                  />
+                </div>
+              )}
             </>
           )}
 

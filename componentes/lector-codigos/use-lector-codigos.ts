@@ -29,6 +29,23 @@ export function useLectorCodigos(formats: string[], onDetectado: (valor: string)
   const streamRef = useRef<MediaStream | null>(null);
   const [camaraDisponible, setCamaraDisponible] = useState(true);
   const [camaraActiva, setCamaraActiva] = useState(false);
+  // Permiso negado por el usuario: distinto de "este navegador no puede",
+  // porque la salida es otra (habilitarlo en el navegador, no cambiar de campo).
+  const [camaraDenegada, setCamaraDenegada] = useState(false);
+  const [linternaDisponible, setLinternaDisponible] = useState(false);
+  const [linternaEncendida, setLinternaEncendida] = useState(false);
+
+  async function alternarLinterna() {
+    const pista = streamRef.current?.getVideoTracks()[0];
+    if (!pista) return;
+    const encender = !linternaEncendida;
+    try {
+      await pista.applyConstraints({ advanced: [{ torch: encender } as MediaTrackConstraintSet] });
+      setLinternaEncendida(encender);
+    } catch {
+      setLinternaDisponible(false);
+    }
+  }
 
   function detener() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -58,6 +75,8 @@ export function useLectorCodigos(formats: string[], onDetectado: (valor: string)
           await videoRef.current.play();
         }
         setCamaraActiva(true);
+        const capacidades = stream.getVideoTracks()[0]?.getCapabilities?.() as { torch?: boolean } | undefined;
+        setLinternaDisponible(Boolean(capacidades?.torch));
 
         const detector = new window.BarcodeDetector({ formats });
         intervalo = setInterval(async () => {
@@ -73,7 +92,10 @@ export function useLectorCodigos(formats: string[], onDetectado: (valor: string)
             // un frame ilegible no es un error -- se reintenta en el siguiente
           }
         }, 350);
-      } catch {
+      } catch (e) {
+        if (e instanceof DOMException && (e.name === "NotAllowedError" || e.name === "SecurityError")) {
+          setCamaraDenegada(true);
+        }
         setCamaraDisponible(false);
       }
     }
@@ -88,5 +110,14 @@ export function useLectorCodigos(formats: string[], onDetectado: (valor: string)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { videoRef, camaraDisponible, camaraActiva, detener };
+  return {
+    videoRef,
+    camaraDisponible,
+    camaraActiva,
+    camaraDenegada,
+    linternaDisponible,
+    linternaEncendida,
+    alternarLinterna,
+    detener,
+  };
 }
