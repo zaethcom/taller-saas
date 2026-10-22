@@ -46,7 +46,7 @@ export async function asegurarDiagnostico(
     transicionar(estado, "en_diagnostico", cumplidos);
   } catch (e) {
     if (e instanceof RequisitoFaltanteError) {
-      return { error: "Falta la foto del equipo al recibirlo: agrégala en la orden antes de diagnosticar." };
+      return { error: "La orden no puede pasar a diagnóstico todavía." };
     }
     if (e instanceof TransicionInvalidaError) return { error: e.message };
     throw e;
