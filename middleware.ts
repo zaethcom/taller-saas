@@ -9,6 +9,7 @@
  */
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { urlDominioPrincipal } from "./lib/dominio";
 
 interface CookieParaEscribir {
   name: string;
@@ -17,6 +18,14 @@ interface CookieParaEscribir {
 }
 
 export async function middleware(request: NextRequest) {
+  const destino = urlDominioPrincipal(
+    request.headers.get("host"),
+    request.method,
+    request.nextUrl.pathname,
+    request.nextUrl.search,
+  );
+  if (destino) return NextResponse.redirect(destino, 307);
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
