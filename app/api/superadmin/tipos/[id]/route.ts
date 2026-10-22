@@ -1,6 +1,6 @@
 /**
  * PATCH /api/superadmin/tipos/<id>
- * Body: { nombre?, tipo_equipo?, fases?, categorias?, activo? }
+ * Body: { nombre?, tipo_equipo?, categorias?, activo? }
  * Edita el estándar. No toca a las empresas que ya lo recibieron: lo
  * que se les copió es de ellas (0053). Para pasarles lo nuevo, se
  * vuelve a aplicar desde la ficha de cada empresa (solo agrega).

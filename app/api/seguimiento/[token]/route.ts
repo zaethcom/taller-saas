@@ -11,7 +11,7 @@
  * aquí por accidente.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
+import { ETIQUETA_ESTADO_CLIENTE, esEstado, type Estado } from "@/lib/estados";
 import { etiquetaEvento } from "@/lib/fases";
 import { esEventoEdicion } from "@/lib/orden-edicion";
 import { esEventoRepuestoRecibido, PREFIJO_REPUESTO_RECIBIDO } from "@/lib/compras/recepcion-orden";
@@ -27,7 +27,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     .select(
       `
       id, empresa_id, numero, estado, motivo, abierta_en, cerrada_en,
-      fase:fase_id ( nombre ),
       producto:producto_id ( serial, tipo, marca, modelo ),
       cliente:producto_id ( cliente:cliente_id ( nombre ) )
     `,
@@ -120,10 +119,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
   return NextResponse.json({
     numero: orden.numero,
     estado: orden.estado,
-    etiquetaEstado: ETIQUETA_ESTADO[orden.estado as Estado],
-    // La fase dentro del estado (0050_fase_orden.sql), solo el nombre.
-    // El join de Supabase infiere `fase` como arreglo aunque sea 1:1.
-    fase: (orden.fase as unknown as { nombre: string } | null)?.nombre ?? null,
+    etiquetaEstado: ETIQUETA_ESTADO_CLIENTE[orden.estado as Estado] ?? orden.estado,
     motivo: orden.motivo,
     abiertaEn: orden.abierta_en,
     cerradaEn: orden.cerrada_en,
@@ -137,7 +133,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     historial: (eventos ?? []).filter((e) => !esEventoEdicion(e)).map((e) => ({
       estado: e.a_estado,
       // "Llegó el repuesto", sin decir cuál ni cuánto costó.
-      etiqueta: esEventoRepuestoRecibido(e) ? PREFIJO_REPUESTO_RECIBIDO : etiquetaEvento(e),
+      // Los estados de ahora con las palabras del cliente; los de antes
+      // de 0065 (y sus fases), como se llamaban entonces.
+      etiqueta: esEventoRepuestoRecibido(e)
+        ? PREFIJO_REPUESTO_RECIBIDO
+        : esEstado(e.a_estado)
+          ? ETIQUETA_ESTADO_CLIENTE[e.a_estado]
+          : etiquetaEvento(e),
       fecha: e.ocurrio_en,
     })),
     cotizacion,

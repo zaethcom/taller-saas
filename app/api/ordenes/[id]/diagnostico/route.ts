@@ -4,16 +4,16 @@
  *
  * PATCH /api/ordenes/<id>/diagnostico
  * Body: { hallazgos?, fallas?, observaciones?, recomendaciones? }
- * Upsert -- un diagnóstico por orden (orden_id es unique). Si la orden
- * sigue en Recibida, guardar el diagnóstico la pasa sola a diagnóstico
- * (lib/diagnostico-auto.ts). Una vez que se envía la cotización y la
- * orden avanza, el diagnóstico queda fijo como parte del historial.
+ * Upsert -- un diagnóstico por orden (orden_id es unique). No cambia el
+ * estado: revisar es parte de "En proceso". Quien lo guarda queda como
+ * técnico de la orden si no tenía (lib/tecnico-auto.ts). Mientras el
+ * cliente decide una cotización, o ya entregada, queda fijo.
  */
 import { NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
-import { asegurarDiagnostico } from "@/lib/diagnostico-auto";
+import { asignarTecnico } from "@/lib/tecnico-auto";
 
 interface CuerpoDiagnostico {
   hallazgos?: string;
@@ -53,13 +53,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "no autorizado" }, { status: 403 });
   }
 
-  const enDiagnostico = await asegurarDiagnostico(supabase, id, perfil.id);
-  if ("error" in enDiagnostico) {
-    return NextResponse.json({ error: enDiagnostico.error }, { status: 409 });
+  const revisada = await asignarTecnico(supabase, id, perfil.id);
+  if ("error" in revisada) {
+    return NextResponse.json({ error: revisada.error }, { status: 409 });
   }
-  if (enDiagnostico.estado !== "en_diagnostico") {
+  if (revisada.estado === "esperando_cliente") {
     return NextResponse.json(
-      { error: "el diagnóstico solo se puede editar mientras la orden está en diagnóstico" },
+      { error: "el cliente está decidiendo la cotización: el diagnóstico no se cambia ahora" },
       { status: 409 },
     );
   }

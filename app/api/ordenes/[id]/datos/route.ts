@@ -24,7 +24,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
-import { esFinal, type Estado } from "@/lib/estados";
+import { esFinal, itemsSeQuitan, type Estado } from "@/lib/estados";
 import { recalcularTotalOrden } from "@/lib/orden-total";
 import { obtenerCuentaOrden } from "@/lib/cuenta-orden";
 import {
@@ -35,9 +35,6 @@ import {
   type DatosEdicion,
 } from "@/lib/orden-edicion";
 
-/** Antes de cotizar, el valor del servicio todavía es el que se puso al recibir. */
-const ESTADOS_VALOR_EDITABLE: Estado[] = ["recibida", "en_diagnostico"];
-
 interface FilaOrden {
   id: string;
   numero: number;
@@ -46,7 +43,6 @@ interface FilaOrden {
   info_adicional: string | null;
   telefono_alterno: string | null;
   total: number;
-  fase: { nombre: string } | null;
   producto: {
     id: string;
     serial: string;
@@ -62,7 +58,6 @@ async function leerOrden(supabase: SupabaseClient, id: string) {
     .from("orden")
     .select(
       `id, numero, estado, motivo, info_adicional, telefono_alterno, total,
-       fase:fase_id ( nombre ),
        producto:producto_id ( id, serial, tipo, marca, modelo,
          cliente:cliente_id ( id, nombre, documento, telefono, correo ) )`,
     )
@@ -86,7 +81,13 @@ async function leerOrden(supabase: SupabaseClient, id: string) {
     .limit(1)
     .maybeSingle();
 
-  const valorEditable = ESTADOS_VALOR_EDITABLE.includes(orden.estado);
+  // Antes de cotizar, el valor del servicio todavía es el que se puso al
+  // recibir; después, el cliente ya vio el total (itemsSeQuitan).
+  const { count: cotizaciones } = await supabase
+    .from("cotizacion")
+    .select("id", { count: "exact", head: true })
+    .eq("orden_id", id);
+  const valorEditable = itemsSeQuitan(orden.estado, (cotizaciones ?? 0) > 0);
   const p = orden.producto;
   const datos: DatosEdicion = normalizarDatos({
     cliente: {
@@ -307,8 +308,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     orden_id: id,
     de_estado: orden.estado,
     a_estado: orden.estado,
-    de_fase: orden.fase?.nombre ?? null,
-    a_fase: orden.fase?.nombre ?? null,
     autor_id: perfil.id,
     nota: notaEdicion(lista, perfil.nombre),
   });

@@ -18,8 +18,8 @@
  * /api/ordenes/[id]/items), y un repuesto consumido vuelve a la sede.
  *
  * Llega desde /diagnostico ("Continuar a cotización"); al enviar,
- * POST /api/ordenes/[id]/cotizacion mueve la orden a
- * esperando_aprobacion, igual que antes.
+ * POST /api/ordenes/[id]/cotizacion pone la orden "Esperando al
+ * cliente" hasta que apruebe.
  */
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -175,14 +175,13 @@ export default function PaginaCotizacion() {
   const [copiado, setCopiado] = useState(false);
   const [quitando, setQuitando] = useState<string | null>(null);
   const [estado, setEstado] = useState<Estado | null>(null);
-  // Se avisa antes de armar la cotización, no al enviarla. Desde
-  // Recibida (o tras un rechazo) se envía igual: la orden pasa sola por
-  // diagnóstico (lib/diagnostico-auto.ts).
+  // ¿El cliente no aprobó la última? Entonces se le puede mandar otra.
+  const [rechazada, setRechazada] = useState(false);
+  // Se avisa antes de armar la cotización, no al enviarla.
   const sePuedeEnviar =
     estado === null ||
-    estado === "recibida" ||
-    estado === "rechazada" ||
-    puedeTransicionar(estado, "esperando_aprobacion");
+    puedeTransicionar(estado, "esperando_cliente") ||
+    (estado === "esperando_cliente" && rechazada);
 
   const total = items.reduce((s, i) => s + i.cantidad * i.precioUnit, 0);
   const hayAcordado = items.some((i) => i.origen === "acordado");
@@ -194,6 +193,14 @@ export default function PaginaCotizacion() {
       .eq("id", id)
       .maybeSingle()
       .then(({ data }) => setEstado((data?.estado as Estado) ?? null));
+    clienteNavegador()
+      .from("cotizacion")
+      .select("decision")
+      .eq("orden_id", id)
+      .order("enviada_en", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => setRechazada(data?.decision === "rechazada"));
   }, [id]);
 
   // Lo que la orden ya tiene (orden_item) entra fijo, antes que lo nuevo.
@@ -356,7 +363,7 @@ export default function PaginaCotizacion() {
       <div className="pila">
         {!sePuedeEnviar && estado && (
           <Aviso tono="aviso">
-            La orden está en &quot;{ETIQUETA_ESTADO[estado]}&quot;: la cotización ya se envió, desde aquí no se envía otra.
+            La orden está &quot;{ETIQUETA_ESTADO[estado]}&quot;: desde aquí no se envía otra cotización.
           </Aviso>
         )}
         <BuscadorCatalogo

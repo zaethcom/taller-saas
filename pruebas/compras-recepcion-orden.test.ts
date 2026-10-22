@@ -36,9 +36,9 @@ describe("historial", () => {
 
 describe("siguePorRepuesto", () => {
   it("solo cuando esperaba repuesto y ya no falta nada", () => {
-    expect(siguePorRepuesto("esperando_repuesto", 0)).toBe(true);
-    expect(siguePorRepuesto("esperando_repuesto", 1)).toBe(false);
-    expect(siguePorRepuesto("en_reparacion", 0)).toBe(false);
+    expect(siguePorRepuesto("falta_repuesto", 0)).toBe(true);
+    expect(siguePorRepuesto("falta_repuesto", 1)).toBe(false);
+    expect(siguePorRepuesto("en_proceso", 0)).toBe(false);
   });
 });
 

@@ -4,8 +4,9 @@
  * filtra por empresa_actual() sin que esta página tenga que acordarse
  * de agregar un .eq("empresa_id", ...) en ningún lado.
  *
- * Arriba, pastillas para filtrar (Activas, Listas para entregar,
- * Entregadas, Todas) y un buscador. Editar los datos de una orden se
+ * Arriba, pastillas para filtrar por los estados de lib/estados.ts (En
+ * el taller, Falta repuesto, Esperando al cliente, Listas, Entregadas,
+ * Todas), cada una con su conteo, y un buscador. Editar los datos de una orden se
  * hace desde su ficha (menú "Más"), no desde aquí.
  */
 import Link from "next/link";
@@ -18,17 +19,19 @@ import { Aviso } from "@/componentes/ui/campo";
 import { Boton, BotonEnlace } from "@/componentes/ui/boton";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 
+/** Cada pastilla y los estados que muestra; "todas" no filtra. */
 const FILTROS = [
-  { valor: "activas", etiqueta: "Activas" },
-  { valor: "listas", etiqueta: "Listas" },
-  { valor: "entregadas", etiqueta: "Entregadas" },
-  { valor: "todas", etiqueta: "Todas" },
-] as const;
+  { valor: "activas", etiqueta: "En el taller", estados: ["en_proceso", "falta_repuesto", "esperando_cliente"] },
+  { valor: "falta", etiqueta: "Falta repuesto", estados: ["falta_repuesto"] },
+  { valor: "cliente", etiqueta: "Esperando al cliente", estados: ["esperando_cliente"] },
+  { valor: "listas", etiqueta: "Listas", estados: ENTREGA_DESDE_TALLER },
+  { valor: "entregadas", etiqueta: "Entregadas", estados: ["entregada"] },
+  { valor: "todas", etiqueta: "Todas", estados: null },
+] as const satisfies readonly { valor: string; etiqueta: string; estados: readonly Estado[] | null }[];
 type Filtro = (typeof FILTROS)[number]["valor"];
-
-/** "(a,b)" para los filtros .in / .not.in de PostgREST. */
-const lista = (estados: string[]) => `(${estados.join(",")})`;
-const FUERA_DE_ACTIVAS = lista([...ENTREGA_DESDE_TALLER, "entregada"]);
+/** Los que llevan conteo: lo que el taller tiene entre manos. */
+const CON_CONTEO: Filtro[] = ["activas", "falta", "cliente", "listas"];
+const estadosDe = (f: Filtro) => FILTROS.find((x) => x.valor === f)!.estados as readonly Estado[] | null;
 
 const normal = (t: string | null | undefined) =>
   (t ?? "")
@@ -51,29 +54,29 @@ export default async function PaginaOrdenes({
     .select(
       `
       id, numero, estado, motivo, abierta_en,
-      fase:fase_id ( nombre ),
       producto:producto_id ( serial, marca, modelo ),
       sede:sede_id ( nombre )
     `,
     )
     .order("abierta_en", { ascending: false });
-  if (filtro === "activas") consulta = consulta.not("estado", "in", FUERA_DE_ACTIVAS);
-  if (filtro === "listas") consulta = consulta.in("estado", ENTREGA_DESDE_TALLER);
-  if (filtro === "entregadas") consulta = consulta.eq("estado", "entregada");
+  const estados = estadosDe(filtro);
+  if (estados) consulta = consulta.in("estado", [...estados]);
   // Un número busca esa orden exacta; un texto se busca en equipo y
   // motivo entre las 300 más recientes del filtro.
   if (/^\d+$/.test(q)) consulta = consulta.eq("numero", Number(q));
 
-  const contar = (estados: "activas" | "listas") => {
-    const c = supabase.from("orden").select("id", { count: "exact", head: true });
-    return estados === "activas" ? c.not("estado", "in", FUERA_DE_ACTIVAS) : c.in("estado", ENTREGA_DESDE_TALLER);
-  };
-  const [{ data: ordenes, error }, { count: nActivas }, { count: nListas }] = await Promise.all([
+  const contar = (f: Filtro) =>
+    supabase
+      .from("orden")
+      .select("id", { count: "exact", head: true })
+      .in("estado", [...(estadosDe(f) ?? [])]);
+  const [{ data: ordenes, error }, ...conteos] = await Promise.all([
     consulta.limit(q && !/^\d+$/.test(q) ? 300 : 50),
-    contar("activas"),
-    contar("listas"),
+    ...CON_CONTEO.map(contar),
   ]);
-  const conteo: Partial<Record<Filtro, number | null>> = { activas: nActivas, listas: nListas };
+  const conteo: Partial<Record<Filtro, number | null>> = Object.fromEntries(
+    CON_CONTEO.map((f, i) => [f, conteos[i]?.count ?? null]),
+  );
 
   if (error) {
     return <Aviso tono="peligro">No se pudo cargar el tablero: {error.message}</Aviso>;
@@ -186,12 +189,6 @@ export default async function PaginaOrdenes({
                   <td>{o.sede?.nombre}</td>
                   <td>
                     <EstadoOrden estado={o.estado as Estado} />
-                    {/* La fase dentro del estado (0050_fase_orden.sql), si tiene. */}
-                    {(o.fase as unknown as { nombre: string } | null)?.nombre && (
-                      <div style={{ marginTop: 4, fontSize: 12, color: "var(--ink-2)" }}>
-                        {(o.fase as unknown as { nombre: string }).nombre}
-                      </div>
-                    )}
                   </td>
                   <td className="cifra" style={{ whiteSpace: "nowrap", color: "var(--ink-2)" }}>
                     {new Date(o.abierta_en).toLocaleDateString("es-CO")}

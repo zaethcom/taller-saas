@@ -3,12 +3,14 @@
  * Body: { items: {descripcion, cantidad, precioUnit, repuestoId?, servicioId?, manoObraId?}[],
  *          manoObra?: number, nota?: string }
  *
- * El técnico termina el diagnóstico y envía la cotización en un solo
- * paso: crea la cotización con sus líneas, y transiciona la orden a
- * esperando_aprobacion usando la misma transicionar() de
+ * Cotizar es opcional: solo cuando hay que pedirle permiso al cliente.
+ * Crea la cotización con sus líneas y pasa la orden a
+ * esperando_cliente usando la misma transicionar() de
  * lib/estados.ts que usa /api/aprobacion -- no hay una segunda
  * llamada por separado porque "enviar cotización" y "mover la orden"
- * son, en la práctica, el mismo evento de negocio.
+ * son, en la práctica, el mismo evento de negocio. Si el cliente ya
+ * rechazó la anterior, la nueva se envía sin cambiar de estado (sigue
+ * esperando al cliente).
  *
  * Cada ítem puede venir del catálogo (repuestoId, servicioId o
  * manoObraId -- nunca más de uno) o ser una línea libre sin ninguno,
@@ -19,8 +21,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { RequisitoFaltanteError, TransicionInvalidaError, transicionar } from "@/lib/estados";
-import { buscarPrimeraFase } from "@/lib/fases";
-import { asegurarDiagnostico } from "@/lib/diagnostico-auto";
+import { asignarTecnico } from "@/lib/tecnico-auto";
 import { clienteServidor } from "@/lib/supabase/servidor";
 
 interface ItemCotizacion {
@@ -49,19 +50,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
-  // Revisar y cotizar ya es diagnosticar: si la orden sigue en Recibida
-  // (o se recotiza tras un rechazo) entra sola a diagnóstico.
-  const enDiagnostico = await asegurarDiagnostico(supabase, id, user.id);
-  if ("error" in enDiagnostico) {
-    return NextResponse.json({ error: enDiagnostico.error }, { status: 409 });
+  // Quien cotiza revisó el equipo: queda como su técnico si no tenía.
+  const revisada = await asignarTecnico(supabase, id, user.id);
+  if ("error" in revisada) {
+    return NextResponse.json({ error: revisada.error }, { status: 409 });
   }
-  const estadoActual = enDiagnostico.estado;
+  const estadoActual = revisada.estado;
 
-  // Se lee después: si entró sola a diagnóstico, el estado y la fase
-  // de antes son esos.
   const { data: orden, error: errOrden } = await supabase
     .from("orden")
-    .select("id, empresa_id, estado, token_publico, fase:fase_id ( nombre )")
+    .select("id, empresa_id, estado, token_publico")
     .eq("id", id)
     .maybeSingle();
 
@@ -72,8 +70,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Antes de guardar nada: una cotización que no se puede enviar no se
   // guarda como "enviada" (contaría en la cuenta de la orden sin que el
   // cliente la haya visto).
+  // Ya esperando al cliente: solo se le manda otra si rechazó la anterior.
+  const recotiza = estadoActual === "esperando_cliente";
+  if (recotiza) {
+    const { data: anterior } = await supabase
+      .from("cotizacion")
+      .select("decision")
+      .eq("orden_id", id)
+      .order("enviada_en", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (anterior && anterior.decision !== "rechazada") {
+      return NextResponse.json(
+        { error: "Ya hay una cotización esperando la respuesta del cliente." },
+        { status: 409 },
+      );
+    }
+  }
   try {
-    transicionar(estadoActual, "esperando_aprobacion", new Set(["tiene_cotizacion"]));
+    if (!recotiza) transicionar(estadoActual, "esperando_cliente", new Set(["tiene_cotizacion"]));
   } catch (e) {
     if (e instanceof TransicionInvalidaError || e instanceof RequisitoFaltanteError) {
       return NextResponse.json({ error: `No se puede enviar la cotización: ${e.message}` }, { status: 409 });
@@ -119,27 +134,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: errItems.message }, { status: 500 });
   }
 
-
-  // Misma regla de fases que /api/ordenes/<id>/transicion: al entrar
-  // al estado, la primera fase activa que tenga configurada, o ninguna.
-  const faseNueva = await buscarPrimeraFase(supabase, orden.empresa_id, "esperando_aprobacion");
-  // El join de Supabase infiere `fase` como arreglo aunque la relación
-  // sea 1:1 -- mismo caso que lib/perfil.ts.
-  const faseAnterior = orden.fase as unknown as { nombre: string } | null;
-
-  await supabase
-    .from("orden")
-    .update({ estado: "esperando_aprobacion", fase_id: faseNueva?.id ?? null })
-    .eq("id", id);
+  if (!recotiza) {
+    await supabase.from("orden").update({ estado: "esperando_cliente", fase_id: null }).eq("id", id);
+  }
   await supabase.from("orden_evento").insert({
     empresa_id: orden.empresa_id,
     orden_id: id,
     de_estado: orden.estado,
-    a_estado: "esperando_aprobacion",
-    de_fase: faseAnterior?.nombre ?? null,
-    a_fase: faseNueva?.nombre ?? null,
+    a_estado: "esperando_cliente",
     autor_id: user.id,
-    nota: body.nota?.trim() || undefined,
+    nota: [recotiza ? "Se envió otra cotización" : null, body.nota?.trim()].filter(Boolean).join(". ") || undefined,
   });
 
   return NextResponse.json({

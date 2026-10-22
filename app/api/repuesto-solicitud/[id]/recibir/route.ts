@@ -21,7 +21,6 @@ import { clienteAdmin, clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
 import type { Estado } from "@/lib/estados";
-import { buscarPrimeraFase } from "@/lib/fases";
 import { crearAviso } from "@/lib/avisos-servidor";
 import { normalizarRecepcion, notaRepuestoRecibido, siguePorRepuesto } from "@/lib/compras/recepcion-orden";
 
@@ -69,22 +68,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { data: orden } = data.orden_id
     ? await supabase
         .from("orden")
-        .select("id, empresa_id, estado, fase:fase_id ( nombre )")
+        .select("id, empresa_id, estado")
         .eq("id", data.orden_id)
         .maybeSingle()
     : { data: null };
 
   let estado: Estado | null = (orden?.estado as Estado | undefined) ?? null;
   if (orden) {
-    const faseActual = (orden.fase as unknown as { nombre: string } | null)?.nombre ?? null;
     // Sin cambio de estado: es un paso del historial, como una corrección de datos.
     await supabase.from("orden_evento").insert({
       empresa_id: orden.empresa_id,
       orden_id: orden.id,
       de_estado: orden.estado,
       a_estado: orden.estado,
-      de_fase: faseActual,
-      a_fase: faseActual,
       nota: notaRepuestoRecibido({ producto, cantidad }),
       autor_id: perfil.id,
     });
@@ -96,22 +92,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       .in("estado", ["faltante", "solicitado"]);
 
     if (siguePorRepuesto(orden.estado as Estado, pendientes ?? 0)) {
-      const faseNueva = await buscarPrimeraFase(supabase, orden.empresa_id, "en_reparacion");
       const { error: errEstado } = await supabase
         .from("orden")
-        .update({ estado: "en_reparacion", fase_id: faseNueva?.id ?? null })
+        .update({ estado: "en_proceso", fase_id: null })
         .eq("id", orden.id)
-        .eq("estado", "esperando_repuesto");
+        .eq("estado", "falta_repuesto");
       if (!errEstado) {
-        estado = "en_reparacion";
+        estado = "en_proceso";
         await supabase.from("orden_evento").insert({
           empresa_id: orden.empresa_id,
           orden_id: orden.id,
-          de_estado: "esperando_repuesto",
-          a_estado: "en_reparacion",
-          de_fase: faseActual,
-          a_fase: faseNueva?.nombre ?? null,
-          nota: "Llegaron los repuestos pedidos: sigue la reparación",
+          de_estado: "falta_repuesto",
+          a_estado: "en_proceso",
+          nota: "Llegaron los repuestos pedidos: sigue en proceso",
           autor_id: perfil.id,
         });
       }

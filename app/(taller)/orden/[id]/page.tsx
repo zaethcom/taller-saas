@@ -6,44 +6,31 @@
  * llegada por el QR, es donde se cumple la primera de las dos promesas
  * del proyecto.
  *
- * Arriba, los datos de la orden con el camino (lib/camino-orden.ts) en
- * una línea, y enseguida el siguiente paso con su botón: el técnico no
- * tiene que saber a qué estado pasar. Los accesos (evidencia,
- * diagnóstico, repuestos) son pastillas grandes y no enlaces de texto:
- * se tocan con guantes, con una sola mano. Editar y reimprimir van en
- * el menú «⋯»; mensajes, historial y acceso, en pestañas al final.
+ * Arriba, los datos de la orden con su estado (lib/estados.ts: en
+ * proceso, falta repuesto, esperando al cliente, listo para entregar) y
+ * enseguida los botones de ese estado: casi siempre "Terminado" y
+ * "Falta repuesto"; lo demás cambia solo. Los accesos (fotos,
+ * diagnóstico, repuestos, cotizar) son pastillas grandes y no enlaces
+ * de texto: se tocan con guantes, con una sola mano. Editar y reimprimir
+ * van en el menú «⋯»; mensajes, historial y acceso, en pestañas al final.
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Camera, Wrench, Package, FileText, ChevronRight, ArrowRight, Eye, Clock, Check, Printer, Pencil, Receipt } from "lucide-react";
-import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
-import { formatearMoneda } from "@/componentes/cobro/panel-cobro";
-import { CAMINO, enlacesVisibles, pasoActual, siguientePaso, type Accion, type Destino } from "@/lib/camino-orden";
+import { Camera, Wrench, Package, FileText, ChevronRight, ArrowRight, Eye, Clock, Check, Printer, Pencil, Receipt, PackageX, Undo2 } from "lucide-react";
+import { type Estado } from "@/lib/estados";
 import { puede, type Rol } from "@/lib/permisos";
-import { Boton, BotonEnlace } from "@/componentes/ui/boton";
+import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { EstadoOrden } from "@/componentes/ui/estado-orden";
 import { HiloMensajes, type Mensaje } from "@/componentes/mensajeria/hilo-mensajes";
-import { SelectorFase } from "@/componentes/taller/selector-fase";
 import { EnlaceOrden } from "@/componentes/taller/enlace-orden";
 import { VentanaError } from "@/componentes/ui/ventana-error";
 import { MenuMas } from "@/componentes/ui/menu-mas";
 import { reimprimirComprobante } from "@/componentes/recepcion/ultimas-recepciones";
 
-/** Los cambios que piden una nota, y qué se le pregunta a quien los hace. */
-const NOTA_AL_PASAR: Partial<Record<Estado, { etiqueta: string; ayuda: string; prefijo: string }>> = {
-  listo_entrega: {
-    etiqueta: "Trabajo realizado",
-    ayuda: "Qué se cambió o reparó, y cómo se probó",
-    prefijo: "Trabajo verificado: ",
-  },
-  rechazada: {
-    etiqueta: "Respuesta del cliente",
-    ayuda: "Por qué no aprobó, o qué va a decidir",
-    prefijo: "Cliente no aprobó: ",
-  },
-};
+/** Pantallas de la orden a las que lleva una pastilla. */
+type Destino = "evidencia" | "diagnostico" | "repuestos" | "cotizacion" | "entregar";
 
 const ICONO_DESTINO: Record<Destino, React.ReactNode> = {
   evidencia: <Camera size={14} strokeWidth={2.2} color="var(--accent)" />,
@@ -53,70 +40,141 @@ const ICONO_DESTINO: Record<Destino, React.ReactNode> = {
   entregar: <ArrowRight size={14} strokeWidth={2.2} color="var(--accent)" />,
 };
 
+const TEXTO_DESTINO: Record<Destino, string> = {
+  evidencia: "Fotos y videos",
+  diagnostico: "Diagnóstico",
+  repuestos: "Repuestos y servicios",
+  cotizacion: "Cotizar",
+  entregar: "Cobrar y entregar",
+};
+
 function rutaDe(destino: Destino, orden: { id: string; numero: number }): string {
   return destino === "entregar" ? `/entregar?numero=${orden.numero}` : `/orden/${orden.id}/${destino}`;
 }
 
-/** El camino en una línea (el paso actual resaltado) y, debajo, las
- *  pantallas de los pasos a los que ya se llegó: fotos, diagnóstico,
- *  cotización, repuestos. Son pastillas grandes: se tocan con guantes. */
-function Camino({ estado, orden }: { estado: Estado; orden: { id: string; numero: number } }) {
-  const actual = pasoActual(estado);
-  const enlaces = CAMINO.flatMap((_, i) => enlacesVisibles(i, estado)).filter(
-    (e, i, todos) => todos.findIndex((x) => x.destino === e.destino) === i,
-  );
+/** Las pantallas de la orden mientras está en el taller. "Cotizar" es
+ *  opcional: solo cuando hay que pedirle permiso al cliente. */
+function Pastillas({ estado, orden }: { estado: Estado; orden: { id: string; numero: number } }) {
+  if (estado === "entregada") return null;
+  const destinos: Destino[] =
+    estado === "esperando_cliente"
+      ? ["evidencia", "diagnostico", "repuestos"]
+      : ["evidencia", "diagnostico", "repuestos", "cotizacion"];
   return (
-    <div>
-      <ol
-        aria-label="Camino de la orden"
-        style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 4px" }}
-      >
-        {CAMINO.map((paso, i) => {
-          const hecho = i < actual || estado === "entregada";
-          const enCurso = i === actual && estado !== "entregada";
-          return (
-            <li key={paso.titulo} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              {i > 0 && <span aria-hidden style={{ width: 12, height: 2, borderRadius: 1, background: hecho || enCurso ? "var(--ok)" : "var(--rule)" }} />}
-              <span
-                aria-current={enCurso ? "step" : undefined}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                  padding: enCurso ? "3px 9px" : "3px 2px",
-                  borderRadius: "var(--r-pill)",
-                  background: enCurso ? "var(--accent)" : "transparent",
-                  color: enCurso ? "var(--accent-texto)" : hecho ? "var(--ok)" : "var(--ink-3)",
-                  fontSize: 12,
-                  fontWeight: enCurso ? 800 : 600,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {hecho && <Check size={12} strokeWidth={3} aria-hidden />}
-                {enCurso && paso.estados.length > 1 ? ETIQUETA_ESTADO[estado] : paso.titulo}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-      {enlaces.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
-          {enlaces.map((e) => (
-            <Link
-              key={e.destino}
-              href={rutaDe(e.destino, orden)}
-              className="pastilla"
-              style={{ gap: 6 }}
-            >
-              {ICONO_DESTINO[e.destino]}
-              {e.texto}
-              <ChevronRight size={14} strokeWidth={2.2} color="var(--ink-3)" aria-hidden />
-            </Link>
-          ))}
-        </div>
-      )}
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      {destinos.map((d) => (
+        <Link key={d} href={rutaDe(d, orden)} className="pastilla" style={{ gap: 6 }}>
+          {ICONO_DESTINO[d]}
+          {TEXTO_DESTINO[d]}
+          <ChevronRight size={14} strokeWidth={2.2} color="var(--ink-3)" aria-hidden />
+        </Link>
+      ))}
     </div>
   );
+}
+
+/** Los botones de cada estado. Lo que no está aquí cambia solo: pedir a
+ *  Compras, recibir el repuesto, enviar una cotización, la aprobación. */
+function AccionesEstado({
+  orden,
+  cambiando,
+  panel,
+  onPanel,
+  onAvanzar,
+  onDecidir,
+  onIr,
+}: {
+  orden: { estado: Estado; cotizacion_rechazada: boolean };
+  cambiando: boolean;
+  panel: "terminado" | "falta" | "rechazo" | null;
+  onPanel: (p: "terminado" | "falta" | "rechazo") => void;
+  onAvanzar: (a: Estado) => void;
+  onDecidir: (d: "aprobada") => void;
+  onIr: (d: Destino) => void;
+}) {
+  const bloqueado = cambiando || panel !== null;
+  const ayuda = (t: string) => <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--ink-2)" }}>{t}</p>;
+  const botones = (hijos: React.ReactNode) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{hijos}</div>
+  );
+
+  switch (orden.estado) {
+    case "en_proceso":
+      return (
+        <>
+          {ayuda("Cuando el equipo quede listo, márcalo terminado. Si falta un repuesto, pídelo y la orden espera sola.")}
+          {botones(
+            <>
+              <Boton variante="primario" tamano="lg" ancho icono={<Check size={19} strokeWidth={2.4} />} disabled={bloqueado} onClick={() => onPanel("terminado")}>
+                Terminado
+              </Boton>
+              <Boton variante="contorno" ancho icono={<PackageX size={17} strokeWidth={2} />} disabled={bloqueado} onClick={() => onPanel("falta")}>
+                Falta repuesto
+              </Boton>
+            </>,
+          )}
+        </>
+      );
+    case "falta_repuesto":
+      return (
+        <>
+          {ayuda("Compras ya lo tiene en su lista. Cuando lo marque como recibido, la orden vuelve sola a En proceso.")}
+          {botones(
+            <Boton variante="contorno" ancho icono={<Undo2 size={17} strokeWidth={2} />} disabled={bloqueado} onClick={() => onAvanzar("en_proceso")}>
+              Seguir sin esperar el repuesto
+            </Boton>,
+          )}
+        </>
+      );
+    case "esperando_cliente":
+      return orden.cotizacion_rechazada ? (
+        <>
+          {ayuda("El cliente no aprobó la cotización. Envíale otra, o entrégale el equipo sin reparar.")}
+          {botones(
+            <>
+              <Boton variante="primario" tamano="lg" ancho icono={<FileText size={18} strokeWidth={2} />} disabled={bloqueado} onClick={() => onIr("cotizacion")}>
+                Volver a cotizar
+              </Boton>
+              <Boton variante="contorno" ancho icono={<ArrowRight size={17} strokeWidth={2} />} disabled={bloqueado} onClick={() => onIr("entregar")}>
+                Entregar sin reparar
+              </Boton>
+            </>,
+          )}
+        </>
+      ) : (
+        <>
+          {ayuda("Se le envió la cotización. El cliente responde desde su enlace; si lo hizo aquí o por teléfono, regístralo.")}
+          {botones(
+            <>
+              <Boton variante="primario" tamano="lg" ancho icono={<Check size={19} strokeWidth={2.4} />} disabled={bloqueado} onClick={() => onDecidir("aprobada")}>
+                El cliente aprobó
+              </Boton>
+              <Boton variante="contorno" ancho disabled={bloqueado} onClick={() => onPanel("rechazo")}>
+                El cliente no aprobó
+              </Boton>
+            </>,
+          )}
+        </>
+      );
+    case "listo_entrega":
+      return (
+        <>
+          {ayuda("En Cobrar y entregar se cobra el saldo, firma el cliente y se toma la foto de salida.")}
+          {botones(
+            <>
+              <Boton variante="primario" tamano="lg" ancho icono={<ArrowRight size={19} strokeWidth={2} />} disabled={bloqueado} onClick={() => onIr("entregar")}>
+                Cobrar y entregar
+              </Boton>
+              <Boton variante="contorno" ancho icono={<Undo2 size={17} strokeWidth={2} />} disabled={bloqueado} onClick={() => onAvanzar("en_proceso")}>
+                Volver a En proceso
+              </Boton>
+            </>,
+          )}
+        </>
+      );
+    case "entregada":
+      return null;
+  }
 }
 
 const ETIQUETA_TIPO_ACCESO: Record<string, string> = {
@@ -318,9 +376,9 @@ interface OrdenTecnico {
   modelo: string | null;
   cliente_nombre: string;
   total: number;
-  fase_id: string | null;
-  fase_nombre: string | null;
   token_publico: string;
+  /** El cliente no aprobó la última cotización (sigue esperándolo). */
+  cotizacion_rechazada: boolean;
 }
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
@@ -331,13 +389,10 @@ export default function PaginaOrdenTecnico() {
   const [orden, setOrden] = useState<OrdenTecnico | null>(null);
   const [rol, setRol] = useState<Rol | null>(null);
   const [cambiando, setCambiando] = useState(false);
-  // Algunos cambios no son un clic: piden una nota que queda en el historial.
-  const [cerrando, setCerrando] = useState<Estado | null>(null);
-  const [notaCierre, setNotaCierre] = useState("");
-  const [verificado, setVerificado] = useState(false);
-  // "Ya viene con precio acordado": salta diagnóstico, cotización y
-  // aprobación. Arranca marcado si la orden ya trae un valor.
-  const [omitir, setOmitir] = useState<boolean | null>(null);
+  // Terminado (nota opcional), qué falta (va a Compras) o por qué el
+  // cliente no aprobó: un campo de texto debajo de los botones.
+  const [panel, setPanel] = useState<"terminado" | "falta" | "rechazo" | null>(null);
+  const [texto, setTexto] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [eventos, setEventos] = useState<Evento[]>([]);
@@ -348,10 +403,7 @@ export default function PaginaOrdenTecnico() {
   function cargarOrden() {
     fetch(`/api/ordenes/${id}`)
       .then((r) => r.json())
-      .then((o: OrdenTecnico) => {
-        setOrden(o);
-        setOmitir((prev) => prev ?? Number(o.total) > 0);
-      })
+      .then((o: OrdenTecnico) => setOrden(o))
       .catch(() => setError("No se pudo cargar la orden"));
   }
 
@@ -427,27 +479,30 @@ export default function PaginaOrdenTecnico() {
     }
   }
 
-  async function avanzar(aEstado: Estado, nota?: string, omitirCotizacion?: boolean) {
+  function cerrarPanel() {
+    setPanel(null);
+    setTexto("");
+  }
+
+  /** Después de cualquier cambio: la orden y su historial se vuelven a leer. */
+  function recargar() {
+    router.refresh();
+    cargarOrden();
+    cargarEventos();
+  }
+
+  async function avanzar(aEstado: Estado, nota?: string) {
     setCambiando(true);
     setError(null);
     try {
       const res = await fetch(`/api/ordenes/${id}/transicion`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ aEstado, nota, omitirCotizacion }),
+        body: JSON.stringify({ aEstado, nota }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
-      // Con precio acordado el servidor decide: reparación o esperar repuesto.
-      aEstado = (await res.json()).estado ?? aEstado;
-      setCerrando(null);
-      setNotaCierre("");
-      setVerificado(false);
-      router.refresh();
-      setOrden((prev) => (prev ? { ...prev, estado: aEstado } : prev));
-      // La transición también le pone la primera fase del estado nuevo
-      // (o ninguna): se vuelve a leer la orden para mostrarla.
-      cargarOrden();
-      cargarEventos();
+      cerrarPanel();
+      recargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo cambiar el estado");
     } finally {
@@ -455,9 +510,30 @@ export default function PaginaOrdenTecnico() {
     }
   }
 
-  // El cliente aprobó aquí o por teléfono: la misma ruta que su enlace
-  // (reserva repuestos y decide si va a reparación o a esperar repuesto).
-  async function aprobar() {
+  // Lo que falta va a Compras, y la orden pasa sola a "Falta repuesto";
+  // vuelve sola a "En proceso" cuando Compras lo recibe.
+  async function pedirRepuesto() {
+    setCambiando(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/ordenes/${id}/repuestos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accion: "faltante", descripcion: texto.trim(), cantidad: 1 }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      cerrarPanel();
+      recargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo pedir el repuesto");
+    } finally {
+      setCambiando(false);
+    }
+  }
+
+  // El cliente respondió aquí o por teléfono: la misma ruta que su enlace
+  // (al aprobar reserva repuestos y decide si sigue en proceso o falta repuesto).
+  async function decidir(decision: "aprobada" | "rechazada") {
     if (!orden) return;
     setCambiando(true);
     setError(null);
@@ -465,31 +541,25 @@ export default function PaginaOrdenTecnico() {
       const res = await fetch("/api/aprobacion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: orden.token_publico, decision: "aprobada" }),
+        body: JSON.stringify({
+          token: orden.token_publico,
+          decision,
+          motivo: decision === "rechazada" ? texto.trim() || undefined : undefined,
+        }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
-      cargarOrden();
-      cargarEventos();
+      cerrarPanel();
+      recargar();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo registrar la aprobación");
+      setError(e instanceof Error ? e.message : "No se pudo registrar la respuesta del cliente");
     } finally {
       setCambiando(false);
     }
   }
 
-  function ejecutar(accion: Accion) {
-    if (accion.tipo === "ir") router.push(rutaDe(accion.destino, orden!));
-    else if (accion.tipo === "aprobar") aprobar();
-    else if (NOTA_AL_PASAR[accion.a]) setCerrando(accion.a);
-    else avanzar(accion.a);
-  }
-
   if (!orden) {
     return <Tarjeta style={{ textAlign: "center", color: "var(--ink-3)" }}>Cargando…</Tarjeta>;
   }
-
-  const paso = siguientePaso(orden.estado);
-  const antesDeCotizar = orden.estado === "recibida" || orden.estado === "en_diagnostico";
 
   return (
     <div className="pila">
@@ -499,8 +569,8 @@ export default function PaginaOrdenTecnico() {
             <div className="fila" style={{ gap: 10, alignItems: "center" }}>
               <h1 className="cifra">Orden #{orden.numero}</h1>
               <EstadoOrden estado={orden.estado} />
-              {orden.fase_nombre && (
-                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-2)" }}>· {orden.fase_nombre}</span>
+              {orden.estado === "esperando_cliente" && orden.cotizacion_rechazada && (
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-2)" }}>· No aprobó</span>
               )}
             </div>
             <p style={{ margin: "6px 0 0", fontSize: 15, fontWeight: 700 }}>
@@ -556,21 +626,8 @@ export default function PaginaOrdenTecnico() {
         {avisoEtiqueta && <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--ink-2)" }}>{avisoEtiqueta}</p>}
 
         <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--rule)" }}>
-          <Camino estado={orden.estado} orden={orden} />
+          <Pastillas estado={orden.estado} orden={orden} />
         </div>
-
-        {/* Las fases de la empresa son detalle opcional dentro de cada paso. */}
-        {rol && puede(rol, "diagnosticar") && (
-          <SelectorFase
-            ordenId={id}
-            estado={orden.estado}
-            faseId={orden.fase_id}
-            onCambio={(fase) => {
-              setOrden((prev) => (prev ? { ...prev, fase_id: fase?.id ?? null, fase_nombre: fase?.nombre ?? null } : prev));
-              cargarEventos();
-            }}
-          />
-        )}
 
         <div style={{ marginTop: 14 }}>
           <EnlaceOrden
@@ -581,119 +638,67 @@ export default function PaginaOrdenTecnico() {
         </div>
       </Tarjeta>
 
-      <Tarjeta>
-        <div className="campo-etiqueta">Siguiente paso</div>
-        {antesDeCotizar && (
-          <label
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 10,
-              padding: 12,
-              marginBottom: 14,
-              borderRadius: "var(--r-md)",
-              background: "var(--surface-2)",
-              cursor: "pointer",
+      {orden.estado !== "entregada" && (
+        <Tarjeta>
+          <AccionesEstado
+            orden={orden}
+            cambiando={cambiando}
+            panel={panel}
+            onPanel={(p) => {
+              setPanel(p);
+              setTexto("");
             }}
-          >
-            <input type="checkbox" checked={!!omitir} onChange={(e) => setOmitir(e.target.checked)} style={{ marginTop: 2 }} />
-            <span>
-              <span style={{ display: "block", fontSize: 14, fontWeight: 700 }}>Ya viene con precio acordado</span>
-              <span style={{ display: "block", fontSize: 12, color: "var(--ink-2)" }}>
-                Omite diagnóstico, cotización y aprobación del cliente.
-                {Number(orden.total) > 0 ? ` Precio: ${formatearMoneda(Number(orden.total))}.` : ""}
-              </span>
-            </span>
-          </label>
-        )}
-        {antesDeCotizar && omitir ? (
-          <>
-            <h2 style={{ fontSize: 18, marginBottom: 4 }}>Reparar</h2>
-            <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--ink-2)" }}>
-              {Number(orden.total) > 0
-                ? "Pasa directo a reparación, o a esperar repuesto si falta alguno pedido a Compras."
-                : "La orden no tiene precio todavía. Agrégalo en Repuestos (servicio o mano de obra) y vuelve aquí."}
-            </p>
-            {!(Number(orden.total) > 0) && (
-              <div style={{ marginBottom: 8 }}>
-                <BotonEnlace variante="contorno" ancho href={rutaDe("repuestos", orden)} icono={<Package size={17} strokeWidth={2} />}>
-                  Repuestos
-                </BotonEnlace>
-              </div>
-            )}
-            <Boton
-              variante="primario"
-              tamano="lg"
-              ancho
-              icono={<ArrowRight size={19} strokeWidth={2} />}
-              disabled={cambiando || !(Number(orden.total) > 0)}
-              onClick={() => avanzar("en_reparacion", undefined, true)}
-            >
-              Continuar a reparación
-            </Boton>
-          </>
-        ) : (
-          <>
-        <h2 style={{ fontSize: 18, marginBottom: 4 }}>{paso.titulo}</h2>
-        <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--ink-2)" }}>{paso.ayuda}</p>
-        {paso.acciones.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {paso.acciones.map((accion, i) => (
-              <Boton
-                key={accion.texto}
-                variante={i === 0 ? "primario" : "contorno"}
-                tamano={i === 0 ? "lg" : undefined}
-                ancho
-                icono={i === 0 ? <ArrowRight size={19} strokeWidth={2} /> : undefined}
-                disabled={cambiando || (accion.tipo === "estado" && cerrando === accion.a)}
-                onClick={() => ejecutar(accion)}
-              >
-                {accion.texto}
-              </Boton>
-            ))}
-          </div>
-        )}
-          </>
-        )}
-          {cerrando && NOTA_AL_PASAR[cerrando] && (
+            onAvanzar={avanzar}
+            onDecidir={decidir}
+            onIr={(d) => router.push(rutaDe(d, orden))}
+          />
+          {panel && (
             <div className="pila" style={{ gap: 10, marginTop: 14 }}>
               <label style={{ display: "block" }}>
-                <span className="campo-etiqueta">{NOTA_AL_PASAR[cerrando]!.etiqueta}</span>
+                <span className="campo-etiqueta">
+                  {panel === "terminado"
+                    ? "Qué se hizo (opcional)"
+                    : panel === "falta"
+                      ? "Qué repuesto falta"
+                      : "Qué dijo el cliente (opcional)"}
+                </span>
                 <textarea
-                  rows={3}
-                  value={notaCierre}
-                  onChange={(ev) => setNotaCierre(ev.target.value)}
-                  placeholder={NOTA_AL_PASAR[cerrando]!.ayuda}
+                  rows={panel === "falta" ? 2 : 3}
+                  value={texto}
+                  onChange={(ev) => setTexto(ev.target.value)}
+                  placeholder={
+                    panel === "terminado"
+                      ? "Ej. Cambio de pantalla, probado"
+                      : panel === "falta"
+                        ? "Ej. Pantalla Samsung A32"
+                        : "Ej. Le parece caro, lo recoge sin reparar"
+                  }
                   autoFocus
                 />
               </label>
-              {cerrando === "listo_entrega" && (
-                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
-                  <input
-                    type="checkbox"
-                    checked={verificado}
-                    onChange={(ev) => setVerificado(ev.target.checked)}
-                    style={{ width: 18, height: 18, padding: 0, accentColor: "var(--accent)" }}
-                  />
-                  Verifiqué que el equipo funciona
-                </label>
-              )}
               <div className="fila" style={{ gap: 8 }}>
                 <Boton
                   variante="primario"
                   icono={<Check size={18} strokeWidth={2.4} />}
-                  disabled={cambiando || !notaCierre.trim() || (cerrando === "listo_entrega" && !verificado)}
-                  onClick={() => avanzar(cerrando, `${NOTA_AL_PASAR[cerrando]!.prefijo}${notaCierre.trim()}`)}
+                  disabled={cambiando || (panel === "falta" && !texto.trim())}
+                  onClick={() =>
+                    panel === "terminado"
+                      ? avanzar("listo_entrega", texto.trim() || undefined)
+                      : panel === "falta"
+                        ? pedirRepuesto()
+                        : decidir("rechazada")
+                  }
                 >
-                  Confirmar: {ETIQUETA_ESTADO[cerrando]}
+                  {panel === "terminado" ? "Marcar terminado" : panel === "falta" ? "Pedir a Compras" : "Guardar"}
                 </Boton>
-                <Boton variante="fantasma" onClick={() => setCerrando(null)}>
+                <Boton variante="fantasma" onClick={cerrarPanel}>
                   Cancelar
                 </Boton>
               </div>
             </div>
           )}
-      </Tarjeta>
+        </Tarjeta>
+      )}
 
       <div id="mensajes" style={{ scrollMarginTop: 16 }}>
         <div role="tablist" aria-label="Detalle de la orden" style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 12 }}>

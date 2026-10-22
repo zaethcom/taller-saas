@@ -76,7 +76,7 @@ interface CuerpoEmpresa {
   /** Opcional: si ya pagó, cuántos meses -- queda como su primer pago. */
   mesesPagados?: number;
   valorPagado?: number | null;
-  /** Opcional: el tipo de empresa (0053) -- le copia sus fases, categorías y tipo de equipo. */
+  /** Opcional: el tipo de empresa (0053) -- le copia sus categorías y tipo de equipo. */
   tipoEmpresaId?: string | null;
 }
 
@@ -170,7 +170,7 @@ export async function POST(req: Request) {
       try {
         const { data: tipo } = await admin
           .from("tipo_empresa")
-          .select("id, tipo_equipo, fases, categorias")
+          .select("id, tipo_equipo, categorias")
           .eq("id", body.tipoEmpresaId)
           .maybeSingle();
         if (!tipo) throw new Error("el tipo de empresa no existe");

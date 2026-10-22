@@ -5,7 +5,7 @@
  * hacer, antes de armar la cotización (punto 3 del documento de
  * trazabilidad del taller). Antes esta pantalla también construía la
  * cotización en el mismo formulario -- eso se movió a /cotizacion, que
- * es donde de verdad se transiciona la orden a esperando_aprobacion.
+ * es donde de verdad se transiciona la orden a esperando_cliente.
  *
  * "Continuar a cotización" guarda el diagnóstico y navega -- no cambia
  * el estado de la orden todavía; eso sigue pasando solo al enviar la
