@@ -4,7 +4,7 @@
  * trabajador, su usuario debe poder deshabilitarse de inmediato.
  */
 import { redirect } from "next/navigation";
-import { Users } from "lucide-react";
+
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
@@ -45,9 +45,7 @@ export default async function PaginaUsuarios() {
   return (
     <div>
       <TituloPantalla
-        icono={<Users size={24} strokeWidth={2} />}
         titulo="Usuarios"
-        descripcion="El código es un identificador corto para recibos y reportes -- no reemplaza el usuario y contraseña de Supabase, que sigue siendo la única forma de iniciar sesión."
       />
 
       {gestiona && <NuevoUsuario />}

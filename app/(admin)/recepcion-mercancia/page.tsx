@@ -17,7 +17,7 @@
  * el conteo tiene que verse sin desplazar mientras se teclea.
  */
 import { useEffect, useRef, useState } from "react";
-import { PackagePlus, Printer } from "lucide-react";
+import { Printer } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo } from "@/componentes/ui/campo";
@@ -125,9 +125,7 @@ export default function PaginaRecepcionMercancia() {
       `}</style>
 
       <TituloPantalla
-        icono={<PackagePlus size={24} strokeWidth={2} />}
         titulo="Recepción de mercancía"
-        descripcion="Un artículo a la vez: al registrar, la etiqueta sale a imprimir sola y el foco vuelve aquí."
       />
 
       <div className="recepcion">

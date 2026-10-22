@@ -5,7 +5,7 @@
  * visitas -- esta pantalla es el directorio, el historial vive en cada
  * orden.
  */
-import { Tag } from "lucide-react";
+
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { TarjetaTabla } from "@/componentes/ui/tarjeta";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
@@ -21,9 +21,7 @@ export default async function PaginaEquipos() {
   return (
     <div>
       <TituloPantalla
-        icono={<Tag size={24} strokeWidth={2} />}
         titulo="Equipos"
-        descripcion="Los aparatos de los clientes, no el inventario propio de la tienda -- eso vive en Inventario."
       />
 
       {(equipos ?? []).length === 0 ? (

@@ -17,7 +17,7 @@
  * texto blanco encima se sigue leyendo.
  */
 import { useEffect, useState } from "react";
-import { Settings, Check, ImagePlus, ChevronDown } from "lucide-react";
+import { Check, ImagePlus, ChevronDown } from "lucide-react";
 import { subirLogo, subirImagenMarca, subirFondoLogin } from "@/lib/subir-logo";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
@@ -175,7 +175,7 @@ export default function PaginaConfiguracion() {
         .config-mas>summary::-webkit-details-marker{display:none;}
         .config-mas[open]>summary svg{transform:rotate(180deg);}
       `}</style>
-      <TituloPantalla icono={<Settings size={24} strokeWidth={2} />} titulo="Configuración" />
+      <TituloPantalla titulo="Configuración" />
 
       <div style={{ maxWidth: 620 }}>
         <div className="config-pestanas" role="tablist" aria-label="Secciones de la configuración">

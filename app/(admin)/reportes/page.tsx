@@ -13,7 +13,7 @@
  * siguen aquí, como un informe más del grupo Taller.
  */
 import Link from "next/link";
-import { BarChart3, FileSpreadsheet, FileText } from "lucide-react";
+import { FileSpreadsheet, FileText } from "lucide-react";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
@@ -167,9 +167,7 @@ export default async function PaginaReportes({
   return (
     <div>
       <TituloPantalla
-        icono={<BarChart3 size={24} strokeWidth={2} />}
         titulo="Reportes"
-        descripcion="Ventas, caja, inventario y taller, con filtro de fechas y sede. Descargables en Excel y PDF."
         acciones={
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <a className="btn btn-contorno" href={exportar("xlsx")} download>

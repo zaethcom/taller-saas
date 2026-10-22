@@ -13,7 +13,7 @@
  * movimiento abre el cajón y entra al efectivo esperado.
  */
 import { useEffect, useState } from "react";
-import { Clock, LockOpen, Lock, Check, Wallet, Plus, Minus } from "lucide-react";
+import { LockOpen, Lock, Check, Wallet, Plus, Minus } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
@@ -173,7 +173,6 @@ export default function PaginaTurno() {
     return (
       <div>
         <TituloPantalla
-          icono={<Clock size={24} strokeWidth={2} />}
           titulo="Abrir turno"
           descripcion="Cuenta la base con la que arranca la caja de esta sede."
         />
@@ -215,7 +214,6 @@ export default function PaginaTurno() {
   return (
     <div>
       <TituloPantalla
-        icono={<Clock size={24} strokeWidth={2} />}
         titulo="Turno abierto"
         descripcion={`Desde ${new Date(turno.abiertoEn!).toLocaleString("es-CO")}`}
         acciones={<Etiqueta tono="ok" punto>Caja abierta</Etiqueta>}

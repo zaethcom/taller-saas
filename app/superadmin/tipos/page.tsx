@@ -11,7 +11,7 @@
  * su ficha, y eso solo agrega lo que les falte.
  */
 import { useEffect, useState } from "react";
-import { Check, Layers, Plus, Trash2 } from "lucide-react";
+import { Check, Plus, Trash2 } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
@@ -242,7 +242,6 @@ export default function PaginaTiposEmpresa() {
   return (
     <div>
       <TituloPantalla
-        icono={<Layers size={24} strokeWidth={2} />}
         titulo="Tipos de empresa"
         descripcion="Los estándares que cambian según el negocio. Se asignan desde la ficha de cada empresa."
       />

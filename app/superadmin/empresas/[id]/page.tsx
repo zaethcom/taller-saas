@@ -9,7 +9,7 @@
  * tiene historial y nunca la única.
  */
 import { use, useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Building2, Check, Pencil, Trash2, Wallet } from "lucide-react";
+import { ArrowLeft, Check, Pencil, Trash2, Wallet } from "lucide-react";
 import { Boton, BotonEnlace } from "@/componentes/ui/boton";
 import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
@@ -212,7 +212,6 @@ export default function PaginaEmpresaSuperadmin({ params }: { params: Promise<{ 
         </BotonEnlace>
       </div>
       <TituloPantalla
-        icono={<Building2 size={24} strokeWidth={2} />}
         titulo={empresa.nombre}
         descripcion={empresa.activa ? "Activa" : "Suspendida: sus usuarios no ven nada hasta reactivarla."}
       />

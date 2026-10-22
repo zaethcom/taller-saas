@@ -73,9 +73,7 @@ export default async function PaginaInventario() {
   return (
     <div>
       <TituloPantalla
-        icono={<Package size={24} strokeWidth={2} />}
         titulo="Inventario"
-        descripcion="Lo que hay en cada sede, a granel y por unidad."
       />
 
       <section style={{ marginBottom: 32 }}>

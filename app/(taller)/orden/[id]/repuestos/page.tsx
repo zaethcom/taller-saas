@@ -11,7 +11,7 @@
  */
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Package, Search, Minus, AlertTriangle, Check, PackageCheck, Wrench, Hammer, Plus } from "lucide-react";
+import { Search, Minus, AlertTriangle, Check, PackageCheck, Wrench, Hammer, Plus } from "lucide-react";
 import { clienteNavegador } from "@/lib/supabase/cliente";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
@@ -244,9 +244,7 @@ export default function PaginaRepuestos() {
       <CabeceraOrden ordenId={id} anterior={{ href: `/orden/${id}/cotizacion`, etiqueta: "Cotización" }} />
 
       <TituloPantalla
-        icono={<Package size={24} strokeWidth={2} />}
         titulo="Repuestos"
-        descripcion="Descuenta del inventario de esta sede, o pide lo que no hay."
       />
 
       <div className="pila">

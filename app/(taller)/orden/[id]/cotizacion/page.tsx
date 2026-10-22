@@ -23,7 +23,7 @@
  */
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Receipt, Plus, X, Send, Copy, Check, ArrowLeft, Search } from "lucide-react";
+import { Plus, X, Send, Copy, Check, ArrowLeft, Search } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
@@ -330,9 +330,7 @@ export default function PaginaCotizacion() {
       <CabeceraOrden ordenId={id} anterior={{ href: `/orden/${id}/diagnostico`, etiqueta: "Diagnóstico" }} />
 
       <TituloPantalla
-        icono={<Receipt size={24} strokeWidth={2} />}
         titulo="Cotización"
-        descripcion="Repuestos, servicios y mano de obra para el cliente."
       />
 
       <div className="pila">

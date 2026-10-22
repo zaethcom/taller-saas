@@ -23,7 +23,7 @@
  */
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ScanLine, Search, Barcode } from "lucide-react";
+import { Search, Barcode } from "lucide-react";
 import { VisorEscaner, SeparadorEscribelo } from "@/componentes/lector-codigos/visor-escaner";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
@@ -91,9 +91,7 @@ export default function PaginaEscanear() {
   return (
     <div>
       <TituloPantalla
-        icono={<ScanLine size={24} strokeWidth={2} />}
         titulo="Escanear equipo"
-        descripcion="Apunta al QR del equipo para abrir su ficha y sus órdenes."
       />
 
       <div className="pila">

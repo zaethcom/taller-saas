@@ -8,7 +8,7 @@
  * mano todavía.
  */
 import { useEffect, useState } from "react";
-import { ArrowLeftRight, Search, Plus, Trash2, Send, PackageCheck, Check } from "lucide-react";
+import { Search, Plus, Trash2, Send, PackageCheck, Check } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
@@ -213,9 +213,7 @@ export default function PaginaTraslados() {
   return (
     <div>
       <TituloPantalla
-        icono={<ArrowLeftRight size={24} strokeWidth={2} />}
         titulo="Traslados entre sedes"
-        descripcion="Enviar descuenta el inventario de origen de inmediato; recibir es un paso aparte, en el destino."
       />
 
       <div className="pila">

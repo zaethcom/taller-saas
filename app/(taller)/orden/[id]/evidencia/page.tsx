@@ -120,9 +120,7 @@ export default function PaginaEvidencia() {
       <CabeceraOrden ordenId={id} anterior={{ href: `/orden/${id}`, etiqueta: "Orden" }} />
 
       <TituloPantalla
-        icono={<Camera size={24} strokeWidth={2} />}
         titulo="Evidencia"
-        descripcion="Foto o video del equipo, en cualquier momento de la reparación."
       />
 
       <div className="pila">

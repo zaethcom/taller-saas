@@ -13,7 +13,7 @@
  */
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Wrench, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo } from "@/componentes/ui/campo";
@@ -95,9 +95,7 @@ export default function PaginaDiagnostico() {
       <CabeceraOrden ordenId={id} anterior={{ href: `/orden/${id}`, etiqueta: "Orden" }} />
 
       <TituloPantalla
-        icono={<Wrench size={24} strokeWidth={2} />}
         titulo="Diagnóstico"
-        descripcion="Qué tiene el equipo y qué se propone hacer."
       />
 
       <div className="pila">
