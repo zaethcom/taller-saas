@@ -26,7 +26,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Plus, X, Send, Copy, Check, ArrowLeft, Search } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
-import { Campo, Aviso } from "@/componentes/ui/campo";
+import { Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { CabeceraOrden } from "@/componentes/taller/cabecera-orden";
 import { BotonWhatsappOrden } from "@/componentes/taller/boton-whatsapp-orden";
@@ -66,17 +66,19 @@ const ETIQUETA_ORIGEN: Record<Origen, string> = {
   acordado: "Acordado",
 };
 
-function BuscadorCatalogo({
-  titulo,
-  endpoint,
-  onAgregar,
-}: {
-  titulo: string;
-  endpoint: string;
-  onAgregar: (r: ResultadoCatalogo) => void;
-}) {
+type Clase = "repuesto" | "servicio" | "mano_obra";
+
+const ENDPOINT: Record<Clase, string> = {
+  repuesto: "/api/repuestos",
+  servicio: "/api/servicios",
+  mano_obra: "/api/mano-obra",
+};
+
+/** Un solo buscador para repuestos, servicios y mano de obra: antes eran
+ *  tres campos lado a lado y había que saber en cuál buscar. */
+function BuscadorCatalogo({ onAgregar }: { onAgregar: (clase: Clase, r: ResultadoCatalogo) => void }) {
   const [buscar, setBuscar] = useState("");
-  const [resultados, setResultados] = useState<ResultadoCatalogo[]>([]);
+  const [resultados, setResultados] = useState<{ clase: Clase; r: ResultadoCatalogo }[]>([]);
 
   useEffect(() => {
     const texto = buscar.trim();
@@ -86,52 +88,72 @@ function BuscadorCatalogo({
     }
     const controlador = new AbortController();
     const temporizador = setTimeout(() => {
-      fetch(`${endpoint}?buscar=${encodeURIComponent(texto)}`, { signal: controlador.signal })
-        .then((r) => r.json())
-        .then((data) => setResultados(Array.isArray(data) ? data : []))
-        .catch(() => {});
+      const clases: Clase[] = ["repuesto", "servicio", "mano_obra"];
+      Promise.all(
+        clases.map((clase) =>
+          fetch(`${ENDPOINT[clase]}?buscar=${encodeURIComponent(texto)}`, { signal: controlador.signal })
+            .then((r) => r.json())
+            .then((data) => (Array.isArray(data) ? (data as ResultadoCatalogo[]).map((r) => ({ clase, r })) : []))
+            .catch(() => []),
+        ),
+      ).then((listas) => {
+        if (!controlador.signal.aborted) setResultados(listas.flat());
+      });
     }, 250);
     return () => {
       clearTimeout(temporizador);
       controlador.abort();
     };
-  }, [buscar, endpoint]);
+  }, [buscar]);
 
   return (
     <div className="pila" style={{ gap: 8 }}>
-      <Campo etiqueta={titulo}>
+      <div style={{ position: "relative" }}>
         <input
-          placeholder="Buscar…"
+          placeholder="Buscar repuesto, servicio o mano de obra"
+          aria-label="Buscar repuesto, servicio o mano de obra"
           value={buscar}
           onChange={(e) => setBuscar(e.target.value)}
-          className={endpoint.includes("repuestos") ? "cifra" : undefined}
+          style={{ paddingRight: 40 }}
         />
-      </Campo>
+        <Search
+          size={17}
+          strokeWidth={2}
+          aria-hidden
+          color="var(--ink-3)"
+          style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)" }}
+        />
+      </div>
       {resultados.length > 0 && (
         <ul style={{ listStyle: "none", margin: 0, padding: 0, border: "1px solid var(--rule)", borderRadius: "var(--r-md)", overflow: "hidden" }}>
-          {resultados.map((r) => (
-            <li key={r.id}>
+          {resultados.map(({ clase, r }) => (
+            <li key={`${clase}-${r.id}`}>
               <button
                 type="button"
                 onClick={() => {
-                  onAgregar(r);
+                  onAgregar(clase, r);
                   setBuscar("");
                   setResultados([]);
                 }}
                 style={{
                   width: "100%",
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: 8,
                   textAlign: "left",
-                  padding: "9px 12px",
+                  padding: "10px 12px",
                   border: "none",
                   background: "transparent",
                   cursor: "pointer",
                   borderBottom: "1px solid var(--rule)",
                   fontSize: 13,
+                  color: "var(--ink)",
                 }}
               >
-                <span style={{ fontWeight: 700 }}>{r.descripcion ?? r.nombre}</span>{" "}
-                <span className="cifra" style={{ color: "var(--ink-3)" }}>
-                  · {fmt(r.precioVenta ?? r.precio ?? 0)}
+                <span style={{ fontWeight: 700, flex: 1, minWidth: 0 }}>{r.descripcion ?? r.nombre}</span>
+                <span style={{ fontSize: 12, color: "var(--ink-3)" }}>{ETIQUETA_ORIGEN[clase]}</span>
+                <span className="cifra" style={{ color: "var(--ink-2)" }}>
+                  {fmt(r.precioVenta ?? r.precio ?? 0)}
                 </span>
               </button>
             </li>
@@ -329,9 +351,7 @@ export default function PaginaCotizacion() {
     <div>
       <CabeceraOrden ordenId={id} anterior={{ href: `/orden/${id}/diagnostico`, etiqueta: "Diagnóstico" }} />
 
-      <TituloPantalla
-        titulo="Cotización"
-      />
+      <TituloPantalla titulo="Cotización" />
 
       <div className="pila">
         {!sePuedeEnviar && estado && (
@@ -339,65 +359,21 @@ export default function PaginaCotizacion() {
             La orden está en &quot;{ETIQUETA_ESTADO[estado]}&quot;: la cotización ya se envió, desde aquí no se envía otra.
           </Aviso>
         )}
-        <Tarjeta>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
-            <BuscadorCatalogo
-              titulo="Buscar repuesto"
-              endpoint="/api/repuestos"
-              onAgregar={(r) =>
-                agregar({
-                  origen: "repuesto",
-                  descripcion: r.descripcion ?? "",
-                  cantidad: 1,
-                  precioUnit: r.precioVenta ?? 0,
-                  repuestoId: r.id,
-                })
-              }
-            />
-            <BuscadorCatalogo
-              titulo="Buscar servicio"
-              endpoint="/api/servicios"
-              onAgregar={(r) =>
-                agregar({
-                  origen: "servicio",
-                  descripcion: r.nombre ?? "",
-                  cantidad: 1,
-                  precioUnit: r.precio ?? 0,
-                  servicioId: r.id,
-                })
-              }
-            />
-            <BuscadorCatalogo
-              titulo="Buscar mano de obra"
-              endpoint="/api/mano-obra"
-              onAgregar={(r) =>
-                agregar({
-                  origen: "mano_obra",
-                  descripcion: r.nombre ?? "",
-                  cantidad: 1,
-                  precioUnit: r.precio ?? 0,
-                  manoObraId: r.id,
-                })
-              }
-            />
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <Boton
-              variante="fantasma"
-              icono={<Plus size={17} strokeWidth={2.2} />}
-              onClick={() => agregar({ origen: "libre", descripcion: "", cantidad: 1, precioUnit: 0 })}
-            >
-              Agregar línea libre
-            </Boton>
-          </div>
-        </Tarjeta>
+        <BuscadorCatalogo
+          onAgregar={(clase, r) =>
+            agregar(
+              clase === "repuesto"
+                ? { origen: "repuesto", descripcion: r.descripcion ?? "", cantidad: 1, precioUnit: r.precioVenta ?? 0, repuestoId: r.id }
+                : clase === "servicio"
+                  ? { origen: "servicio", descripcion: r.nombre ?? "", cantidad: 1, precioUnit: r.precio ?? 0, servicioId: r.id }
+                  : { origen: "mano_obra", descripcion: r.nombre ?? "", cantidad: 1, precioUnit: r.precio ?? 0, manoObraId: r.id },
+            )
+          }
+        />
 
         <Tarjeta>
-          <h2 style={{ marginBottom: 12 }}>Ítems de la cotización</h2>
           {items.length === 0 ? (
-            <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)", display: "flex", alignItems: "center", gap: 6 }}>
-              <Search size={15} strokeWidth={2} /> Busca arriba o agrega una línea libre.
-            </p>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>Busca arriba lo que lleva el trabajo.</p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column" }}>
               {items.map((it, i) => {
@@ -477,35 +453,36 @@ export default function PaginaCotizacion() {
               })}
             </div>
           )}
-        </Tarjeta>
-
-        {hayAcordado && (
-          <Aviso tono="info">
-            Las líneas &quot;Acordado&quot; ya estaban en la orden (el valor que se pactó al recibir, o lo ya registrado).
-            Quedan incluidas en el total y no se cobran dos veces. Si alguna está por error, la X la quita de la orden
-            (un repuesto vuelve al inventario).
-          </Aviso>
-        )}
-
-        <Tarjeta>
-          <div style={{ textAlign: "right" }}>
-            <div className="campo-etiqueta">Total</div>
-            <div className="cifra" style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em" }}>
-              {fmt(total)}
-            </div>
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--rule)" }}>
+            <Boton
+              variante="fantasma"
+              tamano="sm"
+              icono={<Plus size={15} strokeWidth={2.2} />}
+              onClick={() => agregar({ origen: "libre", descripcion: "", cantidad: 1, precioUnit: 0 })}
+            >
+              Línea libre
+            </Boton>
           </div>
+          {hayAcordado && (
+            <p className="campo-ayuda" style={{ marginBottom: 0 }}>
+              «Acordado» ya estaba en la orden y no se cobra dos veces. La X la quita de la orden.
+            </p>
+          )}
         </Tarjeta>
 
-        <Boton
-          variante="primario"
-          tamano="xl"
-          ancho
-          icono={<Send size={19} strokeWidth={2} />}
-          onClick={enviar}
-          disabled={enviando || !sePuedeEnviar}
-        >
-          {enviando ? "Enviando…" : "Enviar cotización"}
-        </Boton>
+        <div className="barra-acciones" style={{ alignItems: "center" }}>
+          <span className="cifra" style={{ marginRight: "auto", fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em" }}>
+            {fmt(total)}
+          </span>
+          <Boton
+            variante="primario"
+            icono={<Send size={18} strokeWidth={2} />}
+            onClick={enviar}
+            disabled={enviando || !sePuedeEnviar}
+          >
+            {enviando ? "Enviando…" : "Enviar cotización"}
+          </Boton>
+        </div>
 
         <VentanaError mensaje={error} onCerrar={() => setError(null)} />
       </div>

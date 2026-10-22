@@ -78,7 +78,7 @@ export default function PaginaDiagnostico() {
 
   async function continuar() {
     if (!datos.hallazgos.trim()) {
-      setError("Registra al menos los hallazgos del diagnóstico.");
+      setError("Escribe qué tiene el equipo y qué se propone.");
       return;
     }
     if (await guardar()) {
@@ -94,63 +94,58 @@ export default function PaginaDiagnostico() {
     <div>
       <CabeceraOrden ordenId={id} anterior={{ href: `/orden/${id}`, etiqueta: "Orden" }} />
 
-      <TituloPantalla
-        titulo="Diagnóstico"
-      />
+      <TituloPantalla titulo="Diagnóstico" />
 
       <div className="pila">
         <Tarjeta>
-          <Campo etiqueta="Diagnóstico técnico" ayuda="Qué se encontró al revisar el equipo.">
+          <Campo etiqueta="Qué tiene y qué se propone">
             <AreaDictado
               placeholder="Ej. Pastillas de freno delanteras desgastadas por completo…"
               value={datos.hallazgos}
               onChange={(v) => setDatos((d) => ({ ...d, hallazgos: v }))}
-              rows={3}
+              rows={4}
             />
           </Campo>
         </Tarjeta>
 
-        <Tarjeta>
-          <Campo etiqueta="Fallas encontradas" ayuda="Opcional. Lista de fallas puntuales, si aplica.">
-            <AreaDictado
-              placeholder="Ej. Ruido en el motor, batería no carga al 100%…"
-              value={datos.fallas}
-              onChange={(v) => setDatos((d) => ({ ...d, fallas: v }))}
-              rows={3}
-            />
-          </Campo>
-        </Tarjeta>
+        {/* Abierto si ya tiene algo escrito, para no esconder lo guardado. */}
+        <details className="mas-opciones" open={Boolean(datos.fallas || datos.observaciones || datos.recomendaciones)}>
+          <summary>Más detalles: fallas, observaciones y recomendaciones</summary>
+          <div className="pila" style={{ gap: 14, marginTop: 12 }}>
+            <Campo etiqueta="Fallas encontradas">
+              <AreaDictado
+                placeholder="Ej. Ruido en el motor, batería no carga al 100%…"
+                value={datos.fallas}
+                onChange={(v) => setDatos((d) => ({ ...d, fallas: v }))}
+                rows={2}
+              />
+            </Campo>
+            <Campo etiqueta="Observaciones" ayuda="El cliente no las ve.">
+              <AreaDictado
+                placeholder="Ej. Equipo con golpes previos en el chasis…"
+                value={datos.observaciones}
+                onChange={(v) => setDatos((d) => ({ ...d, observaciones: v }))}
+                rows={2}
+              />
+            </Campo>
+            <Campo etiqueta="Recomendaciones">
+              <AreaDictado
+                placeholder="Ej. Cambiar también el cable de freno trasero antes de que falle…"
+                value={datos.recomendaciones}
+                onChange={(v) => setDatos((d) => ({ ...d, recomendaciones: v }))}
+                rows={2}
+              />
+            </Campo>
+          </div>
+        </details>
 
-        <Tarjeta>
-          <Campo etiqueta="Observaciones" ayuda="Opcional. El cliente no las ve; quedan en el historial del equipo.">
-            <AreaDictado
-              placeholder="Ej. Equipo con golpes previos en el chasis…"
-              value={datos.observaciones}
-              onChange={(v) => setDatos((d) => ({ ...d, observaciones: v }))}
-              rows={3}
-            />
-          </Campo>
-        </Tarjeta>
-
-        <Tarjeta>
-          <Campo etiqueta="Recomendaciones" ayuda="Opcional. Qué se le sugiere al cliente además de la reparación.">
-            <AreaDictado
-              placeholder="Ej. Cambiar también el cable de freno trasero antes de que falle…"
-              value={datos.recomendaciones}
-              onChange={(v) => setDatos((d) => ({ ...d, recomendaciones: v }))}
-              rows={2}
-            />
-          </Campo>
-        </Tarjeta>
-
-        <div className="fila">
+        <div className="barra-acciones">
           <Boton variante="contorno" onClick={guardar} disabled={guardando}>
             {guardando ? "Guardando…" : "Guardar borrador"}
           </Boton>
           <Boton
             variante="primario"
-            tamano="lg"
-            icono={<ArrowRight size={19} strokeWidth={2} />}
+            icono={<ArrowRight size={18} strokeWidth={2} />}
             onClick={continuar}
             disabled={guardando}
           >
