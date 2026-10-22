@@ -10,13 +10,14 @@
  */
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { User, Wrench, FileText, KeyRound, Check } from "lucide-react";
+import { User, Wrench, FileText, KeyRound, Check, Printer } from "lucide-react";
 import { Boton, BotonEnlace } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { VentanaError } from "@/componentes/ui/ventana-error";
 import { PatronGrid } from "@/componentes/patron-android/patron-grid";
+import { reimprimirComprobante } from "@/componentes/recepcion/ultimas-recepciones";
 import { validarDatos, type DatosEdicion } from "@/lib/orden-edicion";
 import type { MarcaConModelos } from "@/lib/modelos-equipo";
 
@@ -65,6 +66,8 @@ export default function PaginaEditarOrden() {
   const [marcas, setMarcas] = useState<MarcaConModelos[]>([]);
   // A dónde volver: la pantalla de la orden si se llegó desde ahí.
   const [volver, setVolver] = useState("/ordenes");
+  // Desde Recibir (?reimprimir=1) lo normal es corregir y sacar el recibo de nuevo.
+  const [reimprimirPrimero, setReimprimirPrimero] = useState(false);
 
   // Acceso al equipo: no se carga hasta que se pide cambiarlo.
   const [cambiarAcceso, setCambiarAcceso] = useState(false);
@@ -76,6 +79,7 @@ export default function PaginaEditarOrden() {
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get("volver");
     if (v && v.startsWith("/") && !v.startsWith("//")) setVolver(v);
+    setReimprimirPrimero(new URLSearchParams(window.location.search).get("reimprimir") === "1");
     fetch(`/api/ordenes/${id}/datos`)
       .then(async (r) => {
         const j = await r.json();
@@ -109,7 +113,7 @@ export default function PaginaEditarOrden() {
     setDatos((d) => (d ? { ...d, [grupo]: { ...d[grupo], [campo]: valor } } : d));
   }
 
-  async function guardar() {
+  async function guardar(reimprimir = false) {
     if (!datos) return;
     const faltas = validarDatos(datos);
     if (faltas.length > 0) {
@@ -135,6 +139,15 @@ export default function PaginaEditarOrden() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? "No se pudieron guardar los cambios");
+      if (reimprimir) {
+        try {
+          await reimprimirComprobante(id);
+        } catch (e) {
+          // Los cambios ya quedaron: se avisa y se puede reimprimir desde la orden.
+          setError(`Los cambios se guardaron, pero ${e instanceof Error ? e.message.toLowerCase() : "el recibo no se pudo reimprimir"}.`);
+          return;
+        }
+      }
       router.push(volver);
       router.refresh();
     } catch (e) {
@@ -348,8 +361,21 @@ export default function PaginaEditarOrden() {
             <BotonEnlace href={volver} variante="fantasma">
               Cancelar
             </BotonEnlace>
-            <Boton variante="primario" icono={<Check size={18} strokeWidth={2.4} />} onClick={guardar} disabled={guardando}>
+            <Boton
+              variante={reimprimirPrimero ? "contorno" : "primario"}
+              icono={<Check size={18} strokeWidth={2.4} />}
+              onClick={() => guardar()}
+              disabled={guardando}
+            >
               {guardando ? "Guardando…" : "Guardar cambios"}
+            </Boton>
+            <Boton
+              variante={reimprimirPrimero ? "primario" : "contorno"}
+              icono={<Printer size={18} strokeWidth={2} />}
+              onClick={() => guardar(true)}
+              disabled={guardando}
+            >
+              Guardar y reimprimir recibo
             </Boton>
           </div>
         </div>

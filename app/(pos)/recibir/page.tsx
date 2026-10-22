@@ -30,6 +30,7 @@ import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-tur
 import { EvidenciaIngreso, subirEvidenciaIngreso, type ArchivoIngreso } from "@/componentes/recepcion/evidencia-ingreso";
 import { RepuestosNecesarios, type RepuestoElegido } from "@/componentes/recepcion/repuestos-necesarios";
 import { EnlaceOrden } from "@/componentes/taller/enlace-orden";
+import { UltimasRecepciones, reimprimirComprobante, rutaCorregir } from "@/componentes/recepcion/ultimas-recepciones";
 import type { MarcaConModelos } from "@/lib/modelos-equipo";
 import { pareceCelular, sePuedeBuscarCliente, type ClienteEncontrado } from "@/lib/busqueda-cliente";
 
@@ -175,6 +176,7 @@ export default function PaginaRecibir() {
     faltantesFallidos: boolean;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [avisoReimpresion, setAvisoReimpresion] = useState<string | null>(null);
   // Lo que falta para guardar, en la ventana emergente; `paso` es a dónde
   // se lleva la pantalla al cerrarla.
   const [faltantesVisibles, setFaltantesVisibles] = useState<{ mensaje: string; paso: number }[] | null>(null);
@@ -388,6 +390,7 @@ export default function PaginaRecibir() {
     setContrasenaAcceso("");
     setOtroAcceso("");
     setNotaAcceso("");
+    setAvisoReimpresion(null);
     setResultado(null);
   }
 
@@ -508,19 +511,37 @@ export default function PaginaRecibir() {
           )}
           <Boton
             variante="contorno"
-            icono={<Pencil size={18} strokeWidth={2} />}
-            onClick={() => router.push(`/ordenes/${resultado.ordenId}/editar`)}
+            icono={<Printer size={18} strokeWidth={2} />}
+            onClick={async () => {
+              setAvisoReimpresion("Enviando…");
+              try {
+                await reimprimirComprobante(resultado.ordenId);
+                setAvisoReimpresion("Recibo enviado de nuevo a la impresora.");
+              } catch (e) {
+                setAvisoReimpresion(e instanceof Error ? e.message : "No se pudo reimprimir el recibo");
+              }
+            }}
           >
-            Corregir datos
+            Reimprimir recibo
+          </Boton>
+          <Boton
+            variante="contorno"
+            icono={<Pencil size={18} strokeWidth={2} />}
+            onClick={() => router.push(rutaCorregir(resultado.ordenId, "/recibir"))}
+          >
+            Corregir y reimprimir
           </Boton>
         </div>
+        {avisoReimpresion && (
+          <p style={{ margin: "12px 0 0", fontSize: 13, color: "var(--ink-2)" }}>{avisoReimpresion}</p>
+        )}
       </Tarjeta>
     );
   }
 
   return (
     <div>
-      <TituloPantalla titulo="Recibir equipo" />
+      <TituloPantalla titulo="Recibir equipo" acciones={<UltimasRecepciones />} />
 
       <div className="pila">
         <Paso n={1} titulo="Cliente" listo={Boolean(cliente)}>
