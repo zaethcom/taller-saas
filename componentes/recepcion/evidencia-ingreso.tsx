@@ -24,10 +24,13 @@ export function EvidenciaIngreso({
   archivos,
   onChange,
   onError,
+  compacto = false,
 }: {
   archivos: ArchivoIngreso[];
   onChange: (archivos: ArchivoIngreso[]) => void;
   onError: (mensaje: string | null) => void;
+  /** Solo los dos botones, sin el texto de ayuda (Recibir, junto al serial). */
+  compacto?: boolean;
 }) {
   const inputFotoRef = useRef<HTMLInputElement>(null);
   const inputVideoRef = useRef<HTMLInputElement>(null);
@@ -69,9 +72,11 @@ export function EvidenciaIngreso({
 
   return (
     <div>
-      <p className="campo-ayuda" style={{ marginTop: 0, marginBottom: 12 }}>
-        Cómo deja el cliente el equipo (&quot;{ETIQUETA_FASE_EVIDENCIA.entrada}&quot;). El cliente la ve en su enlace de seguimiento.
-      </p>
+      {!compacto && (
+        <p className="campo-ayuda" style={{ marginTop: 0, marginBottom: 12 }}>
+          Cómo deja el cliente el equipo (&quot;{ETIQUETA_FASE_EVIDENCIA.entrada}&quot;). El cliente la ve en su enlace de seguimiento.
+        </p>
+      )}
 
       <div className="fila" style={{ gap: 10 }}>
         <Boton

@@ -10,8 +10,8 @@
  * El requisito de la Fase 3 del plano es que esto tome menos de tres
  * minutos -- por eso busca cliente y equipo por un solo campo (documento,
  * serial) antes de pedir llenar nada más, y por eso los pasos son
- * cuatro bloques numerados en una sola pantalla (cliente, equipo con su
- * acceso, daño y motivo con valor y abono, fotos), sin asistente ni
+ * tres bloques numerados en una sola pantalla (cliente, equipo con su
+ * serial, fotos/video y acceso, daño y motivo con valor y abono), sin asistente ni
  * pestañas: quien recibe ve de un vistazo lo que le falta. Lo poco usado
  * va plegado en «Más datos» y los botones de guardar quedan fijos abajo.
  */
@@ -650,6 +650,15 @@ export default function PaginaRecibir() {
             />
           </form>
 
+          <div style={{ marginBottom: 12 }}>
+            <EvidenciaIngreso archivos={evidencia} onChange={setEvidencia} onError={setErrorEvidencia} compacto />
+            {errorEvidencia && (
+              <div style={{ marginTop: 12 }}>
+                <Aviso tono="peligro">{errorEvidencia}</Aviso>
+              </div>
+            )}
+          </div>
+
           {escaneando && (
             <div style={{ marginBottom: 12 }}>
               <LectorCodigoBarras
@@ -876,15 +885,6 @@ export default function PaginaRecibir() {
                 imprimir={false}
                 onCambiarImprimir={() => {}}
               />
-            </div>
-          )}
-        </Paso>
-
-        <Paso n={4} titulo="Fotos (opcional)" listo={evidencia.length > 0}>
-          <EvidenciaIngreso archivos={evidencia} onChange={setEvidencia} onError={setErrorEvidencia} />
-          {errorEvidencia && (
-            <div style={{ marginTop: 12 }}>
-              <Aviso tono="peligro">{errorEvidencia}</Aviso>
             </div>
           )}
         </Paso>
