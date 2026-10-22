@@ -9,9 +9,9 @@
  */
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus, X } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
-import { Tarjeta } from "@/componentes/ui/tarjeta";
+import { Ventana } from "@/componentes/ui/ventana";
 import { Campo } from "@/componentes/ui/campo";
 import type { Rol } from "@/lib/permisos";
 import { VentanaError } from "@/componentes/ui/ventana-error";
@@ -96,37 +96,23 @@ export function NuevoUsuario() {
     }
   }
 
-  if (!abierto) {
-    return (
-      <Boton
-        variante="primario"
-        icono={<UserPlus size={17} strokeWidth={2} />}
-        onClick={() => setAbierto(true)}
-        style={{ marginBottom: 18 }}
-      >
-        Nuevo usuario
-      </Boton>
-    );
-  }
+  const boton = (
+    <Boton variante="primario" icono={<UserPlus size={17} strokeWidth={2} />} onClick={() => setAbierto(true)}>
+      Nuevo usuario
+    </Boton>
+  );
+  if (!abierto) return boton;
 
   return (
-    <Tarjeta style={{ marginBottom: 18 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
-          <UserPlus size={17} strokeWidth={2} />
-          Nuevo usuario
-        </div>
-        <Boton
-          variante="fantasma"
-          tamano="sm"
-          icono={<X size={16} strokeWidth={2} />}
-          onClick={() => {
-            setAbierto(false);
-            limpiar();
-          }}
-        />
-      </div>
-
+    <>
+    {boton}
+    <Ventana
+      titulo="Nuevo usuario"
+      onCerrar={() => {
+        setAbierto(false);
+        limpiar();
+      }}
+    >
       <form onSubmit={crear} className="pila" style={{ gap: 12 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
           <Campo etiqueta="Nombre">
@@ -171,6 +157,7 @@ export function NuevoUsuario() {
           </Boton>
         </div>
       </form>
-    </Tarjeta>
+    </Ventana>
+    </>
   );
 }

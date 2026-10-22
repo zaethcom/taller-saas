@@ -15,6 +15,7 @@ import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { VentanaError } from "@/componentes/ui/ventana-error";
+import { Ventana } from "@/componentes/ui/ventana";
 
 interface Servicio {
   id: string;
@@ -41,6 +42,7 @@ interface Form {
 const FORM_VACIO: Form = { codigo: "", nombre: "", descripcion: "", precio: "", costoEstimado: "", tiempoEstimadoMinutos: "" };
 
 export default function PaginaServicios() {
+  const [nuevoAbierto, setNuevoAbierto] = useState(false);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +89,7 @@ export default function PaginaServicios() {
       });
       if (!res.ok) throw new Error((await res.json()).error);
       setNuevo(FORM_VACIO);
+      setNuevoAbierto(false);
       await cargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo crear el servicio");
@@ -165,6 +168,11 @@ export default function PaginaServicios() {
     <div>
       <TituloPantalla
         titulo="Servicios"
+        acciones={
+          <Boton variante="primario" icono={<Plus size={17} strokeWidth={2.2} />} onClick={() => setNuevoAbierto(true)}>
+            Nuevo servicio
+          </Boton>
+        }
       />
 
       <div className="pila">
@@ -308,8 +316,8 @@ export default function PaginaServicios() {
           </TarjetaTabla>
         )}
 
-        <Tarjeta>
-          <h2 style={{ marginBottom: 12 }}>Agregar servicio</h2>
+        {nuevoAbierto && (
+          <Ventana titulo="Nuevo servicio" onCerrar={() => setNuevoAbierto(false)}>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -321,6 +329,7 @@ export default function PaginaServicios() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
               <Campo etiqueta="Nombre">
                 <input
+                  autoFocus
                   placeholder="Ej. Cambio de pastillas"
                   value={nuevo.nombre}
                   onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })}
@@ -377,7 +386,8 @@ export default function PaginaServicios() {
               </Boton>
             </div>
           </form>
-        </Tarjeta>
+          </Ventana>
+        )}
 
         <VentanaError mensaje={error} onCerrar={() => setError(null)} />
       </div>

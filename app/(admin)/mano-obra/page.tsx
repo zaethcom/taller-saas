@@ -14,6 +14,7 @@ import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { VentanaError } from "@/componentes/ui/ventana-error";
+import { Ventana } from "@/componentes/ui/ventana";
 
 interface ManoObra {
   id: string;
@@ -25,6 +26,7 @@ interface ManoObra {
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
 export default function PaginaManoObra() {
+  const [nuevoAbierto, setNuevoAbierto] = useState(false);
   const [items, setItems] = useState<ManoObra[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +68,7 @@ export default function PaginaManoObra() {
       });
       if (!res.ok) throw new Error((await res.json()).error);
       setNombre("");
+      setNuevoAbierto(false);
       setPrecio("");
       await cargar();
     } catch (e) {
@@ -117,6 +120,11 @@ export default function PaginaManoObra() {
     <div>
       <TituloPantalla
         titulo="Mano de obra"
+        acciones={
+          <Boton variante="primario" icono={<Plus size={17} strokeWidth={2.2} />} onClick={() => setNuevoAbierto(true)}>
+            Nuevo ítem
+          </Boton>
+        }
       />
 
       <div className="pila">
@@ -203,8 +211,8 @@ export default function PaginaManoObra() {
           </TarjetaTabla>
         )}
 
-        <Tarjeta>
-          <h2 style={{ marginBottom: 12 }}>Agregar ítem</h2>
+        {nuevoAbierto && (
+          <Ventana titulo="Nuevo ítem" onCerrar={() => setNuevoAbierto(false)}>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -214,6 +222,7 @@ export default function PaginaManoObra() {
             <div className="fila-form">
               <Campo etiqueta="Nombre">
                 <input
+                  autoFocus
                   placeholder="Ej. Mano de obra reparación de frenos"
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
@@ -227,7 +236,8 @@ export default function PaginaManoObra() {
               </Boton>
             </div>
           </form>
-        </Tarjeta>
+          </Ventana>
+        )}
 
         <VentanaError mensaje={error} onCerrar={() => setError(null)} />
       </div>

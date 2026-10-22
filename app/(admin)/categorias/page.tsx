@@ -18,6 +18,7 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { VentanaError } from "@/componentes/ui/ventana-error";
+import { Ventana } from "@/componentes/ui/ventana";
 
 interface Categoria {
   id: string;
@@ -25,6 +26,7 @@ interface Categoria {
 }
 
 export default function PaginaCategorias() {
+  const [nuevoAbierto, setNuevoAbierto] = useState(false);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [nombre, setNombre] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +62,7 @@ export default function PaginaCategorias() {
       });
       if (!res.ok) throw new Error((await res.json()).error);
       setNombre("");
+      setNuevoAbierto(false);
       await cargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo crear la categoría");
@@ -111,6 +114,11 @@ export default function PaginaCategorias() {
     <div>
       <TituloPantalla
         titulo="Categorías"
+        acciones={
+          <Boton variante="primario" icono={<Plus size={17} strokeWidth={2.2} />} onClick={() => setNuevoAbierto(true)}>
+            Nueva categoría
+          </Boton>
+        }
       />
 
       <div className="pila">
@@ -196,16 +204,18 @@ export default function PaginaCategorias() {
           )}
         </Tarjeta>
 
-        <Tarjeta>
+        {nuevoAbierto && (
+          <Ventana titulo="Nueva categoría" onCerrar={() => setNuevoAbierto(false)}>
           <form
             onSubmit={(e) => {
               e.preventDefault();
               crear();
             }}
           >
-            <Campo etiqueta="Nueva categoría">
+            <Campo etiqueta="Nombre">
               <div className="fila" style={{ gap: 8, flexWrap: "nowrap" }}>
                 <input
+                  autoFocus
                   placeholder="Ej. Patinetas, Repuestos, Accesorios…"
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
@@ -216,7 +226,8 @@ export default function PaginaCategorias() {
               </div>
             </Campo>
           </form>
-        </Tarjeta>
+          </Ventana>
+        )}
 
         <VentanaError mensaje={error} onCerrar={() => setError(null)} />
       </div>

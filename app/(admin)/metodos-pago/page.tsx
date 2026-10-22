@@ -14,6 +14,7 @@ import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { VentanaError } from "@/componentes/ui/ventana-error";
+import { Ventana } from "@/componentes/ui/ventana";
 
 interface Metodo {
   id: string;
@@ -23,6 +24,7 @@ interface Metodo {
 }
 
 export default function PaginaMetodosPago() {
+  const [nuevoAbierto, setNuevoAbierto] = useState(false);
   const [metodos, setMetodos] = useState<Metodo[]>([]);
   const [nombre, setNombre] = useState("");
   const [esEfectivo, setEsEfectivo] = useState(false);
@@ -64,6 +66,7 @@ export default function PaginaMetodosPago() {
       });
       if (!res.ok) throw new Error((await res.json()).error);
       setNombre("");
+      setNuevoAbierto(false);
       setEsEfectivo(false);
       await cargar();
     } catch (e) {
@@ -115,7 +118,11 @@ export default function PaginaMetodosPago() {
     <div>
       <TituloPantalla
         titulo="Métodos de pago"
-        descripcion="Solo el marcado como efectivo abre el cajón y cuenta en el cierre de caja."
+        acciones={
+          <Boton variante="primario" icono={<Plus size={17} strokeWidth={2.2} />} onClick={() => setNuevoAbierto(true)}>
+            Nuevo método
+          </Boton>
+        }
       />
 
       <div className="pila">
@@ -211,17 +218,18 @@ export default function PaginaMetodosPago() {
           </table>
         </TarjetaTabla>
 
-        <Tarjeta>
-          <h2 style={{ marginBottom: 12 }}>Agregar método</h2>
+        {nuevoAbierto && (
+          <Ventana titulo="Nuevo método" onCerrar={() => setNuevoAbierto(false)}>
           <form
             onSubmit={(e) => {
               e.preventDefault();
               crear();
             }}
           >
-            <div className="fila-form">
+            <div className="pila" style={{ gap: 12 }}>
               <Campo etiqueta="Nombre">
                 <input
+                  autoFocus
                   placeholder="Ej. Nequi, DaviPlata, Bre-B…"
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
@@ -236,12 +244,16 @@ export default function PaginaMetodosPago() {
                 />
                 Es efectivo
               </label>
+              <p className="campo-ayuda" style={{ margin: 0 }}>
+                Solo el marcado como efectivo abre el cajón y cuenta en el cierre de caja.
+              </p>
               <Boton type="submit" variante="primario" icono={<Plus size={17} strokeWidth={2.2} />} disabled={!nombre.trim()}>
                 Agregar
               </Boton>
             </div>
           </form>
-        </Tarjeta>
+          </Ventana>
+        )}
 
         <VentanaError mensaje={error} onCerrar={() => setError(null)} />
       </div>
