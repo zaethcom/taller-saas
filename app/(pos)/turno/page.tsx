@@ -13,7 +13,7 @@
  * movimiento abre el cajón y entra al efectivo esperado.
  */
 import { useEffect, useState } from "react";
-import { LockOpen, Lock, Check, Wallet, Plus, Minus } from "lucide-react";
+import { LockOpen, Lock, Check, Plus, Minus } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
@@ -238,16 +238,13 @@ export default function PaginaTurno() {
         </Tarjeta>
 
         <Tarjeta>
-          <h2 style={{ marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
-            <Wallet size={20} strokeWidth={2} /> Gestión de dinero
-          </h2>
-          <p style={{ color: "var(--ink-3)", fontSize: 14, marginBottom: 12 }}>
-            Meter o sacar efectivo de la caja sin una venta. Queda registrado con su motivo y abre el cajón.
-          </p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className="fila" style={{ justifyContent: "space-between", gap: 8 }}>
+            <h2 style={{ fontSize: 16 }}>Gestión de dinero</h2>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Boton
               variante={tipoMovimiento === "ingreso" ? "oscuro" : "contorno"}
-              icono={<Plus size={18} strokeWidth={2.2} />}
+              tamano="sm"
+              icono={<Plus size={16} strokeWidth={2.2} />}
               onClick={() => elegirMovimiento("ingreso")}
               disabled={enviando}
             >
@@ -255,12 +252,14 @@ export default function PaginaTurno() {
             </Boton>
             <Boton
               variante={tipoMovimiento === "salida" ? "oscuro" : "contorno"}
-              icono={<Minus size={18} strokeWidth={2.2} />}
+              tamano="sm"
+              icono={<Minus size={16} strokeWidth={2.2} />}
               onClick={() => elegirMovimiento("salida")}
               disabled={enviando}
             >
               Sacar dinero
             </Boton>
+            </div>
           </div>
 
           {tipoMovimiento && (
@@ -321,7 +320,11 @@ export default function PaginaTurno() {
           )}
 
           {!!turno.movimientos?.length && (
-            <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+            <details style={{ marginTop: 14 }}>
+              <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--ink-2)" }}>
+                {turno.movimientos.length === 1 ? "1 movimiento" : `${turno.movimientos.length} movimientos`} en este turno
+              </summary>
+            <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
               {turno.movimientos.map((m) => (
                 <div
                   key={m.id}
@@ -351,6 +354,7 @@ export default function PaginaTurno() {
                 </div>
               ))}
             </div>
+            </details>
           )}
         </Tarjeta>
 
