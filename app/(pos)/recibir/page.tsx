@@ -10,10 +10,11 @@
  * El requisito de la Fase 3 del plano es que esto tome menos de tres
  * minutos -- por eso busca cliente y equipo por un solo campo (documento,
  * serial) antes de pedir llenar nada más, y por eso los pasos son
- * tres bloques numerados en una sola pantalla (cliente, equipo con su
- * serial, fotos/video y acceso, daño y motivo con valor y abono), sin asistente ni
- * pestañas: quien recibe ve de un vistazo lo que le falta. Lo poco usado
- * va plegado en «Más datos» y los botones de guardar quedan fijos abajo.
+ * tres bloques numerados en una sola pantalla (cliente; equipo con
+ * fotos/video, marca y modelo, serial y acceso; daño y motivo con valor y
+ * abono), sin asistente ni pestañas: quien recibe ve de un vistazo lo
+ * que le falta. Lo poco usado va plegado en «Más datos» y los botones
+ * de guardar quedan fijos abajo.
  */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -640,13 +641,106 @@ export default function PaginaRecibir() {
         </Paso>
 
         <Paso n={2} titulo="Equipo" listo={Boolean(producto)}>
+          <div style={{ marginBottom: 12 }}>
+            <EvidenciaIngreso archivos={evidencia} onChange={setEvidencia} onError={setErrorEvidencia} compacto />
+            {errorEvidencia && (
+              <div style={{ marginTop: 12 }}>
+                <Aviso tono="peligro">{errorEvidencia}</Aviso>
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            {producto ? (
+              <Aviso tono="ok" icono={<Check size={17} strokeWidth={2.4} />}>
+                <strong>
+                  {producto.marca} {producto.modelo}
+                </strong>{" "}
+                ({producto.tipo}) · ya estaba registrado
+              </Aviso>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))", gap: 10 }}>
+                <select
+                  aria-label="Tipo de equipo"
+                  value={productoNuevo.tipo}
+                  onChange={(e) => setProductoNuevo((p) => ({ ...p, tipo: e.target.value }))}
+                >
+                  <option value="patineta">Patineta</option>
+                  <option value="celular">Celular</option>
+                  <option value="computador">Computador</option>
+                </select>
+                <div>
+                  {marcas.length > 0 && (
+                    <select
+                      aria-label="Marca"
+                      value={marcaOtra ? OTRA : productoNuevo.marca}
+                      onChange={(e) => {
+                        const otra = e.target.value === OTRA;
+                        setMarcaOtra(otra);
+                        setModeloOtro(otra);
+                        setProductoNuevo((p) => ({ ...p, marca: otra ? "" : e.target.value, modelo: "" }));
+                      }}
+                    >
+                      <option value="">Marca</option>
+                      {marcas.map((m) => (
+                        <option key={m.marca} value={m.marca}>
+                          {m.marca}
+                        </option>
+                      ))}
+                      <option value={OTRA}>Otra marca…</option>
+                    </select>
+                  )}
+                  {(marcas.length === 0 || marcaOtra) && (
+                    <input
+                      placeholder="Escribe la marca"
+                      aria-label="Marca"
+                      style={marcas.length > 0 ? { marginTop: 6 } : undefined}
+                      value={productoNuevo.marca}
+                      onChange={(e) => setProductoNuevo((p) => ({ ...p, marca: e.target.value }))}
+                    />
+                  )}
+                </div>
+                <div>
+                  {modelosDeMarca.length > 0 && (
+                    <select
+                      aria-label="Modelo"
+                      value={modeloOtro ? OTRA : productoNuevo.modelo}
+                      onChange={(e) => {
+                        const otro = e.target.value === OTRA;
+                        setModeloOtro(otro);
+                        setProductoNuevo((p) => ({ ...p, modelo: otro ? "" : e.target.value }));
+                      }}
+                    >
+                      <option value="">Modelo</option>
+                      {modelosDeMarca.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                      <option value={OTRA}>Otro modelo…</option>
+                    </select>
+                  )}
+                  {(modelosDeMarca.length === 0 || modeloOtro) && (
+                    <input
+                      placeholder="Escribe el modelo"
+                      aria-label="Modelo"
+                      style={modelosDeMarca.length > 0 ? { marginTop: 6 } : undefined}
+                      value={productoNuevo.modelo}
+                      onChange={(e) => setProductoNuevo((p) => ({ ...p, modelo: e.target.value }))}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           <form
             onSubmit={(e) => {
               e.preventDefault();
               buscarProducto();
             }}
             className="fila"
-            style={{ gap: 8, flexWrap: "nowrap", marginBottom: 12 }}
+            style={{ gap: 8, flexWrap: "nowrap" }}
           >
             <input
               style={{ flex: 1, minWidth: 0 }}
@@ -671,17 +765,8 @@ export default function PaginaRecibir() {
             />
           </form>
 
-          <div style={{ marginBottom: 12 }}>
-            <EvidenciaIngreso archivos={evidencia} onChange={setEvidencia} onError={setErrorEvidencia} compacto />
-            {errorEvidencia && (
-              <div style={{ marginTop: 12 }}>
-                <Aviso tono="peligro">{errorEvidencia}</Aviso>
-              </div>
-            )}
-          </div>
-
           {escaneando && (
-            <div style={{ marginBottom: 12 }}>
+            <div style={{ marginTop: 12 }}>
               <LectorCodigoBarras
                 formats={["code_128", "ean_13", "upc_a"]}
                 etiqueta="Ubica el código de barras del serial"
@@ -693,88 +778,6 @@ export default function PaginaRecibir() {
                 }}
                 onCerrar={() => setEscaneando(false)}
               />
-            </div>
-          )}
-
-          {producto ? (
-            <Aviso tono="ok" icono={<Check size={17} strokeWidth={2.4} />}>
-              <strong>
-                {producto.marca} {producto.modelo}
-              </strong>{" "}
-              ({producto.tipo}) · ya estaba registrado
-            </Aviso>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))", gap: 10 }}>
-              <select
-                aria-label="Tipo de equipo"
-                value={productoNuevo.tipo}
-                onChange={(e) => setProductoNuevo((p) => ({ ...p, tipo: e.target.value }))}
-              >
-                <option value="patineta">Patineta</option>
-                <option value="celular">Celular</option>
-                <option value="computador">Computador</option>
-              </select>
-              <div>
-                {marcas.length > 0 && (
-                  <select
-                    aria-label="Marca"
-                    value={marcaOtra ? OTRA : productoNuevo.marca}
-                    onChange={(e) => {
-                      const otra = e.target.value === OTRA;
-                      setMarcaOtra(otra);
-                      setModeloOtro(otra);
-                      setProductoNuevo((p) => ({ ...p, marca: otra ? "" : e.target.value, modelo: "" }));
-                    }}
-                  >
-                    <option value="">Marca</option>
-                    {marcas.map((m) => (
-                      <option key={m.marca} value={m.marca}>
-                        {m.marca}
-                      </option>
-                    ))}
-                    <option value={OTRA}>Otra marca…</option>
-                  </select>
-                )}
-                {(marcas.length === 0 || marcaOtra) && (
-                  <input
-                    placeholder="Escribe la marca"
-                    aria-label="Marca"
-                    style={marcas.length > 0 ? { marginTop: 6 } : undefined}
-                    value={productoNuevo.marca}
-                    onChange={(e) => setProductoNuevo((p) => ({ ...p, marca: e.target.value }))}
-                  />
-                )}
-              </div>
-              <div>
-                {modelosDeMarca.length > 0 && (
-                  <select
-                    aria-label="Modelo"
-                    value={modeloOtro ? OTRA : productoNuevo.modelo}
-                    onChange={(e) => {
-                      const otro = e.target.value === OTRA;
-                      setModeloOtro(otro);
-                      setProductoNuevo((p) => ({ ...p, modelo: otro ? "" : e.target.value }));
-                    }}
-                  >
-                    <option value="">Modelo</option>
-                    {modelosDeMarca.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                    <option value={OTRA}>Otro modelo…</option>
-                  </select>
-                )}
-                {(modelosDeMarca.length === 0 || modeloOtro) && (
-                  <input
-                    placeholder="Escribe el modelo"
-                    aria-label="Modelo"
-                    style={modelosDeMarca.length > 0 ? { marginTop: 6 } : undefined}
-                    value={productoNuevo.modelo}
-                    onChange={(e) => setProductoNuevo((p) => ({ ...p, modelo: e.target.value }))}
-                  />
-                )}
-              </div>
             </div>
           )}
 
