@@ -10,6 +10,10 @@
  * orden lo registra y el técnico recibe el aviso de que puede seguir
  * (lib/compras/recepcion-orden.ts).
  *
+ * Desde Vender también llegan encargos de mostrador: sin orden, con el
+ * nombre y el teléfono del cliente (lib/compras/encargo.ts). Al
+ * recibirlos se ofrece avisarle por WhatsApp.
+ *
  * Lo recibido sale de la lista apenas se confirma (no se borra);
  * "Mostrar recibidos" lo trae de vuelta para consultar.
  *
@@ -27,6 +31,7 @@ import { Etiqueta, type TonoEtiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { enlaceWhatsapp, equipoTexto, mensajePedido } from "@/lib/compras/whatsapp";
+import { mensajeEncargoListo } from "@/lib/compras/encargo";
 import { comprasAutorizadas, type Estado } from "@/lib/estados";
 import { puede, type Rol } from "@/lib/permisos";
 import { formatearMoneda } from "@/componentes/cobro/panel-cobro";
@@ -41,6 +46,8 @@ interface Faltante {
   creada_en: string;
   producto: string | null;
   costo_compra: number | null;
+  cliente_nombre: string | null;
+  cliente_telefono: string | null;
   orden: OrdenFaltante | OrdenFaltante[] | null;
 }
 
@@ -93,6 +100,8 @@ export default function PaginaCompras() {
 
   const [mostrarRecibidos, setMostrarRecibidos] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  // Encargo de mostrador recibido: el enlace para avisarle al cliente.
+  const [avisoCliente, setAvisoCliente] = useState<string | null>(null);
 
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
   const [contactos, setContactos] = useState<Contacto[]>([]);
@@ -111,7 +120,7 @@ export default function PaginaCompras() {
     const supabase = clienteNavegador();
     const { data } = await supabase
       .from("repuesto_solicitud")
-      .select("id, descripcion, cantidad, prioridad, estado, creada_en, producto, costo_compra, orden:orden_id ( numero, estado, motivo, producto:producto_id ( tipo, marca, modelo ) )")
+      .select("id, descripcion, cantidad, prioridad, estado, creada_en, producto, costo_compra, cliente_nombre, cliente_telefono, orden:orden_id ( numero, estado, motivo, producto:producto_id ( tipo, marca, modelo ) )")
       .in("estado", conRecibidos ? ["faltante", "recibido"] : ["faltante"])
       .order("creada_en", { ascending: true });
     const lista = (data as Faltante[]) ?? [];
@@ -180,10 +189,20 @@ export default function PaginaCompras() {
       if (!res.ok) throw new Error((await res.json()).error);
       const r = (await res.json()) as { estado?: string | null };
       cerrarFormulario();
-      setAviso(
-        `${producto.trim()} quedó en la orden #${numeroOrden(f.orden)} y se avisó al técnico` +
-          (r.estado === "en_reparacion" ? ": la orden pasó a reparación." : "."),
-      );
+      if (unaOrden(f.orden)) {
+        setAvisoCliente(null);
+        setAviso(
+          `${producto.trim()} quedó en la orden #${numeroOrden(f.orden)} y se avisó al técnico` +
+            (r.estado === "en_reparacion" ? ": la orden pasó a reparación." : "."),
+        );
+      } else {
+        setAviso(`Llegó el encargo de ${f.cliente_nombre ?? "el cliente"}: ${producto.trim()}.`);
+        setAvisoCliente(
+          f.cliente_telefono
+            ? enlaceWhatsapp(f.cliente_telefono, mensajeEncargoListo({ clienteNombre: f.cliente_nombre, producto: producto.trim() }))
+            : null,
+        );
+      }
       await cargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo marcar como recibido");
@@ -289,6 +308,14 @@ export default function PaginaCompras() {
         {aviso && (
           <Aviso tono="ok">
             <span style={{ fontSize: 13 }}>{aviso}</span>
+            {avisoCliente && (
+              <>
+                {" "}
+                <a href={avisoCliente} target="_blank" rel="noreferrer" style={{ fontSize: 13, fontWeight: 700 }}>
+                  Avisarle por WhatsApp
+                </a>
+              </>
+            )}
           </Aviso>
         )}
 
@@ -351,7 +378,7 @@ export default function PaginaCompras() {
                     )}
                   </th>
                   <th>Repuesto</th>
-                  <th>Orden</th>
+                  <th>Para</th>
                   <th>Cantidad</th>
                   <th>Prioridad</th>
                   <th>Estado</th>
@@ -389,7 +416,14 @@ export default function PaginaCompras() {
                         )}
                       </td>
                       <td>
-                        <span className="cifra">#{numeroOrden(f.orden)}</span>
+                        {!unaOrden(f.orden) && (
+                          <div>
+                            <Etiqueta tono="info">Encargo</Etiqueta>
+                            <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4 }}>{f.cliente_nombre}</div>
+                            <div className="cifra" style={{ fontSize: 12, color: "var(--ink-3)" }}>{f.cliente_telefono}</div>
+                          </div>
+                        )}
+                        {unaOrden(f.orden) && <span className="cifra">#{numeroOrden(f.orden)}</span>}
                         {unaOrden(f.orden)?.motivo && (
                           <div style={{ fontSize: 12, color: "var(--ink-3)", maxWidth: 240 }}>{unaOrden(f.orden)!.motivo}</div>
                         )}
@@ -438,8 +472,9 @@ export default function PaginaCompras() {
                         <td colSpan={8} style={{ background: "var(--surface-2)" }}>
                           <div className="pila" style={{ gap: 10, padding: "12px 4px" }}>
                             <p style={{ margin: 0, fontSize: 13, color: "var(--ink-2)" }}>
-                              Queda asignado a la orden #{numeroOrden(f.orden)}, no entra al inventario. Se le avisa al
-                              técnico que puede seguir.
+                              {unaOrden(f.orden)
+                                ? `Queda asignado a la orden #${numeroOrden(f.orden)}, no entra al inventario. Se le avisa al técnico que puede seguir.`
+                                : `Es el encargo de ${f.cliente_nombre ?? "un cliente"}: no entra al inventario. Después puedes avisarle por WhatsApp.`}
                             </p>
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
                               <div style={{ gridColumn: "1 / -1" }}>

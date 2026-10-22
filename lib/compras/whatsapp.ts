@@ -34,7 +34,7 @@ export function normalizarTelefonoWhatsapp(telefono: string): string | null {
 export function mensajePedido(lineas: LineaPedido[], destinatario?: string): string {
   const encabezado = destinatario ? `Hola ${destinatario}, pedido de repuestos:` : "Pedido de repuestos:";
   const cuerpo = lineas.map((l) => {
-    const detalle = [l.ordenNumero ? `orden #${l.ordenNumero}` : null, `prioridad ${l.prioridad}`]
+    const detalle = [l.ordenNumero ? `orden #${l.ordenNumero}` : "encargo", `prioridad ${l.prioridad}`]
       .filter(Boolean)
       .join(", ");
     const para = l.equipo ? ` para ${l.equipo}` : "";

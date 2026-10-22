@@ -149,6 +149,7 @@ export default function PaginaRecibir() {
   const [notaAcceso, setNotaAcceso] = useState("");
 
   const [motivo, setMotivo] = useState("");
+  const [verCompras, setVerCompras] = useState(false);
   const [infoAdicional, setInfoAdicional] = useState("");
   const [repuestos, setRepuestos] = useState<RepuestoElegido[]>([]);
   // Valor del servicio y abono (lib/abono.ts): el abono entra a la caja
@@ -380,6 +381,7 @@ export default function PaginaRecibir() {
     setMarcaOtra(false);
     setModeloOtro(false);
     setMotivo("");
+    setVerCompras(false);
     setInfoAdicional("");
     setRepuestos([]);
     setValorServicio(0);
@@ -469,7 +471,7 @@ export default function PaginaRecibir() {
         {resultado.faltantesCompras.length > 0 && (
           <div style={{ marginBottom: 20, textAlign: "left" }}>
             <Aviso tono="info" icono={<ShoppingBag size={17} strokeWidth={2} />}>
-              Pasó a Compras por falta de existencia: {resultado.faltantesCompras.join(", ")}.
+              Pasó a Compras para la orden #{resultado.numero}: {resultado.faltantesCompras.join(", ")}.
             </Aviso>
           </div>
         )}
@@ -856,6 +858,23 @@ export default function PaginaRecibir() {
             placeholder="El daño y el servicio que se va a hacer"
             aria-label="Daño y motivo"
           />
+          {/* Lo que hay que traer para este equipo: al guardar va a Compras
+              con el número de la orden y el equipo. */}
+          <div style={{ marginTop: 12 }}>
+            {verCompras || repuestos.length > 0 ? (
+              <div>
+                <span className="campo-etiqueta">Agregar a compras</span>
+                <RepuestosNecesarios repuestos={repuestos} onChange={setRepuestos} />
+                <div className="campo-ayuda">
+                  Lo que no hay en esta sede pasa a Compras con el número de la orden y el equipo al guardar.
+                </div>
+              </div>
+            ) : (
+              <Boton variante="contorno" tamano="sm" icono={<ShoppingBag size={15} strokeWidth={2} />} onClick={() => setVerCompras(true)}>
+                Agregar a compras
+              </Boton>
+            )}
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginTop: 12 }}>
             <Campo etiqueta="Valor del servicio">
               <input
@@ -914,7 +933,7 @@ export default function PaginaRecibir() {
         </Paso>
 
         <details className="mas-opciones">
-          <summary>Más datos: info adicional y repuestos que necesita</summary>
+          <summary>Más datos: info adicional</summary>
           <div className="pila" style={{ gap: 14, marginTop: 12 }}>
             <Campo etiqueta="Info adicional">
               <input
@@ -923,12 +942,6 @@ export default function PaginaRecibir() {
                 onChange={(e) => setInfoAdicional(e.target.value)}
               />
             </Campo>
-            <div>
-              {/* No va en <Campo>: es un <label> y aquí hay varios controles. */}
-              <span className="campo-etiqueta">Repuestos que necesita</span>
-              <RepuestosNecesarios repuestos={repuestos} onChange={setRepuestos} />
-              <div className="campo-ayuda">Lo que no hay en esta sede pasa a Compras con el número de la orden.</div>
-            </div>
           </div>
         </details>
 
