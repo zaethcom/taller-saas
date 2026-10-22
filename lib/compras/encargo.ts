@@ -43,9 +43,15 @@ export function normalizarEncargo(body: unknown): { ok: true; datos: Encargo } |
   };
 }
 
-/** El mensaje para avisarle al cliente que ya llegó lo que encargó. */
-export function mensajeEncargoListo(e: { clienteNombre: string | null; producto: string; empresa?: string | null }): string {
-  const nombre = e.clienteNombre?.trim().split(" ")[0];
-  const desde = e.empresa?.trim() ? ` en ${e.empresa.trim()}` : "";
-  return `Hola${nombre ? ` ${nombre}` : ""}, ya llegó lo que encargaste${desde}: ${e.producto}. Te esperamos.`;
+/**
+ * El mensaje para avisarle al cliente que ya llegó lo que encargó, con
+ * el nombre guardado en el encargo: "Hola Ana Pérez, ya llegó tu vidrio
+ * templado y estuche. Pasa lo más pronto posible."
+ */
+export function mensajeEncargoListo(e: { clienteNombre: string | null; producto: string }): string {
+  const nombre = e.clienteNombre?.replace(/\s+/g, " ").trim();
+  const producto = e.producto.replace(/\s+/g, " ").trim();
+  // "Vidrio templado" se lee "tu vidrio templado"; "iPhone" o "A12" quedan igual.
+  const enFrase = /^\p{Lu}\p{Ll}/u.test(producto) ? producto.charAt(0).toLowerCase() + producto.slice(1) : producto;
+  return `Hola${nombre ? ` ${nombre}` : ""}, ya llegó tu ${enFrase}. Pasa lo más pronto posible.`;
 }
