@@ -14,7 +14,13 @@ import androidx.core.app.NotificationCompat
 import com.zaethcom.puente.MainActivity
 import com.zaethcom.puente.PuenteApp
 import com.zaethcom.puente.R
-import com.zaethcom.puente.net.ipLocal
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 
 private const val CANAL = "puente_impresion"
 private const val ID_NOTIFICACION = 1
@@ -32,12 +38,22 @@ class ServicioPuente : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    private val alcance = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
     override fun onCreate() {
         super.onCreate()
         crearCanal()
         val app = applicationContext as PuenteApp
         arrancarEnPrimerPlano(app)
         app.servidores.arrancar()
+        // Al prender el equipo el servicio arranca antes de que haya red: la
+        // notificación se actualiza sola cuando la IP aparece o cambia.
+        app.red.ip.drop(1)
+            .onEach { ip ->
+                (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                    .notify(ID_NOTIFICACION, notificacion(app, ip))
+            }
+            .launchIn(alcance)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -46,33 +62,38 @@ class ServicioPuente : Service() {
     }
 
     override fun onDestroy() {
+        alcance.cancel()
         (applicationContext as PuenteApp).servidores.detener()
         super.onDestroy()
     }
 
-    private fun arrancarEnPrimerPlano(app: PuenteApp) {
+    private fun notificacion(app: PuenteApp, ip: String?): Notification {
         val cfg = app.puente.config.value
-        val ip = ipLocal() ?: "sin red"
-        val detalle = "$ip · tickets ${cfg.de(Rol.TICKETS).puerto} · etiquetas ${cfg.de(Rol.ETIQUETAS).puerto}"
+        val detalle = "${ip ?: "sin red local"} · tickets ${cfg.de(Rol.TICKETS).puerto} · etiquetas ${cfg.de(Rol.ETIQUETAS).puerto}"
 
         val abrir = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notificacion: Notification = NotificationCompat.Builder(this, CANAL)
+        return NotificationCompat.Builder(this, CANAL)
             .setContentTitle("Puente de impresión activo")
             .setContentText(detalle)
             .setSmallIcon(R.drawable.ic_notificacion)
             .setContentIntent(abrir)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
+    }
+
+    private fun arrancarEnPrimerPlano(app: PuenteApp) {
+        val inicial = notificacion(app, app.red.ip.value)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(ID_NOTIFICACION, notificacion, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+            startForeground(ID_NOTIFICACION, inicial, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
         } else {
-            startForeground(ID_NOTIFICACION, notificacion)
+            startForeground(ID_NOTIFICACION, inicial)
         }
     }
 
