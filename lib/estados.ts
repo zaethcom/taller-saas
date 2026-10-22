@@ -25,7 +25,8 @@ export type Estado = "en_proceso" | "falta_repuesto" | "esperando_cliente" | "li
  * "entregada" se alcanza desde cualquier estado no final: un equipo que
  * el cliente retira sin reparar, o un accesorio que se instala al
  * recibir. Lo que no se salta nunca son los requisitos de
- * REQUISITOS.entregada: foto de salida, firma y saldo en cero.
+ * REQUISITOS.entregada: el saldo en cero. La foto de salida es opcional
+ * y no se pide firma (pedido del taller).
  */
 export const TRANSICIONES: Record<Estado, Estado[]> = {
   en_proceso: ["falta_repuesto", "esperando_cliente", "listo_entrega", "entregada"],
@@ -48,14 +49,12 @@ export const ENTREGA_DESDE_TALLER: Estado[] = ["listo_entrega"];
 export type Requisito =
   | "tiene_cotizacion"
   | "cotizacion_aprobada"
-  | "tiene_foto_salida"
-  | "tiene_firma"
   | "saldo_en_cero";
 
 /** Requisitos que la transición HACIA ese estado no puede saltarse. */
 export const REQUISITOS: Partial<Record<Estado, Requisito[]>> = {
   esperando_cliente: ["tiene_cotizacion"],
-  entregada: ["tiene_foto_salida", "tiene_firma", "saldo_en_cero"],
+  entregada: ["saldo_en_cero"],
 };
 
 /**

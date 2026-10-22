@@ -6,9 +6,8 @@
  * sube directo con clienteNavegador().storage, protegido por las
  * políticas de 0007_storage.sql (la ruta debe empezar con el
  * empresa_id del usuario, o Storage la rechaza antes de llegar aquí).
- * Esta ruta solo registra el hecho en la tabla `evidencia`, que es lo
- * que /api/ordenes/[id]/transicion consulta para verificar
- * tiene_foto_entrada, tiene_foto_salida y tiene_firma.
+ * Esta ruta solo registra el hecho en la tabla `evidencia`. Ninguna
+ * transición la exige: la foto de salida es opcional y ya no hay firma.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
