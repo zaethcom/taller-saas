@@ -44,11 +44,7 @@ export default async function PaginaUsuarios() {
 
   return (
     <div>
-      <TituloPantalla
-        titulo="Usuarios"
-      />
-
-      {gestiona && <NuevoUsuario />}
+      <TituloPantalla titulo="Usuarios" acciones={gestiona && <NuevoUsuario />} />
 
       <TarjetaTabla>
         <table>

@@ -21,6 +21,7 @@ import { ConfigImpresoras } from "@/componentes/sedes/config-impresoras";
 import { ConfigMarca } from "@/componentes/sedes/config-marca";
 import { VincularEstacion } from "@/componentes/sedes/vincular-estacion";
 import { VentanaError } from "@/componentes/ui/ventana-error";
+import { Ventana } from "@/componentes/ui/ventana";
 
 interface Sede {
   id: string;
@@ -30,6 +31,7 @@ interface Sede {
 }
 
 export default function PaginaSedes() {
+  const [nuevoAbierto, setNuevoAbierto] = useState(false);
   const [sedes, setSedes] = useState<Sede[]>([]);
   const [nombre, setNombre] = useState("");
   const [tipo, setTipo] = useState<"tienda" | "taller">("tienda");
@@ -65,6 +67,7 @@ export default function PaginaSedes() {
       });
       if (!res.ok) throw new Error((await res.json()).error);
       setNombre("");
+      setNuevoAbierto(false);
       await cargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo crear la sede");
@@ -92,6 +95,11 @@ export default function PaginaSedes() {
     <div>
       <TituloPantalla
         titulo="Sedes"
+        acciones={
+          <Boton variante="primario" icono={<Plus size={17} strokeWidth={2.2} />} onClick={() => setNuevoAbierto(true)}>
+            Nueva sede
+          </Boton>
+        }
       />
 
       <div className="pila">
@@ -144,7 +152,8 @@ export default function PaginaSedes() {
           ))
         )}
 
-        <Tarjeta>
+        {nuevoAbierto && (
+          <Ventana titulo="Nueva sede" onCerrar={() => setNuevoAbierto(false)}>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -154,6 +163,7 @@ export default function PaginaSedes() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
               <Campo etiqueta="Nombre de la sede">
                 <input
+                  autoFocus
                   placeholder="Ej. Local 2, CD2, Taller Norte…"
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
@@ -176,7 +186,8 @@ export default function PaginaSedes() {
               Agregar sede
             </Boton>
           </form>
-        </Tarjeta>
+          </Ventana>
+        )}
 
         <VentanaError mensaje={error} onCerrar={() => setError(null)} />
       </div>

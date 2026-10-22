@@ -163,6 +163,14 @@ export default async function PaginaReportes({
   const hoy = hoyLocal();
   const exportar = (formato: "xlsx" | "pdf") => `/api/reportes/exportar?${aQuery(def, filtro, { formato })}`;
   const verSedes = def.usaSede && perfil.sedesPermitidas.length > 1;
+  const rangoPropio =
+    def.usaFechas && !rangosRapidos(hoy).some((r) => r.desde === filtro.desde && r.hasta === filtro.hasta);
+  const resumen = [
+    def.usaFechas ? `Del ${formatear(filtro.desde, "fecha")} al ${formatear(filtro.hasta, "fecha")}` : "A hoy",
+    def.usaSede ? sedeNombre : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div>
@@ -219,93 +227,96 @@ export default async function PaginaReportes({
 
         <section style={{ flex: "999 1 560px", minWidth: 0 }}>
           <h2 style={{ margin: "0 0 4px" }}>{def.nombre}</h2>
-          <p style={{ margin: "0 0 14px", color: "var(--ink-2)", fontSize: 14 }}>{def.descripcion}</p>
+          <p style={{ margin: "0 0 12px", color: "var(--ink-3)", fontSize: 13 }}>{def.descripcion}</p>
 
-          {(def.usaFechas || verSedes) && (
-            <Tarjeta style={{ marginBottom: 16 }}>
-              <form method="get" action="/reportes" style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
-                <input type="hidden" name="informe" value={def.id} />
-                {def.usaFechas ? (
-                  <>
-                    <div style={{ flex: "1 1 140px" }}>
-                      <Campo etiqueta="Desde">
-                        <input type="date" name="desde" defaultValue={filtro.desde} max={hoy} />
-                      </Campo>
-                    </div>
-                    <div style={{ flex: "1 1 140px" }}>
-                      <Campo etiqueta="Hasta">
-                        <input type="date" name="hasta" defaultValue={filtro.hasta} />
-                      </Campo>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <input type="hidden" name="desde" value={filtro.desde} />
-                    <input type="hidden" name="hasta" value={filtro.hasta} />
-                  </>
-                )}
-                {verSedes ? (
-                  <div style={{ flex: "1 1 160px" }}>
-                    <Campo etiqueta="Sede">
-                      <select name="sede" defaultValue={filtro.sedeId ?? ""}>
-                        <option value="">Todas las sedes</option>
-                        {perfil.sedesPermitidas.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.nombre}
-                          </option>
-                        ))}
-                      </select>
-                    </Campo>
-                  </div>
-                ) : (
-                  filtro.sedeId && <input type="hidden" name="sede" value={filtro.sedeId} />
-                )}
-                {def.id === "ventas-fecha" ? (
-                  <div style={{ flex: "1 1 120px" }}>
-                    <Campo etiqueta="Agrupar por">
-                      <select name="agrupar" defaultValue={filtro.agrupar}>
-                        <option value="dia">Día</option>
-                        <option value="semana">Semana</option>
-                        <option value="mes">Mes</option>
-                      </select>
-                    </Campo>
-                  </div>
-                ) : (
-                  <input type="hidden" name="agrupar" value={filtro.agrupar} />
-                )}
-                <Boton type="submit" variante="primario">
-                  Ver informe
-                </Boton>
-              </form>
-
-              {def.usaFechas && (
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
-                  {rangosRapidos(hoy).map((r) => {
-                    const activo = r.desde === filtro.desde && r.hasta === filtro.hasta;
-                    return (
-                      <Link
-                        key={r.etiqueta}
-                        href={`/reportes?${aQuery(def, { ...filtro, desde: r.desde, hasta: r.hasta })}`}
-                        className={`pastilla${activo ? " pastilla-activa" : ""}`}
-                        style={{ height: 30, padding: "0 12px", fontSize: 13 }}
-                      >
-                        {r.etiqueta}
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </Tarjeta>
+          {/* Los rangos rápidos a la vista; fechas exactas, sede y
+              agrupación, plegadas en "Más filtros" (abiertas si el
+              rango actual no es uno de los rápidos). */}
+          {def.usaFechas && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+              {rangosRapidos(hoy).map((r) => {
+                const activo = r.desde === filtro.desde && r.hasta === filtro.hasta;
+                return (
+                  <Link
+                    key={r.etiqueta}
+                    href={`/reportes?${aQuery(def, { ...filtro, desde: r.desde, hasta: r.hasta })}`}
+                    className={`pastilla${activo ? " pastilla-activa" : ""}`}
+                    style={{ height: 30, padding: "0 12px", fontSize: 13 }}
+                  >
+                    {r.etiqueta}
+                  </Link>
+                );
+              })}
+            </div>
           )}
 
-          <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--ink-3)" }}>
-            {[
-              def.usaFechas ? `Del ${formatear(filtro.desde, "fecha")} al ${formatear(filtro.hasta, "fecha")}` : "A hoy",
-              def.usaSede ? sedeNombre : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
+          {def.usaFechas || verSedes ? (
+            <details className="mas-opciones" open={rangoPropio} style={{ marginBottom: 16 }}>
+              <summary>
+                <span>
+                  Más filtros <span style={{ fontWeight: 500, color: "var(--ink-3)" }}>· {resumen}</span>
+                </span>
+              </summary>
+              <div style={{ marginTop: 12 }}>
+                <form method="get" action="/reportes" style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+                  <input type="hidden" name="informe" value={def.id} />
+                  {def.usaFechas ? (
+                    <>
+                      <div style={{ flex: "1 1 140px" }}>
+                        <Campo etiqueta="Desde">
+                          <input type="date" name="desde" defaultValue={filtro.desde} max={hoy} />
+                        </Campo>
+                      </div>
+                      <div style={{ flex: "1 1 140px" }}>
+                        <Campo etiqueta="Hasta">
+                          <input type="date" name="hasta" defaultValue={filtro.hasta} />
+                        </Campo>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <input type="hidden" name="desde" value={filtro.desde} />
+                      <input type="hidden" name="hasta" value={filtro.hasta} />
+                    </>
+                  )}
+                  {verSedes ? (
+                    <div style={{ flex: "1 1 160px" }}>
+                      <Campo etiqueta="Sede">
+                        <select name="sede" defaultValue={filtro.sedeId ?? ""}>
+                          <option value="">Todas las sedes</option>
+                          {perfil.sedesPermitidas.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.nombre}
+                            </option>
+                          ))}
+                        </select>
+                      </Campo>
+                    </div>
+                  ) : (
+                    filtro.sedeId && <input type="hidden" name="sede" value={filtro.sedeId} />
+                  )}
+                  {def.id === "ventas-fecha" ? (
+                    <div style={{ flex: "1 1 120px" }}>
+                      <Campo etiqueta="Agrupar por">
+                        <select name="agrupar" defaultValue={filtro.agrupar}>
+                          <option value="dia">Día</option>
+                          <option value="semana">Semana</option>
+                          <option value="mes">Mes</option>
+                        </select>
+                      </Campo>
+                    </div>
+                  ) : (
+                    <input type="hidden" name="agrupar" value={filtro.agrupar} />
+                  )}
+                  <Boton type="submit" variante="primario">
+                    Ver informe
+                  </Boton>
+                </form>
+              </div>
+            </details>
+          ) : (
+            <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--ink-3)" }}>{resumen}</p>
+          )}
 
           {error ? (
             <Aviso tono="peligro">No se pudo generar el informe: {error}</Aviso>
