@@ -71,7 +71,7 @@ export function EvidenciaIngreso({
     <div>
       <p className="campo-ayuda" style={{ marginTop: 0, marginBottom: 12 }}>
         Lo primero: cómo deja el cliente el equipo. Queda con la etiqueta &quot;{ETIQUETA_FASE_EVIDENCIA.entrada}&quot; y
-        el cliente la ve en su enlace de seguimiento. Al menos una foto.
+        el cliente la ve en su enlace de seguimiento. Es opcional.
       </p>
 
       <div className="fila" style={{ gap: 10 }}>

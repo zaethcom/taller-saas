@@ -391,11 +391,8 @@ export default function PaginaRecibir() {
     setResultado(null);
   }
 
-  // Al menos una foto: es la evidencia de cómo llegó el equipo, y la
-  // misma que exige lib/estados.ts (tiene_foto_entrada) para diagnosticar.
-  const tieneFoto = evidencia.some((a) => a.tipo === "foto");
+  // La foto o video de ingreso es opcional: se toma si se quiere.
   const faltantes: { mensaje: string; paso: number }[] = [];
-  if (!tieneFoto) faltantes.push({ mensaje: "Falta la foto del equipo recibido.", paso: 1 });
   if (!cliente && !clienteNuevo.nombre.trim()) faltantes.push({ mensaje: "Falta el nombre del cliente.", paso: 2 });
   if (pideTelefonoAlterno && telefonoAlterno.replace(/\D/g, "").length < 7)
     faltantes.push({ mensaje: "Falta el número alternativo de contacto.", paso: 2 });
@@ -537,7 +534,7 @@ export default function PaginaRecibir() {
       />
 
       <div className="pila">
-        <Paso n={1} titulo="Evidencia de ingreso" icono={<Camera size={18} strokeWidth={2} color="var(--ink-2)" />}>
+        <Paso n={1} titulo="Evidencia de ingreso (opcional)" icono={<Camera size={18} strokeWidth={2} color="var(--ink-2)" />}>
           <EvidenciaIngreso archivos={evidencia} onChange={setEvidencia} onError={setErrorEvidencia} />
           {errorEvidencia && (
             <div style={{ marginTop: 12 }}>

@@ -117,7 +117,7 @@ describe("transicionar() — la puerta única de cambio de estado", () => {
       transicionar(
         "recibida",
         "en_diagnostico",
-        new Set<Requisito>(["tiene_foto_entrada"]),
+        new Set<Requisito>(["tiene_etiqueta"]),
       );
       expect.unreachable("debía lanzar RequisitoFaltanteError");
     } catch (e) {
@@ -132,13 +132,13 @@ describe("transicionar() — la puerta única de cambio de estado", () => {
       transicionar(
         "recibida",
         "en_diagnostico",
-        new Set<Requisito>(["tiene_foto_entrada", "tiene_tecnico"]),
+        new Set<Requisito>(["tiene_tecnico"]),
       ),
     ).not.toThrow();
   });
 
-  it("recibida -> en_diagnostico exige foto y técnico; la etiqueta no frena", () => {
-    expect(REQUISITOS.en_diagnostico).toEqual(["tiene_foto_entrada", "tiene_tecnico"]);
+  it("recibida -> en_diagnostico exige técnico; la foto y la etiqueta no frenan", () => {
+    expect(REQUISITOS.en_diagnostico).toEqual(["tiene_tecnico"]);
   });
 
   it("no se entrega una orden sin saldo en cero, aunque tenga foto y firma", () => {

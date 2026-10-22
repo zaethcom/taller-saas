@@ -66,9 +66,10 @@ export type Requisito =
 
 /** Requisitos que la transición HACIA ese estado no puede saltarse. */
 export const REQUISITOS: Partial<Record<Estado, Requisito[]>> = {
-  // La etiqueta se imprime al recibir, pero no frena el diagnóstico: una
-  // impresora apagada no puede dejar la orden sin poder revisarse.
-  en_diagnostico: ["tiene_foto_entrada", "tiene_tecnico"],
+  // Ni la etiqueta ni la foto de entrada frenan el diagnóstico: una
+  // impresora apagada no puede dejar la orden sin poder revisarse, y la
+  // foto al recibir es opcional (decisión de Frank, 2026-10-22).
+  en_diagnostico: ["tiene_tecnico"],
   esperando_aprobacion: ["tiene_cotizacion"],
   en_reparacion: ["cotizacion_aprobada"],
   esperando_repuesto: ["cotizacion_aprobada"],
