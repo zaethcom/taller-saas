@@ -16,7 +16,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Camera, Wrench, Package, FileText, ChevronRight, ArrowRight, Eye, Clock, Check, Printer, Pencil } from "lucide-react";
+import { Camera, Wrench, Package, FileText, ChevronRight, ArrowRight, Eye, Clock, Check, Printer, Pencil, Receipt } from "lucide-react";
 import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
 import { formatearMoneda } from "@/componentes/cobro/panel-cobro";
 import { CAMINO, enlacesVisibles, pasoActual, siguientePaso, type Accion, type Destino } from "@/lib/camino-orden";
@@ -29,6 +29,7 @@ import { SelectorFase } from "@/componentes/taller/selector-fase";
 import { EnlaceOrden } from "@/componentes/taller/enlace-orden";
 import { VentanaError } from "@/componentes/ui/ventana-error";
 import { MenuMas } from "@/componentes/ui/menu-mas";
+import { reimprimirComprobante } from "@/componentes/recepcion/ultimas-recepciones";
 
 /** Los cambios que piden una nota, y qué se le pregunta a quien los hace. */
 const NOTA_AL_PASAR: Partial<Record<Estado, { etiqueta: string; ayuda: string; prefijo: string }>> = {
@@ -321,6 +322,16 @@ export default function PaginaOrdenTecnico() {
     await cargarMensajes();
   }
 
+  async function reimprimirRecibo() {
+    setAvisoEtiqueta("Enviando recibo…");
+    try {
+      await reimprimirComprobante(id);
+      setAvisoEtiqueta("Recibo de recepción enviado a la impresora de esta sede.");
+    } catch (e) {
+      setAvisoEtiqueta(e instanceof Error ? e.message : "No se pudo reimprimir el recibo");
+    }
+  }
+
   async function reimprimirEtiqueta() {
     setImprimiendo(true);
     setAvisoEtiqueta(null);
@@ -435,6 +446,15 @@ export default function PaginaOrdenTecnico() {
                       texto: "Editar datos",
                       icono: <Pencil size={16} strokeWidth={2} />,
                       href: `/ordenes/${id}/editar?volver=${encodeURIComponent(`/orden/${id}`)}`,
+                    },
+                  ]
+                : []),
+              ...(rol && puede(rol, "reimprimir_comprobante_orden")
+                ? [
+                    {
+                      texto: "Reimprimir recibo de recepción",
+                      icono: <Receipt size={16} strokeWidth={2} />,
+                      onClick: reimprimirRecibo,
                     },
                   ]
                 : []),

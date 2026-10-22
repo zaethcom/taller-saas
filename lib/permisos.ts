@@ -24,6 +24,7 @@ export type Accion =
   | "gestionar_sedes" // Admin: alta de sedes -- sin esto no hay a dónde trasladar
   | "ver_acceso_dispositivo" // Ver el PIN/patrón del equipo de una orden (orden_acceso)
   | "reimprimir_etiqueta_orden" // Volver a mandar la etiqueta QR de una orden a la etiquetadora
+  | "reimprimir_comprobante_orden" // Volver a imprimir el comprobante de recepción de una orden
   | "ver_reportes" // Admin: informes de ventas, caja, inventario y taller, y su exportación
   | "configurar_fases" // Admin: las fases de cada estado de la orden (0050_fase_orden.sql)
   | "enviar_whatsapp_orden" // Taller: mandar el enlace de seguimiento por WhatsApp (el número no se muestra en pantalla)
@@ -48,6 +49,7 @@ const PERMISOS: Record<Rol, Accion[]> = {
     "gestionar_sedes",
     "ver_acceso_dispositivo",
     "reimprimir_etiqueta_orden",
+    "reimprimir_comprobante_orden",
     "ver_reportes",
     "configurar_fases",
     "enviar_whatsapp_orden",
@@ -61,6 +63,7 @@ const PERMISOS: Record<Rol, Accion[]> = {
     "gestionar_traslados",
     "ver_acceso_dispositivo",
     "reimprimir_etiqueta_orden",
+    "reimprimir_comprobante_orden",
     "enviar_whatsapp_orden",
     "editar_orden",
   ],
