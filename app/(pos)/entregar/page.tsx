@@ -1,22 +1,29 @@
 "use client";
 
 /**
- * Entrega: buscar la orden, cobrar el saldo pendiente, capturar firma
- * y foto de salida, y cerrar -- Fase 8 del plano de construcción.
+ * Cobrar y entregar: buscar la orden (número o QR), ver su cuenta y
+ * elegir qué se hace con el cliente en el mostrador -- recibirle un
+ * abono o entregarle el equipo. Antes eran dos pantallas (Abonos y
+ * Entregar) que buscaban la orden y mostraban la misma cuenta.
  *
- * La transición a "entregada" la valida el servidor
- * (/api/ordenes/[id]/transicion) contra saldo_en_cero, tiene_firma y
- * tiene_foto_salida reales -- esta pantalla no duplica esa lógica,
- * solo intenta la transición y muestra el error si algo falta. Lo que
- * sí hace la pantalla es mostrar cuáles de esos tres requisitos ya
- * están cumplidos, para que quien entrega no descubra lo que falta al
- * final, cuando el cliente ya está esperando en el mostrador.
+ * Entregar: cobra el saldo, captura firma y foto de salida y cierra la
+ * orden -- Fase 8 del plano de construcción. La transición a
+ * "entregada" la valida el servidor (/api/ordenes/[id]/transicion)
+ * contra saldo_en_cero, tiene_firma y tiene_foto_salida reales; esta
+ * pantalla no duplica esa lógica, solo intenta la transición y muestra
+ * el error si algo falta.
+ *
+ * Abonar: POST /api/ordenes/[id]/abonos (lib/abono.ts) entra al turno de
+ * caja y descuenta el saldo que se cobra al entregar. Si la orden está
+ * esperando aprobación, desde aquí se deja autorizada la cotización.
+ *
+ * /abonos redirige aquí con ?modo=abonar.
  */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Check, Camera, PenLine, Eraser, Lock, Printer, Hash } from "lucide-react";
+import { Check, Eraser, Lock, Printer, QrCode, ThumbsUp } from "lucide-react";
 import { FirmaCanvas, type FirmaCanvasHandle } from "@/componentes/evidencia/firma-canvas";
-import { VisorEscaner, SeparadorEscribelo } from "@/componentes/lector-codigos/visor-escaner";
+import { VisorEscaner } from "@/componentes/lector-codigos/visor-escaner";
 import { PanelCobro } from "@/componentes/cobro/panel-cobro";
 import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-turno";
 import { subirEvidencia } from "@/lib/subir-evidencia";
@@ -25,7 +32,8 @@ import { ETIQUETA_ESTADO, puedeTransicionar, type Estado } from "@/lib/estados";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
-import { Campo } from "@/componentes/ui/campo";
+import { Campo, Aviso } from "@/componentes/ui/campo";
+import { EstadoOrden } from "@/componentes/ui/estado-orden";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { VentanaError } from "@/componentes/ui/ventana-error";
 
@@ -40,13 +48,21 @@ interface OrdenEncontrada {
   id: string;
   numero: number;
   estado: string;
+  motivo: string | null;
+  token_publico: string;
   saldoPendiente: number;
   /** Valor de la orden y lo ya pagado en abonos o cobros (lib/cuenta-orden.ts). */
   valor: number;
   pagado: number;
   pagos: { numero: number; tipo: string; monto: number; medio: string | null; fecha: string }[];
   items: ItemOrden[];
-  producto: { marca: string | null; modelo: string | null; tipo: string; serial: string };
+  producto: {
+    marca: string | null;
+    modelo: string | null;
+    tipo: string;
+    serial: string;
+    cliente?: { nombre: string; telefono: string | null } | null;
+  };
 }
 
 interface Metodo {
@@ -55,9 +71,16 @@ interface Metodo {
   es_efectivo: boolean;
 }
 
+type Modo = "abonar" | "entregar";
+
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
-export default function PaginaEntregar() {
+/** Lo que se ofrece primero al abrir una orden: entregar si ya está lista. */
+function modoInicial(estado: string): Modo {
+  return estado === "listo_entrega" || estado === "rechazada" ? "entregar" : "abonar";
+}
+
+export default function PaginaCobrarEntregar() {
   const router = useRouter();
   const firmaRef = useRef<FirmaCanvasHandle>(null);
   const fotoInputRef = useRef<HTMLInputElement>(null);
@@ -65,9 +88,12 @@ export default function PaginaEntregar() {
   // para que reintentar no cobre, imprima ni suba evidencia dos veces.
   const cobradaRef = useRef(false);
   const evidenciaSubidaRef = useRef(false);
+  // ?modo=abonar (lo que llega desde /abonos) manda sobre el modo inicial.
+  const modoPedido = useRef<Modo | null>(null);
 
   const [numero, setNumero] = useState("");
   const [orden, setOrden] = useState<OrdenEncontrada | null>(null);
+  const [modo, setModo] = useState<Modo>("entregar");
   const [escaneando, setEscaneando] = useState(false);
   const [buscando, setBuscando] = useState(false);
   // La cámara se apaga al leer un código: si la búsqueda falla, se
@@ -77,9 +103,11 @@ export default function PaginaEntregar() {
   const [metodos, setMetodos] = useState<Metodo[]>([]);
   const [metodoPagoId, setMetodoPagoId] = useState("");
   const [montoRecibido, setMontoRecibido] = useState(0);
+  const [monto, setMonto] = useState(0);
   const [imprimir, setImprimir] = useState(true);
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
   const [perfil, setPerfil] = useState<{ empresaId: string } | null>(null);
   const turnoAbierto = useTurnoAbierto();
@@ -99,6 +127,7 @@ export default function PaginaEntregar() {
 
   async function buscar(query?: { numero?: string; token?: string }) {
     setError(null);
+    setAviso(null);
     setOrden(null);
     cobradaRef.current = false;
     evidenciaSubidaRef.current = false;
@@ -112,7 +141,13 @@ export default function PaginaEntregar() {
         fetch("/api/perfil"),
       ]);
       if (!resOrden.ok) throw new Error((await resOrden.json()).error);
-      setOrden(await resOrden.json());
+      const encontrada = (await resOrden.json()) as OrdenEncontrada;
+      setOrden(encontrada);
+      setModo(modoPedido.current ?? modoInicial(encontrada.estado));
+      modoPedido.current = null;
+      setMonto(0);
+      setMontoRecibido(0);
+      setEscaneando(false);
       if (resPerfil.ok) {
         const p = await resPerfil.json();
         setPerfil({ empresaId: p.empresaId });
@@ -125,10 +160,21 @@ export default function PaginaEntregar() {
     }
   }
 
+  async function recargar() {
+    if (!orden) return;
+    const res = await fetch(`/api/ordenes/buscar?numero=${orden.numero}`);
+    if (res.ok) {
+      const data = (await res.json()) as OrdenEncontrada;
+      if (data.id === orden.id) setOrden(data);
+    }
+  }
+
   // Desde la ficha de la orden ("Entregar") llega con ?numero=N; si no,
   // la cámara abre de una para escanear el QR de la etiqueta.
   useEffect(() => {
-    const n = new URLSearchParams(window.location.search).get("numero");
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("modo") === "abonar") modoPedido.current = "abonar";
+    const n = params.get("numero");
     if (n) {
       setNumero(n);
       buscar({ numero: n });
@@ -145,6 +191,61 @@ export default function PaginaEntregar() {
     } else {
       setNumero(valor.trim());
       buscar({ numero: valor.trim() });
+    }
+  }
+
+  async function abonar() {
+    if (!orden) return;
+    setProcesando(true);
+    setError(null);
+    setAviso(null);
+    try {
+      const res = await fetch(`/api/ordenes/${orden.id}/abonos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          monto,
+          metodoPagoId,
+          montoRecibido: metodo?.es_efectivo ? montoRecibido : undefined,
+          imprimir,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      const data = (await res.json()) as { saldo: number };
+      setAviso(`Abono de ${fmt(monto)} registrado. Saldo: ${fmt(data.saldo)}.`);
+      setMonto(0);
+      setMontoRecibido(0);
+      await recargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo registrar el abono");
+    } finally {
+      setProcesando(false);
+    }
+  }
+
+  async function autorizar() {
+    if (!orden) return;
+    setProcesando(true);
+    setError(null);
+    setAviso(null);
+    try {
+      const res = await fetch("/api/aprobacion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: orden.token_publico, decision: "aprobada" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setAviso(
+        data.estado === "esperando_repuesto"
+          ? "Servicio autorizado: la orden queda esperando repuesto."
+          : "Servicio autorizado: la orden pasó a reparación.",
+      );
+      await recargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo autorizar el servicio");
+    } finally {
+      setProcesando(false);
     }
   }
 
@@ -284,108 +385,91 @@ export default function PaginaEntregar() {
     );
   }
 
+  const estado = orden?.estado as Estado | undefined;
+  const entregada = estado === "entregada";
+  const cambioAbono = montoRecibido - monto;
+  const faltaAbono =
+    !orden || monto <= 0
+      ? "Escribe el valor del abono."
+      : monto > orden.saldoPendiente
+        ? "El abono no puede ser mayor al saldo."
+        : metodo?.es_efectivo && cambioAbono < 0
+          ? "El efectivo recibido no alcanza el abono."
+          : null;
+  const sePuedeAbonar = Boolean(orden && !entregada && orden.saldoPendiente > 0);
+
   return (
     <div>
-      <TituloPantalla
-        titulo="Entregar"
-      />
+      <TituloPantalla titulo="Cobrar y entregar" />
 
-      {!orden ? (
-        <div className="pila">
-          {escaneando && (
-            <>
-              <VisorEscaner
-                key={intentoCamara}
-                formats={["qr_code"]}
-                onDetectado={procesarQr}
-                buscando={buscando}
-                textoSinCamara="Este navegador no lee QR con la cámara. Escribe el número de la orden abajo."
-              />
-              <SeparadorEscribelo />
-            </>
-          )}
+      <div className="pila">
+        <form
+          className="fila"
+          style={{ gap: 8, flexWrap: "nowrap" }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (numero.trim()) buscar();
+          }}
+        >
+          <input
+            value={numero}
+            onChange={(e) => setNumero(e.target.value)}
+            placeholder="Número de orden"
+            aria-label="Número o código de la orden"
+            className="cifra"
+            inputMode="numeric"
+            style={{ flex: 1, minWidth: 0 }}
+          />
+          <Boton type="submit" variante="primario" disabled={buscando || !numero.trim()}>
+            {buscando ? "Buscando…" : "Buscar"}
+          </Boton>
+          <Boton
+            type="button"
+            variante={escaneando ? "primario" : "contorno"}
+            icono={<QrCode size={18} strokeWidth={2} />}
+            onClick={() => setEscaneando((v) => !v)}
+            aria-label={escaneando ? "Cerrar la cámara" : "Escanear el QR"}
+            title="Escanear el QR"
+            aria-pressed={escaneando}
+          />
+        </form>
 
+        {escaneando && (
+          <VisorEscaner
+            key={intentoCamara}
+            formats={["qr_code"]}
+            onDetectado={procesarQr}
+            buscando={buscando}
+            textoSinCamara="Este navegador no lee QR con la cámara. Escribe el número de la orden arriba."
+          />
+        )}
+
+        {orden && (
           <Tarjeta>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (numero.trim()) buscar();
-              }}
-            >
-              <Campo etiqueta="Número o código de la orden">
-                <div className="fila" style={{ gap: 0, flexWrap: "nowrap" }}>
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 46,
-                      height: 44,
-                      borderRadius: "var(--r-md) 0 0 var(--r-md)",
-                      border: "1px solid var(--rule-fuerte)",
-                      borderRight: "none",
-                      background: "var(--surface-2)",
-                      color: "var(--ink-2)",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Hash size={20} strokeWidth={1.8} aria-hidden />
-                  </span>
-                  <input
-                    value={numero}
-                    onChange={(e) => setNumero(e.target.value)}
-                    placeholder="Ej. 13"
-                    aria-label="Número de orden"
-                    className="cifra"
-                    style={{ borderRadius: "0 var(--r-md) var(--r-md) 0" }}
-                  />
-                </div>
-              </Campo>
-              <div style={{ marginTop: 14 }}>
-                <Boton
-                  type="submit"
-                  variante="primario"
-                  tamano="lg"
-                  ancho
-                  icono={<Search size={19} strokeWidth={2} />}
-                  disabled={buscando || !numero.trim()}
-                >
-                  {buscando ? "Buscando…" : "Buscar orden"}
-                </Boton>
-              </div>
-            </form>
-          </Tarjeta>
-
-          <VentanaError mensaje={error} onCerrar={() => setError(null)} />
-        </div>
-      ) : (
-        <div className="pila">
-          <Tarjeta>
-            <div className="fila" style={{ justifyContent: "space-between" }}>
-              <div>
+            <div className="fila" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ minWidth: 0 }}>
                 <h2>
-                  {orden.producto.marca} {orden.producto.modelo}
+                  {orden.producto.marca} {orden.producto.modelo}{" "}
+                  <span className="cifra" style={{ fontSize: 14, fontWeight: 600, color: "var(--ink-3)" }}>
+                    #{orden.numero}
+                  </span>
                 </h2>
                 <p className="cifra" style={{ margin: "4px 0 0", fontSize: 13, color: "var(--ink-2)" }}>
-                  {orden.producto.tipo} · {orden.producto.serial} · orden #{orden.numero}
+                  {orden.producto.cliente?.nombre ? `${orden.producto.cliente.nombre} · ` : ""}
+                  {orden.producto.serial}
                 </p>
               </div>
-              {orden.saldoPendiente > 0 ? (
-                <Etiqueta tono="aviso" punto>
-                  <span className="cifra">Saldo {fmt(orden.saldoPendiente)}</span>
-                </Etiqueta>
+              {estado && estado in ETIQUETA_ESTADO ? (
+                <EstadoOrden estado={estado} />
               ) : (
-                <Etiqueta tono="ok" punto>
-                  Sin saldo pendiente
-                </Etiqueta>
+                <Etiqueta tono="neutro">{orden.estado}</Etiqueta>
               )}
             </div>
 
-            {orden.items.length > 0 && (
-              <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--rule)" }}>
-                <div className="campo-etiqueta">Qué se usó</div>
+            {(orden.items.length > 0 || orden.pagos.length > 0) && (
+              <div style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid var(--rule)" }}>
                 {orden.items.map((it, i) => (
-                  <div key={i} className="fila" style={{ justifyContent: "space-between", fontSize: 13, padding: "4px 0" }}>
+                  <div key={`i${i}`} className="fila" style={{ justifyContent: "space-between", fontSize: 13, padding: "4px 0" }}>
                     <span>
                       {it.cantidad > 1 ? `${it.cantidad}× ` : ""}
                       {it.descripcion}
@@ -393,18 +477,18 @@ export default function PaginaEntregar() {
                     <span className="cifra">{fmt(it.cantidad * it.precioUnit)}</span>
                   </div>
                 ))}
-              </div>
-            )}
-
-            {orden.pagos.length > 0 && (
-              <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--rule)" }}>
-                <div className="campo-etiqueta">Cuenta del equipo</div>
-                <div className="fila" style={{ justifyContent: "space-between", fontSize: 13, padding: "4px 0" }}>
-                  <span>Valor de la orden</span>
-                  <span className="cifra">{fmt(orden.valor)}</span>
-                </div>
+                {orden.pagos.length > 0 && (
+                  <div className="fila" style={{ justifyContent: "space-between", fontSize: 13, padding: "4px 0", fontWeight: 700 }}>
+                    <span>Valor de la orden</span>
+                    <span className="cifra">{fmt(orden.valor)}</span>
+                  </div>
+                )}
                 {orden.pagos.map((p) => (
-                  <div key={p.numero} className="fila" style={{ justifyContent: "space-between", fontSize: 13, padding: "4px 0", color: "var(--ink-2)" }}>
+                  <div
+                    key={p.numero}
+                    className="fila"
+                    style={{ justifyContent: "space-between", fontSize: 13, padding: "4px 0", color: "var(--ink-2)" }}
+                  >
                     <span>
                       {p.tipo === "anticipo" ? "Abono" : "Pago"} · {new Date(p.fecha).toLocaleDateString("es-CO")}
                       {p.medio ? ` · ${p.medio}` : ""}
@@ -412,15 +496,120 @@ export default function PaginaEntregar() {
                     <span className="cifra">−{fmt(p.monto)}</span>
                   </div>
                 ))}
-                <div className="fila" style={{ justifyContent: "space-between", fontSize: 14, fontWeight: 800, padding: "4px 0" }}>
-                  <span>Saldo</span>
-                  <span className="cifra">{fmt(orden.saldoPendiente)}</span>
-                </div>
               </div>
             )}
+            <div
+              className="fila"
+              style={{ justifyContent: "space-between", fontSize: 15, fontWeight: 800, marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--rule)" }}
+            >
+              <span>Saldo</span>
+              <span className="cifra">{fmt(orden.saldoPendiente)}</span>
+            </div>
 
+            {estado === "esperando_aprobacion" && (
+              <div style={{ marginTop: 14 }}>
+                <Aviso tono="aviso">
+                  La cotización espera que el cliente la autorice.{" "}
+                  <Boton
+                    tamano="sm"
+                    variante="primario"
+                    icono={<ThumbsUp size={15} strokeWidth={2} />}
+                    onClick={autorizar}
+                    disabled={procesando}
+                  >
+                    El cliente autoriza
+                  </Boton>
+                </Aviso>
+              </div>
+            )}
+          </Tarjeta>
+        )}
+
+        {orden && entregada && <Aviso tono="ok">Esta orden ya se entregó.</Aviso>}
+
+        {orden && !entregada && (
+          <div className="fila" role="tablist" aria-label="Qué hacer con la orden" style={{ gap: 6 }}>
+            {(
+              [
+                { valor: "abonar", texto: "Abonar" },
+                { valor: "entregar", texto: "Entregar" },
+              ] as const
+            ).map((m) => (
+              <button
+                key={m.valor}
+                type="button"
+                role="tab"
+                aria-selected={modo === m.valor}
+                className={`pastilla${modo === m.valor ? " pastilla-activa" : ""}`}
+                onClick={() => setModo(m.valor)}
+              >
+                {m.texto}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {orden && !entregada && turnoAbierto === false && <AvisoTurnoCerrado />}
+
+        {orden && !entregada && modo === "abonar" && (
+          sePuedeAbonar ? (
+            <Tarjeta>
+              <div className="fila" style={{ gap: 10, alignItems: "flex-end", marginBottom: 14 }}>
+                <Campo etiqueta="Valor del abono">
+                  <input
+                    type="number"
+                    min={0}
+                    max={orden.saldoPendiente}
+                    inputMode="numeric"
+                    className="cifra"
+                    value={monto || ""}
+                    onChange={(e) => setMonto(Math.max(0, Number(e.target.value) || 0))}
+                    placeholder="0"
+                    style={{ maxWidth: 200 }}
+                  />
+                </Campo>
+                <Boton variante="contorno" tamano="sm" onClick={() => setMonto(orden.saldoPendiente)}>
+                  Todo el saldo
+                </Boton>
+              </div>
+              {monto > 0 && metodos.length > 0 && (
+                <PanelCobro
+                  total={monto}
+                  metodos={metodos}
+                  metodoPagoId={metodoPagoId}
+                  onCambiarMetodo={setMetodoPagoId}
+                  montoRecibido={montoRecibido}
+                  onCambiarMontoRecibido={setMontoRecibido}
+                  imprimir={imprimir}
+                  onCambiarImprimir={setImprimir}
+                />
+              )}
+              <div className="fila" style={{ marginTop: 14, gap: 10 }}>
+                <Boton
+                  variante="primario"
+                  tamano="lg"
+                  icono={<Check size={18} strokeWidth={2.4} />}
+                  onClick={abonar}
+                  disabled={procesando || turnoAbierto === false || Boolean(faltaAbono)}
+                >
+                  <span className="cifra">{procesando ? "Registrando…" : `Registrar abono ${monto > 0 ? fmt(monto) : ""}`}</span>
+                </Boton>
+                {faltaAbono && monto > 0 && <span style={{ fontSize: 12, color: "var(--ink-3)" }}>{faltaAbono}</span>}
+              </div>
+            </Tarjeta>
+          ) : (
+            <Aviso tono={orden.valor > 0 ? "ok" : "aviso"}>
+              {orden.valor > 0
+                ? "Esta orden ya está pagada."
+                : "La orden todavía no tiene valor. Pon el valor del servicio o envía la cotización para poder abonar."}
+            </Aviso>
+          )
+        )}
+
+        {orden && !entregada && modo === "entregar" && (
+          <>
             {orden.saldoPendiente > 0 && metodos.length > 0 && (
-              <div style={{ marginTop: 16 }}>
+              <Tarjeta>
                 <PanelCobro
                   total={orden.saldoPendiente}
                   metodos={metodos}
@@ -431,72 +620,64 @@ export default function PaginaEntregar() {
                   imprimir={imprimir}
                   onCambiarImprimir={setImprimir}
                 />
-              </div>
+              </Tarjeta>
             )}
-          </Tarjeta>
 
-          {turnoAbierto === false && <AvisoTurnoCerrado />}
+            <Tarjeta>
+              <div className="fila" style={{ justifyContent: "space-between", marginBottom: 10 }}>
+                <span className="campo-etiqueta" style={{ margin: 0 }}>Foto de salida</span>
+                {foto && <Etiqueta tono="ok" punto>Lista</Etiqueta>}
+              </div>
+              <input
+                ref={fotoInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => setFoto(e.target.files?.[0] ?? null)}
+                aria-label="Foto de salida del equipo"
+                style={{ height: "auto", padding: 10 }}
+              />
 
-          <Tarjeta>
-            <h2 style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
-              <Camera size={19} strokeWidth={2} color="var(--ink-2)" aria-hidden />
-              Foto de salida
-              {foto && <Etiqueta tono="ok" punto>Lista</Etiqueta>}
-            </h2>
-            <input
-              ref={fotoInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={(e) => setFoto(e.target.files?.[0] ?? null)}
-              aria-label="Foto de salida del equipo"
-              style={{ height: "auto", padding: 10 }}
-            />
-            <p className="campo-ayuda">Queda visible para el cliente en su enlace de seguimiento.</p>
-          </Tarjeta>
+              <div className="fila" style={{ justifyContent: "space-between", margin: "16px 0 10px" }}>
+                <span className="campo-etiqueta" style={{ margin: 0 }}>Firma de quien recibe</span>
+                <Boton
+                  variante="fantasma"
+                  tamano="sm"
+                  icono={<Eraser size={15} strokeWidth={2} />}
+                  onClick={() => firmaRef.current?.limpiar()}
+                >
+                  Borrar
+                </Boton>
+              </div>
+              <FirmaCanvas ref={firmaRef} />
+            </Tarjeta>
 
-          <Tarjeta>
-            <h2 style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
-              <PenLine size={19} strokeWidth={2} color="var(--ink-2)" aria-hidden />
-              Firma de quien recibe
-            </h2>
-            <FirmaCanvas ref={firmaRef} />
-            <div style={{ marginTop: 10 }}>
-              <Boton
-                variante="fantasma"
-                tamano="sm"
-                icono={<Eraser size={15} strokeWidth={2} />}
-                onClick={() => firmaRef.current?.limpiar()}
-              >
-                Borrar firma
-              </Boton>
-            </div>
-          </Tarjeta>
+            <Boton
+              variante="primario"
+              tamano="xl"
+              ancho
+              icono={<Lock size={19} strokeWidth={2} />}
+              onClick={entregar}
+              disabled={
+                procesando ||
+                turnoAbierto === false ||
+                (orden.saldoPendiente > 0 && (!metodoPagoId || (metodo?.es_efectivo && cambio < 0)))
+              }
+            >
+              <span className="cifra">
+                {procesando
+                  ? "Procesando…"
+                  : orden.saldoPendiente > 0
+                    ? `Cobrar y entregar ${fmt(orden.saldoPendiente)}`
+                    : "Entregar"}
+              </span>
+            </Boton>
+          </>
+        )}
 
-          <Boton
-            variante="primario"
-            tamano="xl"
-            ancho
-            icono={<Lock size={19} strokeWidth={2} />}
-            onClick={entregar}
-            disabled={
-              procesando ||
-              turnoAbierto === false ||
-              (orden.saldoPendiente > 0 && (!metodoPagoId || (metodo?.es_efectivo && cambio < 0)))
-            }
-          >
-            <span className="cifra">
-              {procesando
-                ? "Procesando…"
-                : orden.saldoPendiente > 0
-                  ? `Cobrar y entregar ${fmt(orden.saldoPendiente)}`
-                  : "Entregar"}
-            </span>
-          </Boton>
-
-          <VentanaError mensaje={error} onCerrar={() => setError(null)} />
-        </div>
-      )}
+        {aviso && <Aviso tono="ok">{aviso}</Aviso>}
+        <VentanaError mensaje={error} onCerrar={() => setError(null)} />
+      </div>
     </div>
   );
 }

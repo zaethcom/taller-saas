@@ -7,7 +7,7 @@
  * equivocado, un mensaje específico en vez de un redirect mudo.
  */
 import { redirect } from "next/navigation";
-import { ShoppingCart, Receipt, Inbox, PackageCheck, Clock, Wallet } from "lucide-react";
+import { ShoppingCart, Inbox, PackageCheck, Clock } from "lucide-react";
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
 import { BarraSuperior } from "@/componentes/ui/barra-superior";
 import { BarraLateral, type ItemNavLateral } from "@/componentes/ui/barra-lateral";
@@ -38,12 +38,12 @@ export default async function LayoutPos({ children }: { children: React.ReactNod
 
   const config = await obtenerConfiguracion(supabase, perfil.empresaId);
 
+  // Abonos vive dentro de Cobrar y entregar, y Recibos es un botón de
+  // Vender: siguen siendo direcciones propias, pero sin entrada en el menú.
   const items: ItemNavLateral[] = [
-    { href: "/vender", etiqueta: "Vender", icono: <ShoppingCart size={18} strokeWidth={2} /> },
-    { href: "/recibos", etiqueta: "Recibos", icono: <Receipt size={18} strokeWidth={2} /> },
+    { href: "/vender", etiqueta: "Vender", icono: <ShoppingCart size={18} strokeWidth={2} />, incluye: ["/recibos"] },
     { href: "/recibir", etiqueta: "Recibir equipo", icono: <Inbox size={18} strokeWidth={2} /> },
-    { href: "/abonos", etiqueta: "Abonos", icono: <Wallet size={18} strokeWidth={2} /> },
-    { href: "/entregar", etiqueta: "Entregar", icono: <PackageCheck size={18} strokeWidth={2} /> },
+    { href: "/entregar", etiqueta: "Cobrar y entregar", icono: <PackageCheck size={18} strokeWidth={2} />, incluye: ["/abonos"] },
     { href: "/turno", etiqueta: "Turno", icono: <Clock size={18} strokeWidth={2} /> },
   ];
 

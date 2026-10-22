@@ -26,9 +26,9 @@
  * como búsqueda normal.
  */
 import { useEffect, useState } from "react";
-import { Trash2, Plus, Minus, Search, ShoppingCart, Lock, Check, Printer, PlusCircle, ScanBarcode } from "lucide-react";
+import { Trash2, Plus, Minus, Search, ShoppingCart, Lock, Check, Printer, PlusCircle, ScanBarcode, Receipt } from "lucide-react";
 import { FotoProducto } from "@/componentes/ui/foto-producto";
-import { Boton } from "@/componentes/ui/boton";
+import { Boton, BotonEnlace } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Aviso } from "@/componentes/ui/campo";
@@ -344,6 +344,11 @@ export default function PaginaVender() {
 
       <TituloPantalla
         titulo="Vender"
+        acciones={
+          <BotonEnlace href="/recibos" variante="contorno" tamano="sm" icono={<Receipt size={16} strokeWidth={2} />}>
+            Últimos recibos
+          </BotonEnlace>
+        }
       />
 
       <div className="pos">

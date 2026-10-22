@@ -479,7 +479,7 @@ export default function PaginaRecibir() {
         {resultado.abonoFallido && (
           <div style={{ marginBottom: 20, textAlign: "left" }}>
             <Aviso tono="peligro">
-              La orden quedó creada pero el abono no se registró. Regístralo desde Abonos.
+              La orden quedó creada pero el abono no se registró. Regístralo desde Cobrar y entregar.
             </Aviso>
           </div>
         )}
