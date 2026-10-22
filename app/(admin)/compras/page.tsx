@@ -2,16 +2,16 @@
 
 /**
  * La lista central de faltantes de la sección 4 del documento original:
- * qué repuesto hace falta, para qué orden, y con qué prioridad. Marcar
- * recibido ahora sí ingresa al inventario de verdad: quien recibe
- * confirma contra qué repuesto real del catálogo corresponde la
- * descripción libre del técnico y en qué sede entró (la solicitud no
- * guarda ni lo uno ni lo otro), y eso pasa por mover_existencia --
- * auditado y relacionado con la orden que lo pidió.
+ * qué repuesto hace falta, para qué orden, y con qué prioridad. Lo que
+ * se pide aquí es para reparar ese equipo: al marcarlo recibido NO
+ * entra al inventario, queda asignado a la orden (decisión de Frank,
+ * 2026-10-22). Quien recibe anota el producto que llegó y cuánto costó
+ * -- interno, para la contabilidad de la orden --, el historial de la
+ * orden lo registra y el técnico recibe el aviso de que puede seguir
+ * (lib/compras/recepcion-orden.ts).
  *
- * Lo recibido sale de la lista apenas se confirma (no se borra: el
- * técnico todavía lo ve en su orden para consumirlo); "Mostrar
- * recibidos" lo trae de vuelta para consultar.
+ * Lo recibido sale de la lista apenas se confirma (no se borra);
+ * "Mostrar recibidos" lo trae de vuelta para consultar.
  *
  * WhatsApp: se marcan con check los faltantes que van en el pedido y se
  * elige a qué contacto va (mensajero, almacén, proveedor... los que la
@@ -28,6 +28,8 @@ import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { enlaceWhatsapp, equipoTexto, mensajePedido } from "@/lib/compras/whatsapp";
 import { comprasAutorizadas, type Estado } from "@/lib/estados";
+import { puede, type Rol } from "@/lib/permisos";
+import { formatearMoneda } from "@/componentes/cobro/panel-cobro";
 import { VentanaError } from "@/componentes/ui/ventana-error";
 
 interface Faltante {
@@ -37,6 +39,8 @@ interface Faltante {
   prioridad: string;
   estado: string;
   creada_en: string;
+  producto: string | null;
+  costo_compra: number | null;
   orden: OrdenFaltante | OrdenFaltante[] | null;
 }
 
@@ -53,21 +57,10 @@ interface ProductoFaltante {
   modelo: string | null;
 }
 
-interface RepuestoResultado {
-  id: string;
-  codigo: string;
-  descripcion: string;
-}
-
 interface Contacto {
   id: string;
   nombre: string;
   telefono: string;
-}
-
-interface Sede {
-  id: string;
-  nombre: string;
 }
 
 /** Urgente grita, normal no: si todo se ve igual, nada se atiende primero. */
@@ -95,8 +88,8 @@ export default function PaginaCompras() {
   const [cargando, setCargando] = useState(true);
   const [procesando, setProcesando] = useState<string | null>(null);
 
-  const [sedes, setSedes] = useState<Sede[]>([]);
-  const [sedeIdDefault, setSedeIdDefault] = useState<string | null>(null);
+  // El costo de compra es interno: lo ve y lo anota quien compra (admin y compras).
+  const [veCosto, setVeCosto] = useState(false);
 
   const [mostrarRecibidos, setMostrarRecibidos] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -109,18 +102,16 @@ export default function PaginaCompras() {
   const [errorContacto, setErrorContacto] = useState<string | null>(null);
 
   const [abiertoId, setAbiertoId] = useState<string | null>(null);
-  const [buscar, setBuscar] = useState("");
-  const [resultados, setResultados] = useState<RepuestoResultado[]>([]);
-  const [repuestoSeleccionado, setRepuestoSeleccionado] = useState<RepuestoResultado | null>(null);
+  const [producto, setProducto] = useState("");
   const [cantidad, setCantidad] = useState("");
-  const [sedeId, setSedeId] = useState("");
+  const [costo, setCosto] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   async function cargar(conRecibidos = mostrarRecibidos) {
     const supabase = clienteNavegador();
     const { data } = await supabase
       .from("repuesto_solicitud")
-      .select("id, descripcion, cantidad, prioridad, estado, creada_en, orden:orden_id ( numero, estado, motivo, producto:producto_id ( tipo, marca, modelo ) )")
+      .select("id, descripcion, cantidad, prioridad, estado, creada_en, producto, costo_compra, orden:orden_id ( numero, estado, motivo, producto:producto_id ( tipo, marca, modelo ) )")
       .in("estado", conRecibidos ? ["faltante", "recibido"] : ["faltante"])
       .order("creada_en", { ascending: true });
     const lista = (data as Faltante[]) ?? [];
@@ -141,67 +132,40 @@ export default function PaginaCompras() {
   useEffect(() => {
     cargar(false);
     cargarContactos().catch(() => {});
-    Promise.all([fetch("/api/perfil"), fetch("/api/sedes")])
-      .then(async ([resPerfil, resSedes]) => {
-        const perfil = await resPerfil.json();
-        const listaSedes = await resSedes.json();
-        setSedeIdDefault(perfil.sedeId ?? null);
-        setSedes(Array.isArray(listaSedes) ? listaSedes : []);
-      })
+    fetch("/api/perfil")
+      .then((r) => r.json())
+      .then((perfil: { rol?: Rol }) => setVeCosto(Boolean(perfil.rol && puede(perfil.rol, "gestionar_compras"))))
       .catch(() => {});
     // cargar lee mostrarRecibidos; aquí solo interesa la carga inicial.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (!abiertoId || repuestoSeleccionado) return;
-    const texto = buscar.trim();
-    if (!texto) {
-      setResultados([]);
-      return;
-    }
-    const controlador = new AbortController();
-    const temporizador = setTimeout(() => {
-      fetch(`/api/repuestos?buscar=${encodeURIComponent(texto)}`, { signal: controlador.signal })
-        .then((r) => r.json())
-        .then((data) => setResultados(Array.isArray(data) ? data : []))
-        .catch(() => {});
-    }, 250);
-    return () => {
-      clearTimeout(temporizador);
-      controlador.abort();
-    };
-  }, [buscar, abiertoId, repuestoSeleccionado]);
-
   function abrirFormulario(f: Faltante) {
     setAbiertoId(f.id);
-    setBuscar(f.descripcion);
-    setResultados([]);
-    setRepuestoSeleccionado(null);
+    setProducto(f.descripcion);
     setCantidad(String(f.cantidad));
-    setSedeId(sedeIdDefault ?? "");
+    setCosto("");
     setError(null);
   }
 
   function cerrarFormulario() {
     setAbiertoId(null);
-    setRepuestoSeleccionado(null);
     setError(null);
   }
 
   async function confirmarRecibido(f: Faltante) {
     const id = f.id;
-    if (!repuestoSeleccionado) {
-      setError("Elige a qué repuesto del catálogo corresponde");
-      return;
-    }
-    if (!sedeId) {
-      setError("Falta elegir la sede");
+    if (!producto.trim()) {
+      setError("Escribe el nombre del producto que llegó");
       return;
     }
     const cantidadNum = Number(cantidad);
     if (!cantidadNum || cantidadNum <= 0) {
       setError("La cantidad debe ser mayor a cero");
+      return;
+    }
+    if (costo.trim() === "" || !(Number(costo) >= 0)) {
+      setError("Escribe cuánto costó la compra");
       return;
     }
 
@@ -211,11 +175,15 @@ export default function PaginaCompras() {
       const res = await fetch(`/api/repuesto-solicitud/${id}/recibir`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repuestoId: repuestoSeleccionado.id, sedeId, cantidad: cantidadNum }),
+        body: JSON.stringify({ producto: producto.trim(), cantidad: cantidadNum, costo: Number(costo) }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
+      const r = (await res.json()) as { estado?: string | null };
       cerrarFormulario();
-      setAviso(`${f.descripcion} quedó recibido y salió de la lista.`);
+      setAviso(
+        `${producto.trim()} quedó en la orden #${numeroOrden(f.orden)} y se avisó al técnico` +
+          (r.estado === "en_reparacion" ? ": la orden pasó a reparación." : "."),
+      );
       await cargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo marcar como recibido");
@@ -360,7 +328,7 @@ export default function PaginaCompras() {
           <Tarjeta style={{ textAlign: "center", padding: 36, borderStyle: "dashed" }}>
             <PackageCheck size={30} strokeWidth={1.6} color="var(--ok)" aria-hidden />
             <p style={{ margin: "10px 0 0", fontWeight: 700 }}>
-              {mostrarRecibidos ? "No hay faltantes ni recibidos sin consumir" : "No hay faltantes pendientes"}
+              {mostrarRecibidos ? "No hay faltantes ni recibidos" : "No hay faltantes pendientes"}
             </p>
             <p style={{ margin: "5px 0 0", fontSize: 13, color: "var(--ink-2)" }}>
               Aparecen aquí solos cuando al recibir un equipo no hay el repuesto, o cuando un técnico lo marca como faltante.
@@ -408,6 +376,14 @@ export default function PaginaCompras() {
                       </td>
                       <td>
                         <div style={{ fontWeight: 600 }}>{f.descripcion}</div>
+                        {f.estado !== "faltante" && f.producto && f.producto !== f.descripcion && (
+                          <div style={{ fontSize: 13, color: "var(--ink-2)" }}>Llegó: {f.producto}</div>
+                        )}
+                        {f.estado !== "faltante" && veCosto && f.costo_compra != null && (
+                          <div className="cifra" style={{ fontSize: 13, color: "var(--ink-2)" }}>
+                            Costó {formatearMoneda(Number(f.costo_compra))}
+                          </div>
+                        )}
                         {equipoOrden(unaOrden(f.orden)) && (
                           <div style={{ fontSize: 13, color: "var(--ink-2)" }}>Para {equipoOrden(unaOrden(f.orden))}</div>
                         )}
@@ -461,91 +437,48 @@ export default function PaginaCompras() {
                       <tr>
                         <td colSpan={8} style={{ background: "var(--surface-2)" }}>
                           <div className="pila" style={{ gap: 10, padding: "12px 4px" }}>
-                            {!repuestoSeleccionado ? (
-                              <>
-                                <Campo etiqueta="¿A qué repuesto del catálogo corresponde?">
-                                  <input value={buscar} onChange={(e) => setBuscar(e.target.value)} autoFocus />
+                            <p style={{ margin: 0, fontSize: 13, color: "var(--ink-2)" }}>
+                              Queda asignado a la orden #{numeroOrden(f.orden)}, no entra al inventario. Se le avisa al
+                              técnico que puede seguir.
+                            </p>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+                              <div style={{ gridColumn: "1 / -1" }}>
+                                <Campo etiqueta="Producto que llegó">
+                                  <input value={producto} onChange={(e) => setProducto(e.target.value)} autoFocus />
                                 </Campo>
-                                {resultados.length > 0 && (
-                                  <ul style={{ listStyle: "none", margin: 0, padding: 0, border: "1px solid var(--rule)", borderRadius: "var(--r-md)", overflow: "hidden" }}>
-                                    {resultados.map((r) => (
-                                      <li key={r.id}>
-                                        <button
-                                          type="button"
-                                          onClick={() => setRepuestoSeleccionado(r)}
-                                          style={{
-                                            width: "100%",
-                                            textAlign: "left",
-                                            padding: "9px 12px",
-                                            border: "none",
-                                            background: "transparent",
-                                            cursor: "pointer",
-                                            borderBottom: "1px solid var(--rule)",
-                                            fontSize: 13,
-                                          }}
-                                        >
-                                          <span style={{ fontWeight: 700 }}>{r.descripcion}</span>{" "}
-                                          <span className="cifra" style={{ color: "var(--ink-3)" }}>
-                                            · {r.codigo}
-                                          </span>
-                                        </button>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                                {buscar.trim() && resultados.length === 0 && (
-                                  <p style={{ margin: 0, fontSize: 12, color: "var(--ink-3)" }}>
-                                    No se encontró nada. Si el repuesto no existe en el catálogo, créalo primero
-                                    desde /inventario y vuelve aquí.
-                                  </p>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                <Aviso tono="ok">
-                                  Recibiendo como: <strong>{repuestoSeleccionado.descripcion}</strong> (
-                                  {repuestoSeleccionado.codigo}){" "}
-                                  <button
-                                    type="button"
-                                    onClick={() => setRepuestoSeleccionado(null)}
-                                    style={{ border: "none", background: "transparent", color: "var(--accent)", textDecoration: "underline", cursor: "pointer" }}
-                                  >
-                                    cambiar
-                                  </button>
-                                </Aviso>
-                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
-                                  <Campo etiqueta="Cantidad recibida">
-                                    <input
-                                      type="number"
-                                      value={cantidad}
-                                      onChange={(e) => setCantidad(e.target.value)}
-                                      className="cifra"
-                                    />
-                                  </Campo>
-                                  <Campo etiqueta="Sede donde ingresó">
-                                    <select value={sedeId} onChange={(e) => setSedeId(e.target.value)}>
-                                      <option value="">Elegir…</option>
-                                      {sedes.map((s) => (
-                                        <option key={s.id} value={s.id}>
-                                          {s.nombre}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </Campo>
-                                </div>
-                                <div>
-                                  <Boton
-                                    variante="primario"
-                                    tamano="sm"
-                                    icono={<PackageCheck size={15} strokeWidth={2} />}
-                                    onClick={() => confirmarRecibido(f)}
-                                    disabled={procesando === f.id}
-                                  >
-                                    {procesando === f.id ? "Guardando…" : "Confirmar recepción"}
-                                  </Boton>
-                                </div>
-                              </>
-                            )}
+                              </div>
+                              <Campo etiqueta="Cantidad">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={cantidad}
+                                  onChange={(e) => setCantidad(e.target.value)}
+                                  className="cifra"
+                                />
+                              </Campo>
+                              <Campo etiqueta="Costo de la compra (total)" ayuda="Interno: solo lo ve el administrador.">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  inputMode="decimal"
+                                  value={costo}
+                                  onChange={(e) => setCosto(e.target.value)}
+                                  placeholder="0"
+                                  className="cifra"
+                                />
+                              </Campo>
+                            </div>
+                            <div>
+                              <Boton
+                                variante="primario"
+                                tamano="sm"
+                                icono={<PackageCheck size={15} strokeWidth={2} />}
+                                onClick={() => confirmarRecibido(f)}
+                                disabled={procesando === f.id}
+                              >
+                                {procesando === f.id ? "Guardando…" : "Confirmar recibido"}
+                              </Boton>
+                            </div>
                             <VentanaError mensaje={error} onCerrar={() => setError(null)} />
                           </div>
                         </td>

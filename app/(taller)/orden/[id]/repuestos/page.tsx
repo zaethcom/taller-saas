@@ -28,6 +28,8 @@ interface Solicitud {
   cantidad: number;
   estado: string;
   creada_en: string;
+  /** Lo que de verdad llegó (lo anota Compras al recibir). */
+  producto: string | null;
 }
 
 interface Repuesto {
@@ -77,7 +79,7 @@ export default function PaginaRepuestos() {
     const supabase = clienteNavegador();
     const { data } = await supabase
       .from("repuesto_solicitud")
-      .select("id, descripcion, cantidad, estado, creada_en")
+      .select("id, descripcion, cantidad, estado, creada_en, producto")
       .eq("orden_id", id)
       .order("creada_en", { ascending: false });
     setSolicitudes((data as Solicitud[]) ?? []);
@@ -366,6 +368,7 @@ export default function PaginaRepuestos() {
                     <div style={{ fontSize: 14, fontWeight: 700 }}>{s.descripcion}</div>
                     <div className="cifra" style={{ fontSize: 12, color: "var(--ink-3)" }}>
                       x{s.cantidad}
+                      {s.estado === "recibido" && s.producto && s.producto !== s.descripcion && ` · Llegó: ${s.producto}`}
                     </div>
                   </div>
                   {s.estado === "recibido" ? (

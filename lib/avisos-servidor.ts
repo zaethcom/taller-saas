@@ -1,7 +1,8 @@
 /**
  * Crear un aviso para el taller (0061_avisos_cliente.sql) y mandarlo
  * por push a los equipos que lo activaron. Lo llaman las rutas públicas
- * del enlace de seguimiento con el cliente admin (sin sesión detrás).
+ * del enlace de seguimiento con el cliente admin (sin sesión detrás), y
+ * Compras al recibir un repuesto (ese push va solo al técnico).
  *
  * Nada de esto puede tumbar lo que hizo el cliente: si la tabla todavía
  * no existe (migración sin correr), faltan las llaves VAPID o un push
@@ -9,9 +10,9 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import webpush from "web-push";
-import { notificacionDeAviso, textoAviso, urlAviso, veAvisos, type TipoAviso } from "./avisos";
+import { esDelCliente, notificacionDeAviso, textoAviso, urlAviso, veAvisos, type TipoAviso } from "./avisos";
 import { ATERRIZAJE_POR_ROL } from "./perfil";
-import type { Rol } from "./permisos";
+import { puede, type Rol } from "./permisos";
 
 /** Las tres variables de entorno de Vercel que activan el push; sin ellas solo queda el globo. */
 export function configuracionPush(): { publica: string; privada: string; contacto: string } | null {
@@ -29,7 +30,7 @@ export async function crearAviso(
   try {
     const { data: orden } = await admin
       .from("orden")
-      .select("sede_id, numero, producto:producto_id ( cliente:cliente_id ( nombre ) )")
+      .select("sede_id, numero, tecnico_id, producto:producto_id ( cliente:cliente_id ( nombre ) )")
       .eq("id", a.ordenId)
       .maybeSingle();
     const sedeId = (orden?.sede_id as string | null) ?? null;
@@ -53,6 +54,7 @@ export async function crearAviso(
       ordenId: a.ordenId,
       numero: (orden?.numero as number | null) ?? null,
       cliente: producto?.cliente?.nombre ?? null,
+      tecnicoId: (orden?.tecnico_id as string | null) ?? null,
     });
   } catch {
     // Ver el comentario de arriba: el aviso es un extra.
@@ -69,6 +71,7 @@ async function enviarPush(
     ordenId: string;
     numero: number | null;
     cliente: string | null;
+    tecnicoId: string | null;
   },
 ): Promise<void> {
   const config = configuracionPush();
@@ -77,7 +80,7 @@ async function enviarPush(
 
   let consulta = admin
     .from("push_suscripcion")
-    .select("id, endpoint, p256dh, auth, perfil:perfil_id ( rol, activo )")
+    .select("id, endpoint, p256dh, auth, perfil_id, perfil:perfil_id ( rol, activo )")
     .eq("empresa_id", a.empresaId);
   if (a.sedeId) consulta = consulta.or(`sede_id.is.null,sede_id.eq.${a.sedeId}`);
   const { data: suscripciones } = await consulta;
@@ -86,9 +89,14 @@ async function enviarPush(
     (suscripciones ?? []).map(async (s) => {
       const perfil = s.perfil as unknown as { rol: Rol; activo: boolean } | null;
       if (!perfil?.activo || !veAvisos(perfil.rol)) return;
+      // Lo que genera el taller (llegó un repuesto) es para quien repara:
+      // el técnico de la orden o, si no tiene, los que diagnostican.
+      if (!esDelCliente(a.tipo)) {
+        if (a.tecnicoId ? s.perfil_id !== a.tecnicoId : !puede(perfil.rol, "diagnosticar")) return;
+      }
       const notificacion = notificacionDeAviso({
         ...a,
-        url: urlAviso(perfil.rol, a.ordenId, ATERRIZAJE_POR_ROL[perfil.rol]),
+        url: urlAviso(perfil.rol, a.ordenId, ATERRIZAJE_POR_ROL[perfil.rol], a.tipo),
       });
       try {
         await webpush.sendNotification(

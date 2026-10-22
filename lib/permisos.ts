@@ -28,7 +28,8 @@ export type Accion =
   | "ver_reportes" // Admin: informes de ventas, caja, inventario y taller, y su exportación
   | "configurar_fases" // Admin: las fases de cada estado de la orden (0050_fase_orden.sql)
   | "enviar_whatsapp_orden" // Taller: mandar el enlace de seguimiento por WhatsApp (el número no se muestra en pantalla)
-  | "editar_orden"; // Corregir los datos del cliente, el equipo y la recepción de una orden no entregada
+  | "editar_orden" // Corregir los datos del cliente, el equipo y la recepción de una orden no entregada
+  | "ver_utilidad_orden"; // Admin: cuánto costaron los repuestos de una orden, cuánto se cobró y la utilidad
 
 const PERMISOS: Record<Rol, Accion[]> = {
   admin: [
@@ -54,6 +55,7 @@ const PERMISOS: Record<Rol, Accion[]> = {
     "configurar_fases",
     "enviar_whatsapp_orden",
     "editar_orden",
+    "ver_utilidad_orden",
   ],
   recepcion: [
     "recibir_equipo",

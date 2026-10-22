@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
 import { etiquetaEvento } from "@/lib/fases";
 import { esEventoEdicion } from "@/lib/orden-edicion";
+import { esEventoRepuestoRecibido, PREFIJO_REPUESTO_RECIBIDO } from "@/lib/compras/recepcion-orden";
 import { obtenerCuentaOrden } from "@/lib/cuenta-orden";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 
@@ -135,7 +136,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     // equipo, y su nota es interna: el cliente no las ve.
     historial: (eventos ?? []).filter((e) => !esEventoEdicion(e)).map((e) => ({
       estado: e.a_estado,
-      etiqueta: etiquetaEvento(e),
+      // "Llegó el repuesto", sin decir cuál ni cuánto costó.
+      etiqueta: esEventoRepuestoRecibido(e) ? PREFIJO_REPUESTO_RECIBIDO : etiquetaEvento(e),
       fecha: e.ocurrio_en,
     })),
     cotizacion,
