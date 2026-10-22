@@ -603,6 +603,15 @@ tbody tr:last-child td {
   transform: translateY(2px) rotate(-135deg);
 }
 
+/* Un renglón de resultados de búsqueda: nombre a la izquierda, acción a la derecha. */
+.fila-resultado {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--rule);
+}
+
 /* Los botones que terminan una pantalla larga, fijos abajo. */
 .barra-acciones {
   position: sticky;
@@ -616,8 +625,11 @@ tbody tr:last-child td {
   border-top: 1px solid var(--rule);
 }
 @media (max-width: 640px) {
+  .barra-acciones {
+    flex-wrap: wrap;
+  }
   .barra-acciones > .btn {
-    flex: 1;
+    flex: 1 1 auto;
   }
 }
 

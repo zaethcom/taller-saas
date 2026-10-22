@@ -1,27 +1,16 @@
 "use client";
 
 /**
- * El contexto de la orden, repetido en la cabecera de cada pantalla de
- * etapa (diagnóstico, cotización, evidencia, repuestos) -- antes solo
- * la pantalla-hub (/orden/[id]) mostraba número/estado/cliente/equipo;
- * las demás eran ciegas a ese contexto. No se dibuja un QR gráfico:
- * el que ya va impreso en la etiqueta física cumple ese rol; aquí basta
- * el código de seguimiento copiable, o enviado por WhatsApp
- * (EnlaceOrden).
- *
- * `anterior`/`siguiente` son opcionales: solo los tres pasos
- * secuenciales (diagnóstico → cotización → repuestos) los usan --
- * evidencia queda accesible desde el hub en cualquier momento, no es
- * parte de esa secuencia.
+ * El contexto de la orden en una franja delgada arriba de cada pantalla
+ * de etapa (diagnóstico, cotización, evidencia, repuestos): de dónde se
+ * viene, número, estado, equipo, cliente y total. Copiar el enlace y
+ * WhatsApp viven en la ficha de la orden (/orden/[id]); aquí no se
+ * repiten.
  */
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight } from "lucide-react";
-import { Tarjeta } from "@/componentes/ui/tarjeta";
+import { ArrowLeft } from "lucide-react";
 import { EstadoOrden } from "@/componentes/ui/estado-orden";
-import { Boton } from "@/componentes/ui/boton";
-import { EnlaceOrden } from "@/componentes/taller/enlace-orden";
 import type { Estado } from "@/lib/estados";
 
 interface OrdenContexto {
@@ -31,28 +20,13 @@ interface OrdenContexto {
   tipo: string;
   marca: string | null;
   modelo: string | null;
-  token_publico: string;
   total: number;
   fase_nombre: string | null;
 }
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
-interface Paso {
-  href: string;
-  etiqueta: string;
-}
-
-export function CabeceraOrden({
-  ordenId,
-  anterior,
-  siguiente,
-}: {
-  ordenId: string;
-  anterior?: Paso;
-  siguiente?: Paso;
-}) {
-  const router = useRouter();
+export function CabeceraOrden({ ordenId, anterior }: { ordenId: string; anterior?: { href: string; etiqueta: string } }) {
   const [orden, setOrden] = useState<OrdenContexto | null>(null);
 
   useEffect(() => {
@@ -63,60 +37,48 @@ export function CabeceraOrden({
   }, [ordenId]);
 
   return (
-    <Tarjeta style={{ marginBottom: 16 }}>
-      <div className="fila" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-        <div style={{ minWidth: 0 }}>
-          <div className="fila" style={{ gap: 8, alignItems: "center" }}>
-            <span className="cifra" style={{ fontWeight: 800, fontSize: 15 }}>
-              {orden ? `Orden #${orden.numero}` : "Orden"}
-            </span>
-            {orden && <EstadoOrden estado={orden.estado} />}
-            {orden?.fase_nombre && (
-              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-2)" }}>· {orden.fase_nombre}</span>
-            )}
-          </div>
-          {orden && (
-            <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--ink-2)" }}>
-              {[orden.marca, orden.modelo].filter(Boolean).join(" ") || orden.tipo} · {orden.cliente_nombre}
-            </p>
+    <div
+      className="fila"
+      style={{
+        gap: 10,
+        alignItems: "center",
+        marginBottom: 14,
+        paddingBottom: 12,
+        borderBottom: "1px solid var(--rule)",
+      }}
+    >
+      {anterior && (
+        <Link
+          href={anterior.href}
+          className="btn btn-contorno btn-sm"
+          style={{ textDecoration: "none" }}
+          aria-label={`Volver a ${anterior.etiqueta}`}
+        >
+          <ArrowLeft size={15} strokeWidth={2} />
+          <span className="ocultar-movil">{anterior.etiqueta}</span>
+        </Link>
+      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="fila" style={{ gap: 8, alignItems: "center" }}>
+          <Link href={`/orden/${ordenId}`} className="cifra" style={{ fontWeight: 800, fontSize: 15, color: "var(--ink)" }}>
+            {orden ? `Orden #${orden.numero}` : "Orden"}
+          </Link>
+          {orden && <EstadoOrden estado={orden.estado} />}
+          {orden?.fase_nombre && (
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-2)" }}>· {orden.fase_nombre}</span>
           )}
         </div>
-        {orden && Number(orden.total) > 0 && (
-          <div style={{ textAlign: "right", flexShrink: 0 }}>
-            <div style={{ fontSize: 11, color: "var(--ink-3)" }}>Total</div>
-            <div className="cifra" style={{ fontSize: 16, fontWeight: 800 }}>
-              {fmt(Number(orden.total))}
-            </div>
-          </div>
+        {orden && (
+          <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--ink-2)" }}>
+            {[orden.marca, orden.modelo].filter(Boolean).join(" ") || orden.tipo} · {orden.cliente_nombre}
+          </p>
         )}
       </div>
-
-      <div style={{ marginTop: 12 }}>
-        <EnlaceOrden ordenId={ordenId} tokenPublico={orden?.token_publico} />
-      </div>
-
-      {(anterior || siguiente) && (
-        <div className="fila" style={{ justifyContent: "space-between", marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--rule)" }}>
-          {anterior ? (
-            <Link href={anterior.href} className="btn btn-contorno btn-sm" style={{ textDecoration: "none" }}>
-              <ArrowLeft size={15} strokeWidth={2} />
-              {anterior.etiqueta}
-            </Link>
-          ) : (
-            <span />
-          )}
-          {siguiente && (
-            <Boton
-              variante="primario"
-              tamano="sm"
-              icono={<ArrowRight size={15} strokeWidth={2} />}
-              onClick={() => router.push(siguiente.href)}
-            >
-              {siguiente.etiqueta}
-            </Boton>
-          )}
-        </div>
+      {orden && Number(orden.total) > 0 && (
+        <span className="cifra" style={{ fontSize: 16, fontWeight: 800, flexShrink: 0 }}>
+          {fmt(Number(orden.total))}
+        </span>
       )}
-    </Tarjeta>
+    </div>
   );
 }

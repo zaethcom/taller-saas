@@ -6,15 +6,17 @@
  * llegada por el QR, es donde se cumple la primera de las dos promesas
  * del proyecto.
  *
- * Arriba, el camino de la orden (lib/camino-orden.ts) y el siguiente
- * paso con su botón: el técnico no tiene que saber a qué estado pasar.
- * Los accesos (evidencia, diagnóstico, repuestos) son tarjetas y no
- * enlaces de texto: se tocan con guantes, con una sola mano.
+ * Arriba, los datos de la orden con el camino (lib/camino-orden.ts) en
+ * una línea, y enseguida el siguiente paso con su botón: el técnico no
+ * tiene que saber a qué estado pasar. Los accesos (evidencia,
+ * diagnóstico, repuestos) son pastillas grandes y no enlaces de texto:
+ * se tocan con guantes, con una sola mano. Editar y reimprimir van en
+ * el menú «⋯»; mensajes, historial y acceso, en pestañas al final.
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Camera, Wrench, Package, FileText, ChevronRight, ArrowRight, KeyRound, Eye, Clock, Check, Printer, Pencil } from "lucide-react";
+import { Camera, Wrench, Package, FileText, ChevronRight, ArrowRight, Eye, Clock, Check, Printer, Pencil } from "lucide-react";
 import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
 import { formatearMoneda } from "@/componentes/cobro/panel-cobro";
 import { CAMINO, enlacesVisibles, pasoActual, siguientePaso, type Accion, type Destino } from "@/lib/camino-orden";
@@ -26,6 +28,7 @@ import { HiloMensajes, type Mensaje } from "@/componentes/mensajeria/hilo-mensaj
 import { SelectorFase } from "@/componentes/taller/selector-fase";
 import { EnlaceOrden } from "@/componentes/taller/enlace-orden";
 import { VentanaError } from "@/componentes/ui/ventana-error";
+import { MenuMas } from "@/componentes/ui/menu-mas";
 
 /** Los cambios que piden una nota, y qué se le pregunta a quien los hace. */
 const NOTA_AL_PASAR: Partial<Record<Estado, { etiqueta: string; ayuda: string; prefijo: string }>> = {
@@ -53,74 +56,65 @@ function rutaDe(destino: Destino, orden: { id: string; numero: number }): string
   return destino === "entregar" ? `/entregar?numero=${orden.numero}` : `/orden/${orden.id}/${destino}`;
 }
 
-/** Los pasos del camino, con el actual marcado y, bajo cada paso al que
- *  ya se llegó, sus pantallas (fotos, diagnóstico, cotización, repuestos). */
+/** El camino en una línea (el paso actual resaltado) y, debajo, las
+ *  pantallas de los pasos a los que ya se llegó: fotos, diagnóstico,
+ *  cotización, repuestos. Son pastillas grandes: se tocan con guantes. */
 function Camino({ estado, orden }: { estado: Estado; orden: { id: string; numero: number } }) {
   const actual = pasoActual(estado);
+  const enlaces = CAMINO.flatMap((_, i) => enlacesVisibles(i, estado)).filter(
+    (e, i, todos) => todos.findIndex((x) => x.destino === e.destino) === i,
+  );
   return (
-    <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-      {CAMINO.map((paso, i) => {
-        const hecho = i < actual || estado === "entregada";
-        const enCurso = i === actual && estado !== "entregada";
-        return (
-          <li key={paso.titulo} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14 }}>
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 24,
-                height: 24,
-                borderRadius: "50%",
-                flexShrink: 0,
-                fontSize: 12,
-                fontWeight: 800,
-                background: enCurso ? "var(--accent)" : hecho ? "var(--ok-fondo)" : "var(--surface-2)",
-                color: enCurso ? "var(--accent-texto)" : hecho ? "var(--ok)" : "var(--ink-3)",
-              }}
-            >
-              {hecho ? <Check size={14} strokeWidth={2.6} /> : i + 1}
-            </span>
-            <span style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
-              <span style={{ fontWeight: enCurso ? 800 : 500, color: hecho || enCurso ? "var(--ink)" : "var(--ink-3)" }}>
-                {paso.titulo}
-                {enCurso && paso.estados.length > 1 && (
-                  <span style={{ fontWeight: 600, color: "var(--ink-2)" }}> · {ETIQUETA_ESTADO[estado]}</span>
-                )}
+    <div>
+      <ol
+        aria-label="Camino de la orden"
+        style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 4px" }}
+      >
+        {CAMINO.map((paso, i) => {
+          const hecho = i < actual || estado === "entregada";
+          const enCurso = i === actual && estado !== "entregada";
+          return (
+            <li key={paso.titulo} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              {i > 0 && <span aria-hidden style={{ width: 12, height: 2, borderRadius: 1, background: hecho || enCurso ? "var(--ok)" : "var(--rule)" }} />}
+              <span
+                aria-current={enCurso ? "step" : undefined}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  padding: enCurso ? "3px 9px" : "3px 2px",
+                  borderRadius: "var(--r-pill)",
+                  background: enCurso ? "var(--accent)" : "transparent",
+                  color: enCurso ? "var(--accent-texto)" : hecho ? "var(--ok)" : "var(--ink-3)",
+                  fontSize: 12,
+                  fontWeight: enCurso ? 800 : 600,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {hecho && <Check size={12} strokeWidth={3} aria-hidden />}
+                {enCurso && paso.estados.length > 1 ? ETIQUETA_ESTADO[estado] : paso.titulo}
               </span>
-              {enlacesVisibles(i, estado).length > 0 && (
-                <span style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
-                  {enlacesVisibles(i, estado).map((e) => (
-                    <Link
-                      key={e.destino}
-                      href={rutaDe(e.destino, orden)}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 4,
-                        height: 34,
-                        padding: "0 12px",
-                        borderRadius: "var(--r-pill)",
-                        border: "1px solid var(--rule)",
-                        background: "var(--surface-2)",
-                        color: "var(--ink)",
-                        fontSize: 13,
-                        fontWeight: 700,
-                        textDecoration: "none",
-                      }}
-                    >
-                      {ICONO_DESTINO[e.destino]}
-                      {e.texto}
-                      <ChevronRight size={14} strokeWidth={2.2} color="var(--ink-3)" aria-hidden />
-                    </Link>
-                  ))}
-                </span>
-              )}
-            </span>
-          </li>
-        );
-      })}
-    </ol>
+            </li>
+          );
+        })}
+      </ol>
+      {enlaces.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
+          {enlaces.map((e) => (
+            <Link
+              key={e.destino}
+              href={rutaDe(e.destino, orden)}
+              className="pastilla"
+              style={{ gap: 6 }}
+            >
+              {ICONO_DESTINO[e.destino]}
+              {e.texto}
+              <ChevronRight size={14} strokeWidth={2.2} color="var(--ink-3)" aria-hidden />
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -158,10 +152,6 @@ function PanelAcceso({ ordenId }: { ordenId: string }) {
 
   return (
     <Tarjeta>
-      <h2 style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
-        <KeyRound size={19} strokeWidth={2} color="var(--ink-2)" aria-hidden />
-        Acceso al equipo
-      </h2>
       {acceso === undefined ? (
         <Boton variante="contorno" icono={<Eye size={16} strokeWidth={2} />} onClick={verAcceso} disabled={cargando}>
           {cargando ? "Cargando…" : "Ver código de acceso"}
@@ -194,10 +184,11 @@ interface Evento {
  *  del lado del técnico/admin -- Fase 8 del Plan 1. La nota (si hay)
  *  solo se muestra acá, no en el enlace público del cliente. */
 function Historial({ eventos }: { eventos: Evento[] }) {
-  if (eventos.length === 0) return null;
+  if (eventos.length === 0) {
+    return <Tarjeta style={{ color: "var(--ink-3)", fontSize: 13 }}>Todavía no hay movimientos.</Tarjeta>;
+  }
   return (
     <section>
-      <h2 style={{ marginBottom: 12 }}>Historial</h2>
       <Tarjeta>
         <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 14 }}>
           {eventos.map((e, i) => (
@@ -270,6 +261,7 @@ export default function PaginaOrdenTecnico() {
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [imprimiendo, setImprimiendo] = useState(false);
   const [avisoEtiqueta, setAvisoEtiqueta] = useState<string | null>(null);
+  const [pestana, setPestana] = useState<"mensajes" | "historial" | "acceso">("mensajes");
 
   function cargarOrden() {
     fetch(`/api/ordenes/${id}`)
@@ -410,37 +402,75 @@ export default function PaginaOrdenTecnico() {
   return (
     <div className="pila">
       <Tarjeta>
-        <div className="fila" style={{ justifyContent: "space-between", marginBottom: 12 }}>
-          <h1 className="cifra">Orden #{orden.numero}</h1>
-          <span className="fila" style={{ gap: 6, alignItems: "center" }}>
-            <EstadoOrden estado={orden.estado} />
-            {orden.fase_nombre && (
-              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-2)" }}>· {orden.fase_nombre}</span>
-            )}
-          </span>
-        </div>
-        <h2 style={{ fontSize: 17 }}>
-          {orden.marca} {orden.modelo}
-        </h2>
-        <p className="cifra" style={{ margin: "4px 0 14px", fontSize: 13, color: "var(--ink-2)" }}>
-          {orden.tipo} · {orden.serial}
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 14 }}>
-          <div>
-            <span style={{ color: "var(--ink-3)" }}>Cliente · </span>
-            <strong>{orden.cliente_nombre}</strong>
-          </div>
-          <div>
-            <span style={{ color: "var(--ink-3)" }}>Motivo · </span>
-            {orden.motivo}
-          </div>
-          {Number(orden.total) > 0 && (
-            <div>
-              <span style={{ color: "var(--ink-3)" }}>Total · </span>
-              <strong className="cifra">{fmt(Number(orden.total))}</strong>
+        <div className="fila" style={{ justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "nowrap" }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="fila" style={{ gap: 10, alignItems: "center" }}>
+              <h1 className="cifra">Orden #{orden.numero}</h1>
+              <EstadoOrden estado={orden.estado} />
+              {orden.fase_nombre && (
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-2)" }}>· {orden.fase_nombre}</span>
+              )}
             </div>
-          )}
+            <p style={{ margin: "6px 0 0", fontSize: 15, fontWeight: 700 }}>
+              {orden.marca} {orden.modelo}{" "}
+              <span className="cifra" style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-3)" }}>
+                · {orden.tipo} · {orden.serial}
+              </span>
+            </p>
+            <p style={{ margin: "2px 0 0", fontSize: 14, color: "var(--ink-2)" }}>
+              {orden.cliente_nombre}
+              {Number(orden.total) > 0 && (
+                <>
+                  {" · "}
+                  <strong className="cifra" style={{ color: "var(--ink)" }}>{fmt(Number(orden.total))}</strong>
+                </>
+              )}
+            </p>
+          </div>
+          <MenuMas
+            opciones={[
+              ...(rol && puede(rol, "editar_orden") && orden.estado !== "entregada"
+                ? [
+                    {
+                      texto: "Editar datos",
+                      icono: <Pencil size={16} strokeWidth={2} />,
+                      href: `/ordenes/${id}/editar?volver=${encodeURIComponent(`/orden/${id}`)}`,
+                    },
+                  ]
+                : []),
+              ...(rol && puede(rol, "reimprimir_etiqueta_orden")
+                ? [
+                    {
+                      texto: imprimiendo ? "Enviando etiqueta…" : "Reimprimir etiqueta",
+                      icono: <Printer size={16} strokeWidth={2} />,
+                      onClick: reimprimirEtiqueta,
+                      disabled: imprimiendo,
+                    },
+                  ]
+                : []),
+            ]}
+          />
         </div>
+        {orden.motivo && <p style={{ margin: "10px 0 0", fontSize: 14 }}>{orden.motivo}</p>}
+        {avisoEtiqueta && <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--ink-2)" }}>{avisoEtiqueta}</p>}
+
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--rule)" }}>
+          <Camino estado={orden.estado} orden={orden} />
+        </div>
+
+        {/* Las fases de la empresa son detalle opcional dentro de cada paso. */}
+        {rol && puede(rol, "diagnosticar") && (
+          <SelectorFase
+            ordenId={id}
+            estado={orden.estado}
+            faseId={orden.fase_id}
+            onCambio={(fase) => {
+              setOrden((prev) => (prev ? { ...prev, fase_id: fase?.id ?? null, fase_nombre: fase?.nombre ?? null } : prev));
+              cargarEventos();
+            }}
+          />
+        )}
+
         <div style={{ marginTop: 14 }}>
           <EnlaceOrden
             ordenId={id}
@@ -448,37 +478,6 @@ export default function PaginaOrdenTecnico() {
             conWhatsapp={Boolean(rol && puede(rol, "enviar_whatsapp_orden"))}
           />
         </div>
-        {rol && puede(rol, "editar_orden") && orden.estado !== "entregada" && (
-          <div style={{ marginTop: 14 }}>
-            <BotonEnlace
-              variante="contorno"
-              href={`/ordenes/${id}/editar?volver=${encodeURIComponent(`/orden/${id}`)}`}
-              icono={<Pencil size={16} strokeWidth={2} />}
-            >
-              Editar datos
-            </BotonEnlace>
-          </div>
-        )}
-        {rol && puede(rol, "reimprimir_etiqueta_orden") && (
-          <div style={{ marginTop: 14 }}>
-            <Boton
-              variante="contorno"
-              icono={<Printer size={16} strokeWidth={2} />}
-              onClick={reimprimirEtiqueta}
-              disabled={imprimiendo}
-            >
-              {imprimiendo ? "Enviando…" : "Reimprimir etiqueta"}
-            </Boton>
-            {avisoEtiqueta && (
-              <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--ink-2)" }}>{avisoEtiqueta}</p>
-            )}
-          </div>
-        )}
-      </Tarjeta>
-
-      <Tarjeta>
-        <div className="campo-etiqueta">Camino de la orden</div>
-        <Camino estado={orden.estado} orden={orden} />
       </Tarjeta>
 
       <Tarjeta>
@@ -595,26 +594,34 @@ export default function PaginaOrdenTecnico() {
           )}
       </Tarjeta>
 
-      {rol && puede(rol, "ver_acceso_dispositivo") && <PanelAcceso ordenId={id} />}
-
-      {/* Las fases de la empresa son detalle opcional dentro de cada paso. */}
-      {rol && puede(rol, "diagnosticar") && (
-        <SelectorFase
-          ordenId={id}
-          estado={orden.estado}
-          faseId={orden.fase_id}
-          onCambio={(fase) => {
-            setOrden((prev) => (prev ? { ...prev, fase_id: fase?.id ?? null, fase_nombre: fase?.nombre ?? null } : prev));
-            cargarEventos();
-          }}
-        />
-      )}
-
-      <Historial eventos={eventos} />
-
       <div id="mensajes" style={{ scrollMarginTop: 16 }}>
-        <h2 style={{ marginBottom: 12 }}>Mensajes</h2>
-        <HiloMensajes mensajes={mensajes} ladoPropio="staff" onEnviar={enviarMensaje} placeholder="Responder al cliente…" />
+        <div role="tablist" aria-label="Detalle de la orden" style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 12 }}>
+          {(
+            [
+              { valor: "mensajes", texto: `Mensajes${mensajes.length ? ` (${mensajes.length})` : ""}` },
+              { valor: "historial", texto: "Historial" },
+              ...(rol && puede(rol, "ver_acceso_dispositivo") ? [{ valor: "acceso", texto: "Acceso" }] : []),
+            ] as { valor: typeof pestana; texto: string }[]
+          ).map((p) => (
+            <button
+              key={p.valor}
+              type="button"
+              role="tab"
+              aria-selected={pestana === p.valor}
+              className={`pastilla${pestana === p.valor ? " pastilla-activa" : ""}`}
+              onClick={() => setPestana(p.valor)}
+            >
+              {p.texto}
+            </button>
+          ))}
+        </div>
+        <div role="tabpanel">
+          {pestana === "mensajes" && (
+            <HiloMensajes mensajes={mensajes} ladoPropio="staff" onEnviar={enviarMensaje} placeholder="Responder al cliente…" />
+          )}
+          {pestana === "historial" && <Historial eventos={eventos} />}
+          {pestana === "acceso" && <PanelAcceso ordenId={id} />}
+        </div>
       </div>
 
       <VentanaError mensaje={error} onCerrar={() => setError(null)} />

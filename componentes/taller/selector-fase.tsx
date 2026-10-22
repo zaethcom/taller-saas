@@ -2,7 +2,8 @@
 
 /**
  * Elegir la fase de la orden entre las activas de su estado actual
- * (0050_fase_orden.sql). Botones y no un desplegable: se toca con
+ * (0050_fase_orden.sql), como pastillas dentro del encabezado de la
+ * orden. Botones y no un desplegable: se toca con
  * guantes, igual que los accesos del hub. Si el estado no tiene fases
  * configuradas no se dibuja nada -- la orden funciona igual sin ellas.
  *
@@ -10,11 +11,8 @@
  * cambiar el estado primero, y eso sigue pasando por la transición.
  */
 import { useEffect, useState } from "react";
-import { Layers } from "lucide-react";
 import type { Estado } from "@/lib/estados";
 import { fasesActivasDe, type FaseOrden } from "@/lib/fases";
-import { Boton } from "@/componentes/ui/boton";
-import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { VentanaError } from "@/componentes/ui/ventana-error";
 
 export function SelectorFase({
@@ -64,25 +62,21 @@ export function SelectorFase({
   if (opciones.length === 0) return null;
 
   return (
-    <Tarjeta>
-      <h2 style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
-        <Layers size={19} strokeWidth={2} color="var(--ink-2)" aria-hidden />
-        Fase
-      </h2>
-      <div className="fila" style={{ gap: 8 }}>
-        {opciones.map((f) => (
-          <Boton
-            key={f.id}
-            variante={f.id === faseId ? "primario" : "contorno"}
-            onClick={() => elegir(f.id)}
-            disabled={cambiando}
-            aria-pressed={f.id === faseId}
-          >
-            {f.nombre}
-          </Boton>
-        ))}
-      </div>
+    <div className="fila" style={{ gap: 6, marginTop: 12, alignItems: "center" }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-2)", marginRight: 4 }}>Fase</span>
+      {opciones.map((f) => (
+        <button
+          key={f.id}
+          type="button"
+          className={`pastilla${f.id === faseId ? " pastilla-activa" : ""}`}
+          onClick={() => elegir(f.id)}
+          disabled={cambiando}
+          aria-pressed={f.id === faseId}
+        >
+          {f.nombre}
+        </button>
+      ))}
       <VentanaError mensaje={error} onCerrar={() => setError(null)} />
-    </Tarjeta>
+    </div>
   );
 }
