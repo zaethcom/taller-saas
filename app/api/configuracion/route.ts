@@ -15,6 +15,7 @@ import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { puede } from "@/lib/permisos";
+import { normalizarTiposEquipo, tiposEquipoDeEmpresa } from "@/lib/tipos-equipo";
 
 export async function GET() {
   const supabase = await clienteServidor();
@@ -23,12 +24,19 @@ export async function GET() {
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
-  const [config, { data: empresa }] = await Promise.all([
+  // tipos_equipo va en su propia consulta: si la columna (0066) todavía
+  // no existe, solo se usan los tipos de siempre y lo demás no se pierde.
+  const [config, { data: empresa }, { data: tipos }] = await Promise.all([
     obtenerConfiguracion(supabase, perfil.empresaId),
     supabase.from("empresa").select("codigo").eq("id", perfil.empresaId).maybeSingle(),
+    supabase.from("empresa_config").select("tipos_equipo").eq("empresa_id", perfil.empresaId).maybeSingle(),
   ]);
 
-  return NextResponse.json({ ...config, codigo: empresa?.codigo ?? null });
+  return NextResponse.json({
+    ...config,
+    codigo: empresa?.codigo ?? null,
+    tiposEquipo: tiposEquipoDeEmpresa(tipos?.tipos_equipo),
+  });
 }
 
 const CODIGO_VALIDO = /^[a-z0-9-]{3,30}$/;
@@ -47,6 +55,8 @@ interface CuerpoConfig {
   fondoLoginUrl?: string | null;
   codigo?: string | null;
   tipoNegocio?: "celular" | "computador" | "patineta" | "otro" | null;
+  /** [{ valor?, etiqueta }]; sin valor es un tipo nuevo. */
+  tiposEquipo?: unknown;
 }
 
 const TIPOS_NEGOCIO = ["celular", "computador", "patineta", "otro"];
@@ -81,6 +91,11 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "tipo de negocio inválido" }, { status: 400 });
   }
 
+  const tiposEquipo = body.tiposEquipo === undefined ? undefined : normalizarTiposEquipo(body.tiposEquipo);
+  if (tiposEquipo === null) {
+    return NextResponse.json({ error: "deja al menos un tipo de equipo" }, { status: 400 });
+  }
+
   if (body.codigo !== undefined) {
     const { error: errCodigo } = await supabase
       .from("empresa")
@@ -107,6 +122,7 @@ export async function PATCH(req: Request) {
       ...(body.prefijoEtiqueta !== undefined && { prefijo_etiqueta: body.prefijoEtiqueta.toUpperCase() }),
       ...(body.fondoLoginUrl !== undefined && { fondo_login_url: body.fondoLoginUrl }),
       ...(body.tipoNegocio !== undefined && { tipo_negocio: body.tipoNegocio }),
+      ...(tiposEquipo !== undefined && { tipos_equipo: tiposEquipo }),
       actualizado_en: new Date().toISOString(),
     },
     { onConflict: "empresa_id" },
@@ -116,5 +132,5 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, ...(tiposEquipo !== undefined && { tiposEquipo }) });
 }

@@ -34,6 +34,12 @@ import { EnlaceOrden } from "@/componentes/taller/enlace-orden";
 import { UltimasRecepciones, reimprimirComprobante, rutaCorregir } from "@/componentes/recepcion/ultimas-recepciones";
 import type { MarcaConModelos } from "@/lib/modelos-equipo";
 import { pareceCelular, sePuedeBuscarCliente, type ClienteEncontrado } from "@/lib/busqueda-cliente";
+import {
+  TIPOS_EQUIPO_POR_DEFECTO,
+  etiquetaTipoEquipo,
+  tipoEquipoInicial,
+  type TipoEquipo,
+} from "@/lib/tipos-equipo";
 
 type TipoNegocio = "celular" | "computador" | "patineta" | "otro";
 
@@ -128,6 +134,8 @@ export default function PaginaRecibir() {
   const [serial, setSerial] = useState("");
   const [producto, setProducto] = useState<Producto | null>(null);
   const [productoNuevo, setProductoNuevo] = useState({ tipo: "patineta", marca: "", modelo: "" });
+  // Los tipos de equipo que la empresa dejó en Configuración → Taller.
+  const [tiposEquipo, setTiposEquipo] = useState<TipoEquipo[]>(TIPOS_EQUIPO_POR_DEFECTO);
   const [buscandoProducto, setBuscandoProducto] = useState(false);
   const [escaneando, setEscaneando] = useState(false);
   // Marcas y modelos del catálogo y de equipos ya recibidos; si no hay
@@ -193,11 +201,12 @@ export default function PaginaRecibir() {
       .catch(() => {});
     fetch("/api/configuracion")
       .then((r) => r.json())
-      .then((config: { tipoNegocio?: TipoNegocio | null }) => {
-        if (config.tipoNegocio) {
-          setTipoNegocio(config.tipoNegocio);
-          setProductoNuevo((p) => ({ ...p, tipo: TIPO_POR_NEGOCIO[config.tipoNegocio as TipoNegocio] }));
-        }
+      .then((config: { tipoNegocio?: TipoNegocio | null; tiposEquipo?: TipoEquipo[] }) => {
+        const lista = config.tiposEquipo?.length ? config.tiposEquipo : TIPOS_EQUIPO_POR_DEFECTO;
+        setTiposEquipo(lista);
+        if (config.tipoNegocio) setTipoNegocio(config.tipoNegocio);
+        const preferido = config.tipoNegocio ? TIPO_POR_NEGOCIO[config.tipoNegocio] : "patineta";
+        setProductoNuevo((p) => ({ ...p, tipo: tipoEquipoInicial(lista, preferido) }));
       })
       .catch(() => {});
     fetch("/api/metodos-pago")
@@ -658,7 +667,7 @@ export default function PaginaRecibir() {
                 <strong>
                   {producto.marca} {producto.modelo}
                 </strong>{" "}
-                ({producto.tipo}) · ya estaba registrado
+                ({etiquetaTipoEquipo(producto.tipo, tiposEquipo)}) · ya estaba registrado
               </Aviso>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))", gap: 10 }}>
@@ -667,9 +676,11 @@ export default function PaginaRecibir() {
                   value={productoNuevo.tipo}
                   onChange={(e) => setProductoNuevo((p) => ({ ...p, tipo: e.target.value }))}
                 >
-                  <option value="patineta">Patineta</option>
-                  <option value="celular">Celular</option>
-                  <option value="computador">Computador</option>
+                  {tiposEquipo.map((t) => (
+                    <option key={t.valor} value={t.valor}>
+                      {t.etiqueta}
+                    </option>
+                  ))}
                 </select>
                 <div>
                   {marcas.length > 0 && (
