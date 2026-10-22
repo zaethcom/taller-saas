@@ -13,7 +13,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -22,6 +24,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -30,7 +33,6 @@ import androidx.compose.ui.unit.sp
 import com.zaethcom.puente.core.*
 import com.zaethcom.puente.net.ClienteWeb
 import com.zaethcom.puente.net.EstadoWeb
-import com.zaethcom.puente.net.ipLocal
 import com.zaethcom.puente.usb.UsbRawTransport
 import kotlinx.coroutines.launch
 
@@ -65,6 +67,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** Al volver a la pantalla, la IP se lee de nuevo por si la red cambió mientras tanto. */
+    override fun onResume() {
+        super.onResume()
+        (applicationContext as PuenteApp).red.refrescar()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -119,54 +127,70 @@ private fun Pantalla(app: PuenteApp) {
     val contexto = LocalContext.current
 
     var eligiendoPara by remember { mutableStateOf<Rol?>(null) }
-    val ip = remember { ipLocal() }
+    // Antes: remember { ipLocal() }, leída una sola vez. Si la pantalla se abría
+    // antes de que hubiera red (al prender el equipo), se quedaba en «Sin red».
+    val ip by app.red.ip.collectAsState()
+    val escucha by app.servidores.escucha.collectAsState()
+    val estadoWeb by app.web.estado.collectAsState()
     val version = remember { versionInstalada(contexto) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Cabecera(ip, config, version)
+    // En un equipo de mostrador la pantalla es ancha: las tarjetas se centran con
+    // un ancho máximo en vez de quedar cada una de un tamaño distinto.
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 760.dp)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Cabecera(version, estadoWeb, config, escucha)
 
-        val estadoWeb by app.web.estado.collectAsState()
-        TarjetaWeb(estadoWeb, app.web)
+            TarjetaWeb(estadoWeb, app.web)
 
-        Rol.entries.forEach { rol ->
-            TarjetaImpresora(
-                cfg = config.de(rol),
-                alAsignar = { eligiendoPara = rol },
-                alCambiarPuerto = { nuevo ->
-                    puente.actualizar(config.de(rol).copy(puerto = nuevo))
-                    app.servidores.reiniciar()
-                },
-                alProbar = {
-                    alcance.launch { puente.imprimir(rol, Pruebas.para(rol)) }
-                },
-                // Solo etiquetas: si la impresora no reacciona, puede ser que
-                // hable otro idioma. Un botón por dialecto lo resuelve sin
-                // tener que averiguar el modelo.
-                alProbarDialecto = if (rol == Rol.ETIQUETAS) {
-                    { d: Dialecto -> alcance.launch { puente.imprimir(rol, PruebasEtiqueta.de(d)) } }
-                } else null,
-                alAbrirCajon = if (rol == Rol.TICKETS) {
-                    { alcance.launch { puente.imprimir(rol, Pruebas.abrirCajon()) } }
-                } else null
-            )
-        }
-
-        TarjetaHttp(
-            secreto = config.secretoHttp,
-            puerto = config.puertoHttp,
-            alGuardar = { secreto, puerto ->
-                puente.actualizarHttp(secreto, puerto)
-                app.servidores.reiniciar()
+            Rol.entries.forEach { rol ->
+                TarjetaImpresora(
+                    cfg = config.de(rol),
+                    puertoEscuchando = escucha[rol],
+                    alAsignar = { eligiendoPara = rol },
+                    alCambiarPuerto = { nuevo ->
+                        puente.actualizar(config.de(rol).copy(puerto = nuevo))
+                        app.servidores.reiniciar()
+                    },
+                    alProbar = {
+                        alcance.launch { puente.imprimir(rol, Pruebas.para(rol)) }
+                    },
+                    // Solo etiquetas: si la impresora no reacciona, puede ser que
+                    // hable otro idioma. Un botón por dialecto lo resuelve sin
+                    // tener que averiguar el modelo.
+                    alProbarDialecto = if (rol == Rol.ETIQUETAS) {
+                        { d: Dialecto -> alcance.launch { puente.imprimir(rol, PruebasEtiqueta.de(d)) } }
+                    } else null,
+                    alAbrirCajon = if (rol == Rol.TICKETS) {
+                        { alcance.launch { puente.imprimir(rol, Pruebas.abrirCajon()) } }
+                    } else null
+                )
             }
-        )
 
-        Bitacora(bitacora)
+            TarjetaRedLocal(
+                ip = ip,
+                config = config,
+                webEnLinea = estadoWeb.vinculo != null && estadoWeb.conectado,
+                alBuscar = { app.red.refrescar() }
+            )
+
+            TarjetaHttp(
+                secreto = config.secretoHttp,
+                puerto = config.puertoHttp,
+                alGuardar = { secreto, puerto ->
+                    puente.actualizarHttp(secreto, puerto)
+                    app.servidores.reiniciar()
+                }
+            )
+
+            Bitacora(bitacora)
+        }
     }
 
     eligiendoPara?.let { rol ->
@@ -202,36 +226,114 @@ private fun descripcion(d: UsbDevice): String {
     return "$nombre (${d.vendorId}:${d.productId})"
 }
 
+/** Colores de estado. Material 3 no trae un "verde de éxito", así que se fijan aquí. */
+private val VERDE = Color(0xFF4CAF50)
+private val AMBAR = Color(0xFFFFB300)
+
+/** Un punto de color + texto: se lee de un vistazo desde lejos del mostrador. */
 @Composable
-private fun Cabecera(ip: String?, config: ConfigPuente, version: String) {
-    Card {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Puente de impresión", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+private fun FilaEstado(color: Color, titulo: String, detalle: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(Modifier.size(12.dp).background(color, CircleShape))
+        Text(titulo, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        if (detalle.isNotBlank()) {
             Text(
-                "Esta es la dirección que va en el config.json de la estación:",
+                detalle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // Un mensaje de error largo envuelve en vez de salirse de la tarjeta.
+                modifier = Modifier.weight(1f, fill = false)
+            )
+        }
+    }
+}
+
+/**
+ * Resumen de todo en una sola tarjeta: ¿está conectado con la web? ¿cada impresora
+ * está lista? Antes la cabecera solo mostraba la IP de la red local, que es lo menos
+ * importante desde que el puente imprime directo desde la web, y un «Sin red» grande
+ * hacía pensar que no funcionaba aunque estuviera en línea.
+ */
+@Composable
+private fun Cabecera(version: String, web: EstadoWeb, config: ConfigPuente, escucha: Map<Rol, Int?>) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text("Puente de impresión", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                // Para poder responder "¿quedó instalada la nueva?" mirando la
+                // pantalla, en vez de adivinando.
+                Text(
+                    "compilación $version",
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            val vinculo = web.vinculo
+            when {
+                vinculo == null ->
+                    FilaEstado(MaterialTheme.colorScheme.onSurfaceVariant, "Web", "sin vincular — escribe el código abajo")
+                web.esError ->
+                    FilaEstado(MaterialTheme.colorScheme.error, "Web", web.mensaje.ifBlank { "error de conexión" })
+                web.conectado ->
+                    FilaEstado(VERDE, "Web", "en línea · ${vinculo.sedeNombre}")
+                else ->
+                    FilaEstado(AMBAR, "Web", "conectando con ${vinculo.sedeNombre}…")
+            }
+
+            Rol.entries.forEach { rol ->
+                val cfg = config.de(rol)
+                when {
+                    !cfg.asignada -> FilaEstado(AMBAR, rol.etiqueta, "sin impresora asignada")
+                    escucha[rol] == null -> FilaEstado(MaterialTheme.colorScheme.error, rol.etiqueta, "puerto ${cfg.puerto} cerrado")
+                    else -> FilaEstado(VERDE, rol.etiqueta, "lista")
+                }
+            }
+        }
+    }
+}
+
+/**
+ * La IP solo hace falta para una estación de PC que le mande trabajos por la red del
+ * local (config.json). Va aparte y marcada como opcional: no es lo que hace
+ * funcionar el puente cuando está vinculado con la web.
+ */
+@Composable
+private fun TarjetaRedLocal(ip: String?, config: ConfigPuente, webEnLinea: Boolean, alBuscar: () -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Red local (opcional)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Solo para un PC del local que imprima aquí con la estación. Estas direcciones van en su config.json." +
+                    if (webEnLinea) " Con la conexión con la web en línea, no hace falta." else "",
                 style = MaterialTheme.typography.bodySmall
             )
-            Text(
-                ip ?: "Sin red — conecta el equipo",
-                fontFamily = FontFamily.Monospace,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                "tickets → puerto ${config.de(Rol.TICKETS).puerto}   ·   " +
-                    "etiquetas → puerto ${config.de(Rol.ETIQUETAS).puerto}",
-                fontFamily = FontFamily.Monospace,
-                style = MaterialTheme.typography.bodySmall
-            )
-            // Para poder responder "¿quedó instalada la nueva?" mirando la
-            // pantalla, en vez de adivinando.
-            Text(
-                "compilación $version",
-                fontFamily = FontFamily.Monospace,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (ip != null) {
+                Rol.entries.forEach { rol ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "$ip:${config.de(rol).puerto}",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(rol.etiqueta.lowercase(), style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            } else {
+                Text(
+                    "Este equipo no está en una red WiFi o de cable en este momento.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    // Sin web, la red local es el único camino: ahí sí es un problema.
+                    color = if (webEnLinea) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.error
+                )
+                OutlinedButton(onClick = alBuscar) { Text("Buscar de nuevo") }
+            }
         }
     }
 }
@@ -245,6 +347,8 @@ private fun versionInstalada(contexto: Context): String =
 @Composable
 private fun TarjetaImpresora(
     cfg: ImpresoraCfg,
+    /** Puerto donde el servidor quedó escuchando de verdad; null si no se pudo abrir. */
+    puertoEscuchando: Int?,
     alAsignar: () -> Unit,
     alCambiarPuerto: (Int) -> Unit,
     alProbar: () -> Unit,
@@ -257,7 +361,7 @@ private fun TarjetaImpresora(
     val puertoValido = textoPuerto.toIntOrNull()?.takeIf { it in 1024..65535 }
     val hayCambio = puertoValido != null && puertoValido != cfg.puerto
 
-    Card {
+    Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(cfg.rol.etiqueta, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -290,7 +394,11 @@ private fun TarjetaImpresora(
                         textoPuerto.isNotEmpty() && puertoValido == null ->
                             Text("Tiene que estar entre 1024 y 65535")
                         hayCambio -> Text("Sin aplicar — pulsa Aplicar")
-                        else -> Text("Escuchando en ${cfg.puerto}")
+                        puertoEscuchando == cfg.puerto -> Text("Escuchando en ${cfg.puerto}")
+                        else -> Text(
+                            "No se pudo abrir el puerto ${cfg.puerto} — mira la Actividad",
+                            color = MaterialTheme.colorScheme.error
+                        )
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -352,7 +460,7 @@ private fun TarjetaWeb(estado: EstadoWeb, web: ClienteWeb) {
     var error by remember { mutableStateOf<String?>(null) }
     val vinculo = estado.vinculo
 
-    Card {
+    Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Conexión con la web", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 
@@ -385,14 +493,24 @@ private fun TarjetaWeb(estado: EstadoWeb, web: ClienteWeb) {
                 ) { Text(if (trabajando) "Vinculando…" else "Vincular") }
             } else {
                 Text("Sede: ${vinculo.sedeNombre}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                Text(
-                    estado.mensaje.ifBlank { "Conectando…" },
-                    style = MaterialTheme.typography.bodySmall,
+                FilaEstado(
                     color = when {
                         estado.esError -> MaterialTheme.colorScheme.error
-                        estado.conectado -> MaterialTheme.colorScheme.primary
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                    }
+                        estado.conectado -> VERDE
+                        else -> AMBAR
+                    },
+                    titulo = when {
+                        estado.esError -> "Con error"
+                        estado.conectado -> "En línea"
+                        else -> "Conectando"
+                    },
+                    // «En línea con Local 1» repetiría el título; el resto sí informa.
+                    detalle = if (estado.conectado && !estado.esError) "" else estado.mensaje
+                )
+                Text(
+                    "Los trabajos de la web llegan por internet. No hace falta la red local ni un PC.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedButton(onClick = { web.desvincular() }) { Text("Desvincular") }
             }
@@ -405,7 +523,7 @@ private fun TarjetaHttp(secreto: String, puerto: Int, alGuardar: (String, Int) -
     var textoSecreto by remember(secreto) { mutableStateOf(secreto) }
     var textoPuerto by remember(puerto) { mutableStateOf(puerto.toString()) }
 
-    Card {
+    Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Servidor HTTP (opcional)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(
@@ -435,7 +553,7 @@ private fun TarjetaHttp(secreto: String, puerto: Int, alGuardar: (String, Int) -
 
 @Composable
 private fun Bitacora(lineas: List<Linea>) {
-    Card {
+    Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Actividad", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             if (lineas.isEmpty()) {
