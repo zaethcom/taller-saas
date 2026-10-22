@@ -104,3 +104,15 @@ describe("ajustar() y juntar()", () => {
     expect(juntar(["Uno", "", "Dos"], 20)).toEqual(["Uno - Dos"]);
   });
 });
+
+describe("cuenta de un encargo", () => {
+  it("usa el título y la etiqueta del valor en vez de la orden", () => {
+    const txt = reciboVenta({
+      ...BASE,
+      cuentaOrden: { titulo: "Encargo: Vidrio", etiquetaValor: "Valor", valor: 50000, abonadoAntes: 0, estePago: 20000, saldo: 30000 },
+    }).toString("latin1");
+    expect(txt).toContain("Encargo: Vidrio");
+    expect(txt).not.toContain("Orden #");
+    expect(txt).not.toContain("Valor del servicio");
+  });
+});

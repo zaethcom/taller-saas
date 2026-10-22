@@ -415,7 +415,7 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
           </div>
 
           {encargo ? (
-            <EncargoCompras cliente={cliente} />
+            <EncargoCompras cliente={cliente} metodos={metodos} turnoAbierto={turnoAbierto} />
           ) : (
           <>
           <form

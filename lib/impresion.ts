@@ -77,7 +77,10 @@ interface CargaReciboVenta extends CargaMarcaEmpresa {
 }
 
 interface CuentaOrdenImpresa {
-  numeroOrden: number;
+  numeroOrden?: number;
+  /** En vez de "Orden #N" (p. ej. un encargo de mostrador). */
+  titulo?: string;
+  etiquetaValor?: string;
   valor: number;
   abonadoAntes: number;
   estePago?: number | null;

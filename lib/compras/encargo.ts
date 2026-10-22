@@ -16,6 +16,8 @@ export interface Encargo {
   clienteId: string | null;
   clienteNombre: string;
   clienteTelefono: string;
+  /** Lo que vale para el cliente; null si todavía no se sabe. */
+  precioVenta: number | null;
 }
 
 export function normalizarEncargo(body: unknown): { ok: true; datos: Encargo } | { ok: false; error: string } {
@@ -26,6 +28,8 @@ export function normalizarEncargo(body: unknown): { ok: true; datos: Encargo } |
   const clienteNombre = texto(b.clienteNombre);
   const clienteTelefono = texto(b.clienteTelefono);
   const prioridad = PRIORIDADES.find((p) => p === b.prioridad) ?? "normal";
+  const precio = b.precioVenta === "" || b.precioVenta == null ? null : Math.round(Number(b.precioVenta));
+  if (precio !== null && (!Number.isFinite(precio) || precio < 0)) return { ok: false, error: "El valor no es válido" };
   if (!descripcion) return { ok: false, error: "Escribe qué hay que traer" };
   if (!Number.isFinite(cantidad) || cantidad <= 0) return { ok: false, error: "La cantidad debe ser mayor a cero" };
   if (!clienteNombre) return { ok: false, error: "Falta el nombre del cliente" };
@@ -39,6 +43,7 @@ export function normalizarEncargo(body: unknown): { ok: true; datos: Encargo } |
       clienteId: typeof b.clienteId === "string" && b.clienteId ? b.clienteId : null,
       clienteNombre: clienteNombre.slice(0, 120),
       clienteTelefono: clienteTelefono.slice(0, 40),
+      precioVenta: precio ? precio : null,
     },
   };
 }
@@ -54,4 +59,23 @@ export function mensajeEncargoListo(e: { clienteNombre: string | null; producto:
   // "Vidrio templado" se lee "tu vidrio templado"; "iPhone" o "A12" quedan igual.
   const enFrase = /^\p{Lu}\p{Ll}/u.test(producto) ? producto.charAt(0).toLowerCase() + producto.slice(1) : producto;
   return `Hola${nombre ? ` ${nombre}` : ""}, ya llegó tu ${enFrase}. Pasa lo más pronto posible.`;
+}
+
+export interface CuentaEncargo {
+  valor: number;
+  pagado: number;
+  saldo: number;
+}
+
+/** Valor, lo pagado (abono y cobros) y lo que falta de un encargo. */
+export function cuentaEncargo(precioVenta: number | null, pagos: number[]): CuentaEncargo {
+  const valor = Math.max(0, Number(precioVenta) || 0);
+  const pagado = pagos.reduce((s, p) => s + (Number(p) || 0), 0);
+  return { valor, pagado, saldo: Math.max(0, valor - pagado) };
+}
+
+/** Cómo se lee el encargo en el recibo: qué es y para quién. */
+export function descripcionEncargo(e: { descripcion: string; clienteNombre: string | null; clienteTelefono: string | null }): string {
+  const quien = [e.clienteNombre, e.clienteTelefono].filter(Boolean).join(" · ");
+  return quien ? `Encargo ${e.descripcion} (${quien})` : `Encargo ${e.descripcion}`;
 }
