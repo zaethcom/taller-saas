@@ -139,13 +139,18 @@ export default function PaginaTurno() {
   }
 
   async function cerrar() {
+    // Sin el valor contado no hay cierre: un campo vacío no es "cero".
+    if (efectivoContado.trim() === "" || Number(efectivoContado) < 0) {
+      setError("Escribe el efectivo que hay en la caja antes de cerrar el turno.");
+      return;
+    }
     setEnviando(true);
     setError(null);
     try {
       const res = await fetch("/api/turno/cerrar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ efectivoContado: Number(efectivoContado) || 0 }),
+        body: JSON.stringify({ efectivoContado: Number(efectivoContado) }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       const data = await res.json();
@@ -360,11 +365,12 @@ export default function PaginaTurno() {
 
         <Tarjeta>
           <h2 style={{ marginBottom: 12 }}>Cerrar turno</h2>
-          <Campo etiqueta="Efectivo contado" ayuda="Lo que hay de verdad en el cajón, contado a mano.">
+          <Campo etiqueta="Efectivo contado (obligatorio)" ayuda="Lo que hay de verdad en el cajón, contado a mano. Si no hay nada, escribe 0.">
             <input
               type="number"
               inputMode="numeric"
-              placeholder="0"
+              min={0}
+              placeholder="Valor de la caja"
               value={efectivoContado}
               onChange={(e) => setEfectivoContado(e.target.value)}
               className="cifra"
@@ -376,7 +382,7 @@ export default function PaginaTurno() {
               tamano="lg"
               icono={<Lock size={19} strokeWidth={2} />}
               onClick={cerrar}
-              disabled={enviando}
+              disabled={enviando || efectivoContado.trim() === ""}
             >
               {enviando ? "Cerrando…" : "Cerrar turno e imprimir"}
             </Boton>

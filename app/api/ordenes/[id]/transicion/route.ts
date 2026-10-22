@@ -57,24 +57,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const cumplidos = new Set<Requisito>();
 
-  const [{ count: fotoSalida }, { count: firma }] =
-    await Promise.all([
-      supabase
-        .from("evidencia")
-        .select("id", { count: "exact", head: true })
-        .eq("orden_id", id)
-        .eq("tipo", "foto")
-        .eq("fase", "salida"),
-      supabase
-        .from("evidencia")
-        .select("id", { count: "exact", head: true })
-        .eq("orden_id", id)
-        .eq("tipo", "firma"),
-    ]);
-
-  if ((fotoSalida ?? 0) > 0) cumplidos.add("tiene_foto_salida");
-  if ((firma ?? 0) > 0) cumplidos.add("tiene_firma");
-
   // Quien marca el equipo terminado o parado por repuesto sin que la
   // orden tenga técnico queda como su técnico: hizo el trabajo. De ahí
   // sale la productividad por técnico de los reportes. La entrega la

@@ -159,7 +159,7 @@ function AccionesEstado({
     case "listo_entrega":
       return (
         <>
-          {ayuda("En Cobrar y entregar se cobra el saldo, firma el cliente y se toma la foto de salida.")}
+          {ayuda("En Cobrar y entregar se cobra el saldo y, si quieres, se toma la foto de salida.")}
           {botones(
             <>
               <Boton variante="primario" tamano="lg" ancho icono={<ArrowRight size={19} strokeWidth={2} />} disabled={bloqueado} onClick={() => onIr("entregar")}>
