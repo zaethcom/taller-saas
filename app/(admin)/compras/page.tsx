@@ -465,6 +465,21 @@ export default function PaginaCompras() {
                         {f.estado === "faltante" && abiertoId === f.id && (
                           <Boton variante="fantasma" tamano="sm" icono={<X size={15} strokeWidth={2} />} onClick={cerrarFormulario} />
                         )}
+                        {/* Un encargo no tiene técnico ni orden a quién avisar: se le avisa al cliente. */}
+                        {f.estado === "recibido" && !unaOrden(f.orden) && f.cliente_telefono && (
+                          <a
+                            href={enlaceWhatsapp(
+                              f.cliente_telefono,
+                              mensajeEncargoListo({ clienteNombre: f.cliente_nombre, producto: f.producto ?? f.descripcion }),
+                            )}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn btn-contorno btn-sm"
+                          >
+                            <MessageCircle size={15} strokeWidth={2} />
+                            Avisar por WhatsApp
+                          </a>
+                        )}
                       </td>
                     </tr>
                     {abiertoId === f.id && (
