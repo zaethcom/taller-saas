@@ -8,7 +8,7 @@
  * mano todavía.
  */
 import { useEffect, useState } from "react";
-import { Search, Plus, Trash2, Send, PackageCheck, Check } from "lucide-react";
+import { Search, Plus, Trash2, Send, PackageCheck, Check, X } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta, TarjetaTabla } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
@@ -89,6 +89,9 @@ export default function PaginaTraslados() {
   const [entrantes, setEntrantes] = useState<Traslado[]>([]);
   const [salientes, setSalientes] = useState<Traslado[]>([]);
 
+  // El formulario de envío queda guardado tras "Nuevo traslado": lo que
+  // más se hace aquí es recibir y mirar lo enviado.
+  const [formAbierto, setFormAbierto] = useState(false);
   const [procesando, setProcesando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -188,6 +191,7 @@ export default function PaginaTraslados() {
       setMensaje(`Traslado #${data.traslado.numero} enviado. Imprimiendo comprobante…`);
       setCarrito([]);
       setNota("");
+      setFormAbierto(false);
       await cargarTraslados();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo enviar el traslado");
@@ -214,6 +218,13 @@ export default function PaginaTraslados() {
     <div>
       <TituloPantalla
         titulo="Traslados entre sedes"
+        acciones={
+          !formAbierto && (
+            <Boton variante="primario" icono={<Send size={17} strokeWidth={2} />} onClick={() => setFormAbierto(true)}>
+              Nuevo traslado
+            </Boton>
+          )
+        }
       />
 
       <div className="pila">
@@ -261,8 +272,18 @@ export default function PaginaTraslados() {
           </Tarjeta>
         )}
 
+        {formAbierto && (
         <Tarjeta>
-          <h2 style={{ marginBottom: 14 }}>Enviar mercancía a otra sede</h2>
+          <div className="fila" style={{ justifyContent: "space-between", marginBottom: 14 }}>
+            <h2>Enviar mercancía a otra sede</h2>
+            <Boton
+              variante="fantasma"
+              tamano="sm"
+              icono={<X size={16} strokeWidth={2} />}
+              onClick={() => setFormAbierto(false)}
+              aria-label="Cerrar"
+            />
+          </div>
 
           <Campo etiqueta="Sede destino">
             <select value={sedeDestinoId} onChange={(e) => setSedeDestinoId(e.target.value)}>
@@ -436,6 +457,7 @@ export default function PaginaTraslados() {
             </Boton>
           </div>
         </Tarjeta>
+        )}
 
         <section>
           <h2 style={{ marginBottom: 12 }}>Enviados por mi sede</h2>

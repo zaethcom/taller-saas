@@ -338,7 +338,7 @@ export default function PaginaCompras() {
                   </select>
                 ) : (
                   <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>
-                    Agrega un contacto de WhatsApp abajo (mensajero, almacén…).
+                    Agrega un contacto en «Contactos de WhatsApp», abajo.
                   </p>
                 )}
               </Campo>
@@ -558,8 +558,11 @@ export default function PaginaCompras() {
           </TarjetaTabla>
         )}
 
-        <Tarjeta>
-          <h2 style={{ marginBottom: 4 }}>Contactos de WhatsApp</h2>
+        {/* Se configura una vez y casi no se toca: plegado, salvo cuando
+            todavía no hay a quién mandarle el pedido. */}
+        <details className="mas-opciones" open={contactos.length === 0}>
+          <summary>Contactos de WhatsApp ({contactos.length})</summary>
+          <div style={{ marginTop: 12 }}>
           <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--ink-2)" }}>
             A quién se le puede mandar un pedido. Ponle el nombre del tipo de pedido: Mensajero, Almacén, Proveedor…
           </p>
@@ -625,7 +628,8 @@ export default function PaginaCompras() {
               </Aviso>
             </div>
           )}
-        </Tarjeta>
+          </div>
+        </details>
       </div>
     </div>
   );
