@@ -65,6 +65,8 @@ interface CargaReciboVenta extends CargaMarcaEmpresa {
   medioPago: string;
   abreCajon: boolean;
   cajero?: string | null;
+  /** A quién se le vendió; sin él (consumidor final) el recibo no dice nada. */
+  cliente?: { nombre: string; documento: string | null; telefono: string | null } | null;
   montoRecibido?: number | null;
   cambio?: number | null;
   imprimir?: boolean;

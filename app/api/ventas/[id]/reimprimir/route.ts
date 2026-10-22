@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
 import { encolarImpresion } from "@/lib/impresion";
+import { clienteImpreso } from "@/lib/cliente-venta";
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -35,7 +36,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const [{ data: venta }, { data: items }, { data: pago }] = await Promise.all([
-    supabase.from("venta").select("numero, total, empresa_id").eq("id", id).maybeSingle(),
+    supabase
+      .from("venta")
+      .select("numero, total, empresa_id, cliente(nombre, documento, telefono)")
+      .eq("id", id)
+      .maybeSingle(),
     supabase.from("venta_item").select("descripcion, cantidad, precio_unit").eq("venta_id", id),
     supabase.from("pago").select("medio, monto, es_efectivo").eq("venta_id", id).maybeSingle(),
   ]);
@@ -60,6 +65,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       medioPago: pago?.medio ?? "",
       abreCajon: false, // reimpresión: el cajón ya se abrió (o no) en el cobro original
       cajero: perfil.codigo ? `${perfil.codigo} · ${perfil.nombre}` : perfil.nombre,
+      cliente: clienteImpreso(
+        venta.cliente as unknown as { nombre: string; documento: string | null; telefono: string | null } | null,
+      ),
       montoRecibido: null,
       cambio: null,
     },

@@ -24,6 +24,8 @@ export interface CargaReciboVenta extends CargaMarcaEmpresa {
   medioPago: string;
   abreCajon: boolean;
   cajero?: string | null;
+  /** A quién se le vendió; sin él (consumidor final) el recibo no dice nada. */
+  cliente?: { nombre: string; documento: string | null; telefono: string | null } | null;
   montoRecibido?: number | null;
   cambio?: number | null;
   // "Imprimir recibo" desmarcado en el cobro -- default true porque
@@ -69,6 +71,12 @@ export function reciboVenta(c: CargaReciboVenta): Buffer {
   ];
 
   const columnas = columnasPapel(c.anchoPapelMm);
+  if (c.cliente) {
+    partes.push(...renglones(ajustar(`Cliente: ${c.cliente.nombre}`, columnas)));
+    const datos = [c.cliente.documento ? `Doc. ${c.cliente.documento}` : "", c.cliente.telefono ? `Tel. ${c.cliente.telefono}` : ""];
+    partes.push(...renglones(juntar(datos, columnas)));
+    partes.push(texto("-".repeat(columnas)), salto());
+  }
   // Texto a la izquierda y monto a la derecha; si no caben juntos, el
   // texto se parte por palabras y el monto va al final del último renglón
   // (o debajo, alineado a la derecha).

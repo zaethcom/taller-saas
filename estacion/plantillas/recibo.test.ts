@@ -46,6 +46,28 @@ describe("reciboVenta() -- compacto", () => {
   });
 });
 
+describe("reciboVenta() -- cliente", () => {
+  it("sin cliente (consumidor final) no imprime ningún renglón de cliente", () => {
+    expect(reciboVenta(BASE).toString("latin1")).not.toContain("Cliente:");
+  });
+
+  it("imprime nombre, documento y teléfono del cliente antes de los ítems", () => {
+    const txt = reciboVenta({
+      ...BASE,
+      cliente: { nombre: "Ana Pérez", documento: "1023456", telefono: "3001234567" },
+    }).toString("latin1");
+    expect(txt).toContain("Cliente: Ana P");
+    expect(txt).toMatch(/Doc\. 1023456 - Tel\. 3001234567\n/);
+    expect(txt.indexOf("Cliente:")).toBeLessThan(txt.indexOf("1 x Repuesto"));
+  });
+
+  it("sin documento ni teléfono, solo el nombre", () => {
+    const txt = reciboVenta({ ...BASE, cliente: { nombre: "Ana", documento: null, telefono: null } }).toString("latin1");
+    expect(txt).toContain("Cliente: Ana\n");
+    expect(txt).not.toContain("Doc.");
+  });
+});
+
 describe("dosColumnas()", () => {
   it("rellena con espacios hasta el ancho", () => {
     expect(dosColumnas("A", "B", 5)).toBe("A   B");

@@ -34,9 +34,10 @@ import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { PanelCobro } from "@/componentes/cobro/panel-cobro";
+import { ClienteVentaSelector, clienteEnVenta, type ClienteVenta } from "@/componentes/cobro/cliente-venta";
 import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-turno";
 import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
-import { almacenNavegador, guardarCarrito, leerCarrito, type LineaGuardada, type LineaRepuestoGuardada } from "@/lib/carrito-guardado";
+import { almacenNavegador, guardarCarrito, guardarCliente, leerCarrito, leerCliente, type LineaGuardada, type LineaRepuestoGuardada } from "@/lib/carrito-guardado";
 
 type Linea = LineaGuardada;
 
@@ -79,6 +80,7 @@ const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
 export default function PaginaVender({ claveCarrito }: { claveCarrito: string }) {
   const [carrito, setCarrito] = useState<Linea[]>([]);
+  const [cliente, setCliente] = useState<ClienteVenta | null>(null);
   // Hasta leer lo guardado no se escribe nada: si no, el carrito vacío
   // del primer render borraría el que el cajero dejó a medias.
   const [carritoCargado, setCarritoCargado] = useState(false);
@@ -111,12 +113,17 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
   // al cobrar o al vaciarlo (lib/carrito-guardado.ts).
   useEffect(() => {
     setCarrito(leerCarrito(almacenNavegador(), claveCarrito));
+    setCliente(leerCliente(almacenNavegador(), claveCarrito));
     setCarritoCargado(true);
   }, [claveCarrito]);
 
   useEffect(() => {
     if (carritoCargado) guardarCarrito(almacenNavegador(), claveCarrito, carrito);
   }, [carrito, carritoCargado, claveCarrito]);
+
+  useEffect(() => {
+    if (carritoCargado) guardarCliente(almacenNavegador(), claveCarrito, cliente);
+  }, [cliente, carritoCargado, claveCarrito]);
 
   useEffect(() => {
     fetch("/api/metodos-pago")
@@ -282,11 +289,13 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
           metodoPagoId,
           montoRecibido: metodo?.es_efectivo ? montoRecibido : undefined,
           imprimir,
+          ...clienteEnVenta(cliente),
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       const data = await res.json();
       setCarrito([]);
+      setCliente(null);
       setMontoRecibido(0);
       setVentaResultado({ id: data.ventaId, numero: data.numero });
       // Un artículo vendido deja de estar disponible: la rejilla que
@@ -529,7 +538,10 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
                   variante="peligro"
                   tamano="sm"
                   icono={<Trash2 size={15} strokeWidth={2} />}
-                  onClick={() => setCarrito([])}
+                  onClick={() => {
+                    setCarrito([]);
+                    setCliente(null);
+                  }}
                 >
                   Vaciar
                 </Boton>
@@ -666,6 +678,8 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
                   </div>
 
                   {turnoAbierto === false && <AvisoTurnoCerrado />}
+
+                  <ClienteVentaSelector valor={cliente} onCambiar={setCliente} />
 
                   <PanelCobro
                     total={total}
