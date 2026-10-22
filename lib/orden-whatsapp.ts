@@ -44,7 +44,7 @@ export function mensajeSeguimiento({
   const deParte = empresa?.trim() ? `, te escribimos de ${empresa.trim()}` : "";
   const tuEquipo = equipo?.trim() ? `tu equipo ${equipo.trim()}` : "tu equipo";
 
-  if (estado === "esperando_aprobacion") {
+  if (estado === "esperando_cliente") {
     return `${saludo}${deParte}. ${capitalizar(tuEquipo)} necesita tu autorización para continuar. Revisa el diagnóstico y la cotización, y apruébala aquí: ${url}`;
   }
   if (estado === "listo_entrega") {

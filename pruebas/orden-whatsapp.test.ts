@@ -17,7 +17,7 @@ describe("destinoWhatsappOrden", () => {
 describe("mensajeSeguimiento", () => {
   const url = "https://x.app/seguimiento/abc";
   it("pide autorización cuando la orden espera aprobación", () => {
-    const m = mensajeSeguimiento({ nombre: "Ana María Pérez", estado: "esperando_aprobacion", equipo: "Samsung A54", empresa: "Cell Fix", url });
+    const m = mensajeSeguimiento({ nombre: "Ana María Pérez", estado: "esperando_cliente", equipo: "Samsung A54", empresa: "Cell Fix", url });
     expect(m).toBe(
       `Hola Ana, te escribimos de Cell Fix. Tu equipo Samsung A54 necesita tu autorización para continuar. Revisa el diagnóstico y la cotización, y apruébala aquí: ${url}`,
     );

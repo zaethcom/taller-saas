@@ -15,7 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { numeroDesdeCodigoEntrada } from "@/lib/codigo-entrada";
-import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
+import { etiquetaEstado } from "@/lib/estados";
 import {
   ETIQUETA_COINCIDENCIA,
   MIN_CARACTERES_DOCUMENTO,
@@ -169,7 +169,7 @@ export async function GET(req: NextRequest) {
       abierta: !f.cerrada_en,
       abiertaEn: f.abierta_en,
       coincide: [...coincidencias.get(f.id)!],
-      estado: ETIQUETA_ESTADO[f.estado as Estado] ?? f.estado,
+      estado: etiquetaEstado(f.estado),
       cliente: f.producto?.cliente?.nombre ?? null,
       equipo: [f.producto?.marca, f.producto?.modelo].filter(Boolean).join(" ") || f.producto?.tipo || null,
     })),

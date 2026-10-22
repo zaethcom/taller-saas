@@ -96,7 +96,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!orden) {
     return NextResponse.json({ error: "orden no encontrada" }, { status: 404 });
   }
-  if (!itemsSeQuitan(orden.estado as Estado)) {
+  const { count: cotizaciones } = await supabase
+    .from("cotizacion")
+    .select("id", { count: "exact", head: true })
+    .eq("orden_id", id);
+  if (!itemsSeQuitan(orden.estado as Estado, (cotizaciones ?? 0) > 0)) {
     return NextResponse.json(
       { error: "La cotización ya se envió: lo que está en la orden ya no se puede quitar." },
       { status: 409 },

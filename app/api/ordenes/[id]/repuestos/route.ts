@@ -15,13 +15,15 @@
  *
  * Faltante crea la solicitud que aparece en /compras -- la lista
  * central de la sección 4 del documento original: qué hace falta,
- * para qué orden, con qué prioridad.
+ * para qué orden, con qué prioridad. Una orden en proceso pasa sola a
+ * "Falta repuesto" (lib/estados.ts) y vuelve cuando Compras lo recibe.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { recalcularTotalOrden } from "@/lib/orden-total";
 import { requiereNuevaAprobacion } from "@/lib/orden-aprobacion";
 import { consumirReserva } from "@/lib/reservas-servidor";
+import { puedeTransicionar, type Estado } from "@/lib/estados";
 
 type Cuerpo =
   | { accion: "consumir"; repuestoId: string; cantidad: number }
@@ -41,7 +43,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: orden } = await supabase
     .from("orden")
-    .select("empresa_id, sede_id")
+    .select("empresa_id, sede_id, estado")
     .eq("id", id)
     .maybeSingle();
 
@@ -133,6 +135,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (orden.estado === "en_proceso" && puedeTransicionar(orden.estado as Estado, "falta_repuesto")) {
+      const { error: errEstado } = await supabase
+        .from("orden")
+        .update({ estado: "falta_repuesto" })
+        .eq("id", id)
+        .eq("estado", "en_proceso");
+      if (!errEstado) {
+        await supabase.from("orden_evento").insert({
+          empresa_id: orden.empresa_id,
+          orden_id: id,
+          de_estado: "en_proceso",
+          a_estado: "falta_repuesto",
+          autor_id: user.id,
+          nota: `Pedido a Compras: ${body.descripcion.trim()}`,
+        });
+      }
     }
 
     return NextResponse.json({ ok: true });

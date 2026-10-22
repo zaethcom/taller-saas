@@ -31,7 +31,6 @@ interface Seguimiento {
   numero: number;
   estado: string;
   etiquetaEstado: string;
-  fase: string | null;
   motivo: string;
   abiertaEn: string;
   empresaNombre: string;
@@ -347,9 +346,6 @@ export default function PaginaSeguimiento() {
             Estado actual
           </div>
           <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.015em" }}>{datos.etiquetaEstado}</div>
-          {datos.fase && (
-            <div style={{ marginTop: 2, fontSize: 15, fontWeight: 700, color: "var(--ink-2)" }}>{datos.fase}</div>
-          )}
         </Tarjeta>
 
         {puedeDecidir && (

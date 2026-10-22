@@ -2,9 +2,13 @@
  * POST /api/aprobacion
  * Body: { token: string, decision: "aprobada" | "rechazada", motivo?: string }
  *
- * Aprobada pasa a reparación, o a "Esperando repuesto" si la orden
- * tiene repuestos pedidos que no han llegado (estadoAlAprobar). Rechazada
- * queda pendiente de decisión, con el motivo del cliente en el historial.
+ * Aprobada vuelve a "En proceso", o a "Falta repuesto" si la orden
+ * tiene repuestos pedidos que no han llegado (estadoSegunRepuestos).
+ * Rechazada sigue "Esperando al cliente" con la marca de que no aprobó
+ * y el motivo en el historial: se le recotiza o se entrega sin reparar.
+ *
+ * La ficha del técnico usa esta misma ruta cuando el cliente responde
+ * en persona o por teléfono.
  *
  * El cliente aprueba o rechaza la cotización desde el enlace público.
  * La decisión queda grabada con fecha e IP -- es la prueba de
@@ -15,8 +19,7 @@
  * esta ruta no pueda saltarse una regla que el resto de la app respeta.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { RequisitoFaltanteError, TransicionInvalidaError, estadoAlAprobar, transicionar } from "@/lib/estados";
-import { buscarPrimeraFase } from "@/lib/fases";
+import { RequisitoFaltanteError, TransicionInvalidaError, estadoSegunRepuestos, transicionar } from "@/lib/estados";
 import { clienteAdmin } from "@/lib/supabase/servidor";
 import { reservarAlAprobar } from "@/lib/reservas-servidor";
 import { crearAviso } from "@/lib/avisos-servidor";
@@ -36,7 +39,7 @@ export async function POST(req: NextRequest) {
 
   const { data: orden, error: errOrden } = await admin
     .from("orden")
-    .select("id, empresa_id, sede_id, estado, fase:fase_id ( nombre )")
+    .select("id, empresa_id, sede_id, estado")
     .eq("token_publico", body.token)
     .maybeSingle();
 
@@ -62,10 +65,10 @@ export async function POST(req: NextRequest) {
 
   // Aprobada: los repuestos cotizados que hay en la sede quedan
   // apartados para esta orden, y lo que no alcanza se pide a Compras
-  // (lib/reservas-servidor.ts). Solo desde esperando_aprobacion: si la
+  // (lib/reservas-servidor.ts). Solo desde esperando_cliente: si la
   // transición no es válida, abajo se rechaza sin haber tocado nada.
   let reservados: string[] = [];
-  if (body.decision === "aprobada" && orden.estado === "esperando_aprobacion") {
+  if (body.decision === "aprobada" && orden.estado === "esperando_cliente") {
     const r = await reservarAlAprobar(admin, {
       ordenId: orden.id,
       empresaId: orden.empresa_id,
@@ -83,19 +86,20 @@ export async function POST(req: NextRequest) {
     .eq("orden_id", orden.id)
     .in("estado", ["faltante", "solicitado"]);
 
-  const aEstado = body.decision === "aprobada" ? estadoAlAprobar(pendientes ?? 0) : "rechazada";
+  const aEstado = body.decision === "aprobada" ? estadoSegunRepuestos(pendientes ?? 0) : "esperando_cliente";
 
-  try {
-    transicionar(
-      orden.estado,
-      aEstado,
-      new Set(body.decision === "aprobada" ? ["cotizacion_aprobada"] : []),
-    );
-  } catch (e) {
-    if (e instanceof TransicionInvalidaError || e instanceof RequisitoFaltanteError) {
-      return NextResponse.json({ error: e.message }, { status: 409 });
+  if (orden.estado !== "esperando_cliente") {
+    return NextResponse.json({ error: "la orden no está esperando la respuesta del cliente" }, { status: 409 });
+  }
+  if (body.decision === "aprobada") {
+    try {
+      transicionar(orden.estado, aEstado, new Set(["cotizacion_aprobada"]));
+    } catch (e) {
+      if (e instanceof TransicionInvalidaError || e instanceof RequisitoFaltanteError) {
+        return NextResponse.json({ error: e.message }, { status: 409 });
+      }
+      throw e;
     }
-    throw e;
   }
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
@@ -109,23 +113,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: errUpdateCot.message }, { status: 500 });
   }
 
-  // Misma regla de fases que /api/ordenes/<id>/transicion. Con service
-  // role RLS no filtra: buscarPrimeraFase recibe la empresa explícita.
-  const faseNueva = await buscarPrimeraFase(admin, orden.empresa_id, aEstado);
-  const faseAnterior = orden.fase as unknown as { nombre: string } | null;
-
-  await admin.from("orden").update({ estado: aEstado, fase_id: faseNueva?.id ?? null }).eq("id", orden.id);
+  if (aEstado !== orden.estado) {
+    await admin.from("orden").update({ estado: aEstado, fase_id: null }).eq("id", orden.id);
+  }
   await admin.from("orden_evento").insert({
     empresa_id: orden.empresa_id,
     orden_id: orden.id,
     de_estado: orden.estado,
     a_estado: aEstado,
-    de_fase: faseAnterior?.nombre ?? null,
-    a_fase: faseNueva?.nombre ?? null,
     nota:
       body.decision === "aprobada"
-        ? `Cliente aprobó la cotización desde el enlace${reservados.length ? `. Reservado: ${reservados.join(", ")}` : ""}${aEstado === "esperando_repuesto" ? ". Queda esperando repuesto" : ""}`
-        : `Cliente rechazó la cotización desde el enlace${motivo ? `. Motivo: ${motivo}` : ""}`,
+        ? `Cliente aprobó la cotización${reservados.length ? `. Reservado: ${reservados.join(", ")}` : ""}${aEstado === "falta_repuesto" ? ". Falta repuesto" : ""}`
+        : `Cliente no aprobó la cotización${motivo ? `. Motivo: ${motivo}` : ""}`,
   });
 
   await crearAviso(admin, {

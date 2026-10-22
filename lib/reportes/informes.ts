@@ -6,7 +6,7 @@
  * del mismo número.
  */
 import { efectivoEsperado, type TipoMovimientoCaja } from "../caja";
-import { ETIQUETA_ESTADO, type Estado } from "../estados";
+import { etiquetaEstado } from "../estados";
 import {
   DIAS_SEMANA,
   diaLocal,
@@ -945,7 +945,7 @@ export function ordenesTaller(ordenes: OrdenFila[], c: Catalogos, ahora: Date = 
   const promedio = entregadas.length
     ? entregadas.reduce((s, o) => s + HORAS(o.abierta_en, o.cerrada_en!), 0) / entregadas.length
     : null;
-  const etiqueta = (e: string) => ETIQUETA_ESTADO[e as Estado] ?? e;
+  const etiqueta = etiquetaEstado;
   const totalCotizado = ordenes.reduce((s, o) => s + Number(o.total ?? 0), 0);
 
   return {
@@ -953,7 +953,7 @@ export function ordenesTaller(ordenes: OrdenFila[], c: Catalogos, ahora: Date = 
     resumen: [
       { rotulo: "Órdenes recibidas", valor: ordenes.length, formato: "numero" },
       { rotulo: "Entregadas", valor: entregadas.length, formato: "numero" },
-      { rotulo: "En curso", valor: ordenes.filter((o) => o.estado !== "entregada" && o.estado !== "rechazada").length, formato: "numero" },
+      { rotulo: "En curso", valor: ordenes.filter((o) => o.estado !== "entregada").length, formato: "numero" },
       { rotulo: "Tiempo promedio de reparación", valor: promedio, formato: "horas" },
       { rotulo: "Valor de las órdenes", valor: totalCotizado, formato: "moneda" },
     ],
@@ -1042,7 +1042,7 @@ export function productividadTecnicos(ordenes: OrdenFila[], tecnicos: string[], 
         barra: "terminados",
       },
     ],
-    notas: ["Cuenta las órdenes recibidas en el rango. El técnico se asigna cuando la orden pasa a diagnóstico."],
+    notas: ["Cuenta las órdenes recibidas en el rango. El técnico es quien revisa el equipo o lo marca terminado."],
   };
 }
 

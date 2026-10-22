@@ -30,9 +30,9 @@ insert into producto (id, empresa_id, cliente_id, serial, tipo, marca, modelo) v
 -- Una orden por cada estado de TRANSICIONES en lib/estados.ts, para poder
 -- probar la interfaz sin tener que avanzarlas todas a mano.
 insert into orden (id, empresa_id, sede_id, producto_id, estado, motivo, abierta_en) values
-  ('o0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'a1111111-0000-0000-0000-000000000002', 'p1111111-0000-0000-0000-000000000001', 'recibida', 'No enciende', now() - interval '1 day'),
-  ('o0000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'a1111111-0000-0000-0000-000000000002', 'p1111111-0000-0000-0000-000000000002', 'en_diagnostico', 'Frena mal', now() - interval '2 days'),
-  ('o0000000-0000-0000-0000-000000000003', '22222222-2222-2222-2222-222222222222', 'a2222222-0000-0000-0000-000000000001', 'p2222222-0000-0000-0000-000000000001', 'recibida', 'Rayón en la base', now());
+  ('o0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'a1111111-0000-0000-0000-000000000002', 'p1111111-0000-0000-0000-000000000001', 'en_proceso', 'No enciende', now() - interval '1 day'),
+  ('o0000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'a1111111-0000-0000-0000-000000000002', 'p1111111-0000-0000-0000-000000000002', 'en_proceso', 'Frena mal', now() - interval '2 days'),
+  ('o0000000-0000-0000-0000-000000000003', '22222222-2222-2222-2222-222222222222', 'a2222222-0000-0000-0000-000000000001', 'p2222222-0000-0000-0000-000000000001', 'en_proceso', 'Rayón en la base', now());
 
 insert into orden_evento (empresa_id, orden_id, de_estado, a_estado, nota) values
   ('11111111-1111-1111-1111-111111111111', 'o0000000-0000-0000-0000-000000000001', null, 'recibida', 'Recepción inicial'),

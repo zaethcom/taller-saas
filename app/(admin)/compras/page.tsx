@@ -193,7 +193,7 @@ export default function PaginaCompras() {
         setAvisoCliente(null);
         setAviso(
           `${producto.trim()} quedó en la orden #${numeroOrden(f.orden)} y se avisó al técnico` +
-            (r.estado === "en_reparacion" ? ": la orden pasó a reparación." : "."),
+            (r.estado === "en_proceso" ? ": la orden vuelve a estar en proceso." : "."),
         );
       } else {
         setAviso(`Llegó el encargo de ${f.cliente_nombre ?? "el cliente"}: ${producto.trim()}.`);

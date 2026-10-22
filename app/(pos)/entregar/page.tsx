@@ -78,7 +78,7 @@ const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
 
 /** Lo que se ofrece primero al abrir una orden: entregar si ya está lista. */
 function modoInicial(estado: string): Modo {
-  return estado === "listo_entrega" || estado === "rechazada" ? "entregar" : "abonar";
+  return estado === "listo_entrega" ? "entregar" : "abonar";
 }
 
 export default function PaginaCobrarEntregar() {
@@ -238,9 +238,9 @@ export default function PaginaCobrarEntregar() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setAviso(
-        data.estado === "esperando_repuesto"
-          ? "Servicio autorizado: la orden queda esperando repuesto."
-          : "Servicio autorizado: la orden pasó a reparación.",
+        data.estado === "falta_repuesto"
+          ? "Servicio autorizado: la orden queda en falta de repuesto."
+          : "Servicio autorizado: la orden sigue en proceso.",
       );
       await recargar();
     } catch (e) {
@@ -535,7 +535,7 @@ export default function PaginaCobrarEntregar() {
               </div>
             )}
 
-            {estado === "esperando_aprobacion" && (
+            {estado === "esperando_cliente" && (
               <div style={{ marginTop: 14 }}>
                 <Aviso tono="aviso">
                   La cotización espera que el cliente la autorice.{" "}

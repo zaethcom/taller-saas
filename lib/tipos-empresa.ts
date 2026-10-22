@@ -3,22 +3,19 @@
  * estándares que el superadmin define una vez -- celulares,
  * computadores, patinetas... -- y le asigna a cada empresa.
  *
- * Asignar un tipo copia a la empresa su tipo de equipo por defecto,
- * sus fases de la orden y sus categorías iniciales. Solo agrega: nunca
- * borra ni renombra lo que la empresa ya tiene, y aplicarlo dos veces no
- * duplica nada (filasDeFases se salta las fases que ya existen activas;
- * las categorías repetidas se ignoran por su unique).
+ * Asignar un tipo copia a la empresa su tipo de equipo por defecto y
+ * sus categorías iniciales. Solo agrega: nunca borra ni renombra lo que
+ * la empresa ya tiene, y aplicarlo dos veces no duplica nada (las
+ * categorías repetidas se ignoran). Las fases que guardaba cada tipo se
+ * dejaron de copiar con los estados simples (0065_estados_simples.sql).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Estado } from "./estados";
 import type { TipoNegocio } from "./configuracion";
-import { esEstado, filasDeFases, type FaseOrden } from "./fases";
 
 export interface TipoEmpresa {
   id: string;
   nombre: string;
   tipo_equipo: TipoNegocio;
-  fases: Partial<Record<Estado, string[]>>;
   categorias: string[];
   activo: boolean;
 }
@@ -73,18 +70,6 @@ export function validarTipo(
     if (!esTipoEquipo(body.tipo_equipo)) return { error: "el tipo de equipo no es válido" };
     campos.tipo_equipo = body.tipo_equipo;
   }
-  if (body.fases !== undefined) {
-    if (typeof body.fases !== "object" || body.fases === null || Array.isArray(body.fases)) {
-      return { error: "las fases no son válidas" };
-    }
-    const fases: Partial<Record<Estado, string[]>> = {};
-    for (const [estado, nombres] of Object.entries(body.fases)) {
-      if (!esEstado(estado) || !Array.isArray(nombres)) return { error: "las fases no son válidas" };
-      const limpios = limpiarNombres(nombres);
-      if (limpios.length > 0) fases[estado] = limpios;
-    }
-    campos.fases = fases;
-  }
   if (body.categorias !== undefined) {
     if (!Array.isArray(body.categorias)) return { error: "las categorías no son válidas" };
     campos.categorias = limpiarNombres(body.categorias);
@@ -105,8 +90,8 @@ export function validarTipo(
 export async function aplicarTipoEmpresa(
   admin: SupabaseClient,
   empresaId: string,
-  tipo: Pick<TipoEmpresa, "id" | "tipo_equipo" | "fases" | "categorias">,
-): Promise<{ fases: number; categorias: number }> {
+  tipo: Pick<TipoEmpresa, "id" | "tipo_equipo" | "categorias">,
+): Promise<{ categorias: number }> {
   const { error: errEmpresa } = await admin.from("empresa").update({ tipo_empresa_id: tipo.id }).eq("id", empresaId);
   if (errEmpresa) throw new Error(errEmpresa.message);
 
@@ -117,18 +102,6 @@ export async function aplicarTipoEmpresa(
       { onConflict: "empresa_id" },
     );
   if (errConfig) throw new Error(errConfig.message);
-
-  const { data: existentes, error: errFases } = await admin
-    .from("fase_orden")
-    .select("estado, nombre, posicion, activo")
-    .eq("empresa_id", empresaId);
-  if (errFases) throw new Error(errFases.message);
-
-  const filas = filasDeFases(tipo.fases ?? {}, (existentes ?? []) as FaseOrden[]);
-  if (filas.length > 0) {
-    const { error } = await admin.from("fase_orden").insert(filas.map((f) => ({ ...f, empresa_id: empresaId })));
-    if (error) throw new Error(error.message);
-  }
 
   let categorias = 0;
   const nombres = limpiarNombres(tipo.categorias ?? []);
@@ -149,5 +122,5 @@ export async function aplicarTipoEmpresa(
     categorias = nuevas.length;
   }
 
-  return { fases: filas.length, categorias };
+  return { categorias };
 }

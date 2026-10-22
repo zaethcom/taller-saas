@@ -24,7 +24,6 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { PlantillasEtiqueta } from "@/componentes/etiquetas/plantillas-etiqueta";
-import { ConfigFases } from "@/componentes/taller/config-fases";
 import { ImpresorasUsbEsteEquipo } from "@/componentes/estacion/impresoras-usb";
 import { DescargaPuente } from "@/componentes/estacion/descarga-puente";
 import { VentanaError } from "@/componentes/ui/ventana-error";
@@ -426,8 +425,6 @@ export default function PaginaConfiguracion() {
                 </div>
                 <p className="campo-ayuda">El tipo de equipo que Recibir equipo propone por defecto.</p>
               </Tarjeta>
-
-              <ConfigFases />
             </>
           )}
 

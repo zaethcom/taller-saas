@@ -16,7 +16,7 @@
  * editar o eliminar sus sedes se hace en /superadmin/empresas/<id>.
  *
  * Al crearla se puede elegir su tipo (celulares, computadores,
- * patinetas... -- 0053): le copia de una vez las fases, categorías y
+ * patinetas... -- 0053): le copia de una vez las categorías y
  * tipo de equipo de ese estándar. Los tipos se editan en
  * /superadmin/tipos.
  */
@@ -273,7 +273,7 @@ export default function PaginaSuperadminEmpresas() {
                 <input placeholder="Ej. Principal" value={nombreSede} onChange={(e) => setNombreSede(e.target.value)} />
               </Campo>
             </div>
-            <Campo etiqueta="Tipo de empresa" ayuda="Le carga las fases, categorías y tipo de equipo de ese tipo.">
+            <Campo etiqueta="Tipo de empresa" ayuda="Le carga las categorías y el tipo de equipo de ese tipo.">
               <select value={tipoEmpresaId} onChange={(e) => setTipoEmpresaId(e.target.value)}>
                 <option value="">Sin tipo</option>
                 {tipos.map((t) => (

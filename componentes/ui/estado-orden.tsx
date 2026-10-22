@@ -12,20 +12,17 @@ import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
 import { Etiqueta, type TonoEtiqueta } from "@/componentes/ui/etiqueta";
 
 const TONO: Record<Estado, TonoEtiqueta> = {
-  recibida: "peligro",
-  en_diagnostico: "aviso",
-  esperando_aprobacion: "espera",
-  en_reparacion: "info",
-  esperando_repuesto: "espera",
+  en_proceso: "info",
+  falta_repuesto: "aviso",
+  esperando_cliente: "espera",
   listo_entrega: "ok",
-  rechazada: "neutro",
   entregada: "fuerte",
 };
 
 export function EstadoOrden({ estado, punto = true }: { estado: Estado; punto?: boolean }) {
   return (
     <Etiqueta tono={TONO[estado]} punto={punto}>
-      {ETIQUETA_ESTADO[estado]}
+      {ETIQUETA_ESTADO[estado] ?? estado}
     </Etiqueta>
   );
 }

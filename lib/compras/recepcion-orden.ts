@@ -45,9 +45,9 @@ export function esEventoRepuestoRecibido(e: { de_estado: string | null; a_estado
   return e.de_estado === e.a_estado && (e.nota ?? "").startsWith(PREFIJO_REPUESTO_RECIBIDO);
 }
 
-/** Llegó lo último que faltaba de una orden que esperaba repuesto: sigue la reparación. */
+/** Llegó lo último que le faltaba a una orden parada por repuesto: vuelve a en proceso. */
 export function siguePorRepuesto(estado: Estado, pendientes: number): boolean {
-  return estado === "esperando_repuesto" && pendientes === 0;
+  return estado === "falta_repuesto" && pendientes === 0;
 }
 
 export interface CompraOrden {

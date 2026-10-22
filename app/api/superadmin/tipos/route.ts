@@ -3,7 +3,7 @@
  * empresas tiene asignado cada uno.
  *
  * POST /api/superadmin/tipos
- * Body: { nombre, tipo_equipo?, fases?, categorias? }
+ * Body: { nombre, tipo_equipo?, categorias? }
  * Crea un tipo nuevo. Ver lib/tipos-empresa.ts.
  */
 import { NextResponse } from "next/server";
@@ -21,7 +21,7 @@ export async function GET() {
 
     const admin = clienteAdmin();
     const [{ data: tipos, error }, { data: empresas }] = await Promise.all([
-      admin.from("tipo_empresa").select("id, nombre, tipo_equipo, fases, categorias, activo").order("nombre"),
+      admin.from("tipo_empresa").select("id, nombre, tipo_equipo, categorias, activo").order("nombre"),
       admin.from("empresa").select("tipo_empresa_id"),
     ]);
     if (error) {

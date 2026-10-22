@@ -1,16 +1,9 @@
 /**
  * POST /api/ordenes/<id>/transicion
- * Body: { aEstado: Estado, nota?: string, omitirCotizacion?: boolean }
+ * Body: { aEstado: Estado, nota?: string, imprimirComprobante?: boolean }
  *
- * `omitirCotizacion`: el equipo ya viene con precio acordado. Desde
- * Recibida o En diagnóstico pasa directo a reparación, o a esperar
- * repuesto si hay alguno pedido sin llegar (estadoAlAprobar); el precio
- * hace las veces de la cotización aprobada (sePuedeOmitirCotizacion) y
- * queda dicho en el historial.
- *
- * `nota` queda en el historial con el cambio. Pasar a "Listo para
- * entregar" la exige (qué se hizo y que se verificó), y también pasar a
- * "Pendiente de decisión" (la respuesta del cliente que no aprobó).
+ * `nota` queda en el historial con el cambio. Al marcar "Terminado"
+ * (listo_entrega) es opcional: qué se hizo, si el técnico quiere dejarlo.
  *
  * La única puerta para cambiar el estado de una orden desde la app del
  * técnico o el admin. Arma el conjunto de requisitos cumplidos
@@ -22,14 +15,11 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   RequisitoFaltanteError,
   TransicionInvalidaError,
-  estadoAlAprobar,
-  sePuedeOmitirCotizacion,
   transicionar,
   type Estado,
   type Requisito,
 } from "@/lib/estados";
 import { obtenerCuentaOrden } from "@/lib/cuenta-orden";
-import { buscarPrimeraFase } from "@/lib/fases";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
 import { encolarImpresion } from "@/lib/impresion";
@@ -41,18 +31,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     aEstado?: Estado;
     imprimirComprobante?: boolean;
     nota?: string;
-    omitirCotizacion?: boolean;
   };
   if (!body.aEstado) {
     return NextResponse.json({ error: "falta aEstado" }, { status: 400 });
   }
-  let nota = typeof body.nota === "string" ? body.nota.trim().slice(0, 1000) : "";
-  if (body.aEstado === "listo_entrega" && !nota) {
-    return NextResponse.json({ error: "escribe qué se hizo y cómo se verificó" }, { status: 400 });
-  }
-  if (body.aEstado === "rechazada" && !nota) {
-    return NextResponse.json({ error: "escribe la respuesta del cliente" }, { status: 400 });
-  }
+  const nota = typeof body.nota === "string" ? body.nota.trim().slice(0, 1000) : "";
 
   const supabase = await clienteServidor();
   const {
@@ -64,7 +47,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: orden, error: errOrden } = await supabase
     .from("orden")
-    .select("id, empresa_id, estado, tecnico_id, total, fase:fase_id ( nombre )")
+    .select("id, empresa_id, estado, tecnico_id")
     .eq("id", id)
     .maybeSingle();
 
@@ -74,38 +57,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const cumplidos = new Set<Requisito>();
 
-  if (body.omitirCotizacion) {
-    const total = Number(orden.total) || 0;
-    if (!sePuedeOmitirCotizacion(orden.estado as Estado, total)) {
-      return NextResponse.json(
-        {
-          error:
-            total > 0
-              ? "Esta orden ya pasó la cotización."
-              : "La orden no tiene precio acordado: agrégalo (servicio o repuesto) antes de saltarte la cotización.",
-        },
-        { status: 409 },
-      );
-    }
-    const { count: pendientes } = await supabase
-      .from("repuesto_solicitud")
-      .select("id", { count: "exact", head: true })
-      .eq("orden_id", id)
-      .in("estado", ["faltante", "solicitado"]);
-    body.aEstado = estadoAlAprobar(pendientes ?? 0);
-    cumplidos.add("cotizacion_aprobada");
-    const precio = "$" + Math.round(total).toLocaleString("es-CO");
-    nota = `Precio acordado (${precio}): sin diagnóstico, cotización ni aprobación del cliente.${nota ? ` ${nota}` : ""}`;
-  }
-
-  const [{ count: fotoEntrada }, { count: fotoSalida }, { count: firma }, { count: etiqueta }] =
+  const [{ count: fotoSalida }, { count: firma }] =
     await Promise.all([
-      supabase
-        .from("evidencia")
-        .select("id", { count: "exact", head: true })
-        .eq("orden_id", id)
-        .eq("tipo", "foto")
-        .eq("fase", "entrada"),
       supabase
         .from("evidencia")
         .select("id", { count: "exact", head: true })
@@ -117,27 +70,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         .select("id", { count: "exact", head: true })
         .eq("orden_id", id)
         .eq("tipo", "firma"),
-      supabase
-        .from("trabajo_impresion")
-        .select("id", { count: "exact", head: true })
-        .eq("orden_id", id)
-        .eq("tipo", "etiqueta_qr")
-        .eq("estado", "impreso"),
     ]);
 
-  if ((fotoEntrada ?? 0) > 0) cumplidos.add("tiene_foto_entrada");
   if ((fotoSalida ?? 0) > 0) cumplidos.add("tiene_foto_salida");
   if ((firma ?? 0) > 0) cumplidos.add("tiene_firma");
-  if ((etiqueta ?? 0) > 0) cumplidos.add("tiene_etiqueta");
 
-  // Nadie asignaba tecnico_id en ningún lugar del proyecto -- el
-  // requisito tiene_tecnico de en_diagnostico no se podía cumplir nunca.
-  // El punto natural para asignarlo es este: quien mueve la orden a
-  // en_diagnostico se convierte en su técnico, autoasignado por hacer el
-  // trabajo -- de ahí sale la productividad por técnico de la sección 5.
-  const tecnicoId =
-    orden.tecnico_id ?? (body.aEstado === "en_diagnostico" || body.omitirCotizacion ? user.id : null);
-  if (tecnicoId) cumplidos.add("tiene_tecnico");
+  // Quien marca el equipo terminado o parado por repuesto sin que la
+  // orden tenga técnico queda como su técnico: hizo el trabajo. De ahí
+  // sale la productividad por técnico de los reportes. La entrega la
+  // hace el mostrador y no cuenta.
+  const tecnicoId = orden.tecnico_id ?? (body.aEstado === "entregada" ? null : user.id);
 
   const { data: cotizacion } = await supabase
     .from("cotizacion")
@@ -165,20 +107,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     throw e;
   }
 
-  // Al entrar a un estado, la orden arranca en la primera fase activa
-  // que la empresa configuró para él (0050_fase_orden.sql), o sin fase.
-  // La fase nunca decide si la transición es válida -- eso ya se
-  // resolvió arriba con transicionar().
-  const faseNueva = await buscarPrimeraFase(supabase, orden.empresa_id, body.aEstado);
-  // El join de Supabase infiere `fase` como arreglo aunque la relación
-  // sea 1:1 -- mismo caso que lib/perfil.ts.
-  const faseAnterior = orden.fase as unknown as { nombre: string } | null;
-
   const { error: errUpdate } = await supabase
     .from("orden")
     .update({
       estado: body.aEstado,
-      fase_id: faseNueva?.id ?? null,
+      fase_id: null,
       tecnico_id: tecnicoId,
       cerrada_en: body.aEstado === "entregada" ? new Date().toISOString() : null,
     })
@@ -188,22 +121,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: errUpdate.message }, { status: 500 });
   }
 
-  // El cliente respondió por teléfono o en el mostrador: la cotización
-  // enviada queda rechazada, igual que si lo hubiera hecho en el enlace.
-  if (body.aEstado === "rechazada" && cotizacion?.estado === "enviada" && !cotizacion.decision) {
-    await supabase
-      .from("cotizacion")
-      .update({ decision: "rechazada", decidida_en: new Date().toISOString() })
-      .eq("id", cotizacion.id);
-  }
-
   await supabase.from("orden_evento").insert({
     empresa_id: orden.empresa_id,
     orden_id: id,
     de_estado: orden.estado,
     a_estado: body.aEstado,
-    de_fase: faseAnterior?.nombre ?? null,
-    a_fase: faseNueva?.nombre ?? null,
     autor_id: user.id,
     nota: nota || null,
   });

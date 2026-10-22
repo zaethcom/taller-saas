@@ -7,8 +7,7 @@
  * de consentimiento que /api/aprobacion (fecha + IP), pero esto NO es
  * una transición de la máquina de estados: es aprobar un costo, no
  * mover la orden de estado. No se toca orden.estado ni se llama a
- * transicionar() -- no existe (ni hace falta) un camino de vuelta a
- * "esperando_aprobacion" desde "en_reparacion".
+ * transicionar(): la orden sigue en el estado en que está.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { crearAviso } from "@/lib/avisos-servidor";

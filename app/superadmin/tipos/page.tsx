@@ -2,8 +2,8 @@
 
 /**
  * Los tipos de empresa (0053): los estándares que cambian según el
- * negocio -- tipo de equipo que propone Recibir equipo, fases de la
- * orden por estado y categorías iniciales de inventario. Se asignan
+ * negocio -- tipo de equipo que propone Recibir equipo y categorías
+ * iniciales de inventario. Se asignan
  * desde la ficha de cada empresa o al crearla.
  *
  * Editar un tipo no cambia a las empresas que ya lo tienen: lo que se
@@ -17,7 +17,6 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { Campo, Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
-import { ETIQUETA_ESTADO, type Estado } from "@/lib/estados";
 import { TIPOS_EQUIPO, lineas } from "@/lib/tipos-empresa";
 import type { TipoNegocio } from "@/lib/configuracion";
 import { VentanaError } from "@/componentes/ui/ventana-error";
@@ -26,58 +25,35 @@ interface Tipo {
   id: string;
   nombre: string;
   tipo_equipo: TipoNegocio;
-  fases: Partial<Record<Estado, string[]>>;
   categorias: string[];
   activo: boolean;
   empresas: number;
 }
 
-/** Los estados donde tiene sentido una fase; "entregada" es el final y no lleva. */
-const ESTADOS_CON_FASES: Estado[] = [
-  "recibida",
-  "en_diagnostico",
-  "esperando_aprobacion",
-  "en_reparacion",
-  "esperando_repuesto",
-  "rechazada",
-];
-
 interface Borrador {
   nombre: string;
   tipo_equipo: TipoNegocio;
-  fases: Partial<Record<Estado, string>>;
   categorias: string;
 }
 
 const VACIO: Borrador = {
   nombre: "",
   tipo_equipo: "otro",
-  fases: {},
   categorias: "",
 };
 
 function aBorrador(t: Tipo): Borrador {
-  const fases: Partial<Record<Estado, string>> = {};
-  for (const estado of ESTADOS_CON_FASES)
-    fases[estado] = (t.fases[estado] ?? []).join("\n");
   return {
     nombre: t.nombre,
     tipo_equipo: t.tipo_equipo,
-    fases,
     categorias: t.categorias.join("\n"),
   };
 }
 
 function aCuerpo(b: Borrador) {
-  const fases: Partial<Record<Estado, string[]>> = {};
-  for (const estado of ESTADOS_CON_FASES) {
-    const nombres = lineas(b.fases[estado] ?? "");
-    if (nombres.length > 0) fases[estado] = nombres;
-  }
   return {
     nombre: b.nombre,
     tipo_equipo: b.tipo_equipo,
-    fases,
     categorias: lineas(b.categorias),
   };
 }
@@ -133,33 +109,6 @@ function EditorTipo({
             ))}
           </select>
         </Campo>
-      </div>
-
-      <div className="campo-etiqueta" style={{ margin: 0 }}>
-        Fases de la orden (una por línea, en orden)
-      </div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 12,
-        }}
-      >
-        {ESTADOS_CON_FASES.map((estado) => (
-          <Campo key={estado} etiqueta={ETIQUETA_ESTADO[estado]}>
-            <textarea
-              rows={4}
-              placeholder="Sin fases"
-              value={borrador.fases[estado] ?? ""}
-              onChange={(e) =>
-                onChange({
-                  ...borrador,
-                  fases: { ...borrador.fases, [estado]: e.target.value },
-                })
-              }
-            />
-          </Campo>
-        ))}
       </div>
 
       <Campo

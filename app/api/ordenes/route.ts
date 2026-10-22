@@ -23,7 +23,7 @@
  *
  * El punto de entrada de todo el sistema: recibir un equipo. Reutiliza
  * cliente y producto si ya existen (buscados antes con /api/clientes y
- * /api/productos), crea la orden en 'recibida', y encola comprobante +
+ * /api/productos), crea la orden en proceso (o en falta de repuesto si se pidió algo a Compras), y encola comprobante +
  * etiqueta -- el requisito de 3 minutos de la Fase 3 del plano exige
  * que esto sea una sola llamada, no una serie de pantallas.
  */
@@ -34,8 +34,7 @@ import { encolarImpresion } from "@/lib/impresion";
 import { notificarCliente } from "@/lib/mensajeria/notificar";
 import { generarSerialEquipo } from "@/lib/serial-equipo";
 import { codigoEntrada as calcularCodigoEntrada } from "@/lib/codigo-entrada";
-import { ESTADO_INICIAL } from "@/lib/estados";
-import { buscarPrimeraFase } from "@/lib/fases";
+import { ESTADO_INICIAL, estadoSegunRepuestos } from "@/lib/estados";
 import { recalcularTotalOrden } from "@/lib/orden-total";
 import { registrarAbono, validarAbono, type AbonoValidado, type DatosAbono } from "@/lib/abono";
 import { clasificarRepuestos, normalizarRepuestos, notaRepuestosRecepcion } from "@/lib/repuestos-recepcion";
@@ -170,10 +169,6 @@ export async function POST(req: NextRequest) {
     productoId = producto.id;
   }
 
-  // Si la empresa configuró fases para "recibida" (0050_fase_orden.sql),
-  // la orden nace en la primera.
-  const faseInicial = await buscarPrimeraFase(supabase, perfil.empresa_id, ESTADO_INICIAL);
-
   const { data: orden, error: errOrden } = await supabase
     .from("orden")
     .insert({
@@ -183,7 +178,7 @@ export async function POST(req: NextRequest) {
       motivo: body.motivo.trim(),
       info_adicional: body.infoAdicional?.trim() || null,
       telefono_alterno: body.telefonoAlterno?.trim() || null,
-      fase_id: faseInicial?.id ?? null,
+      estado: ESTADO_INICIAL,
     })
     .select("id, numero, token_publico")
     .single();
@@ -195,7 +190,7 @@ export async function POST(req: NextRequest) {
   // Repuestos identificados al recibir: lo que no hay en la sede va
   // directo a la lista de Compras, con esta orden como referencia, y
   // el resumen queda en el evento de recepción (sin un evento aparte,
-  // que el cliente vería como un segundo "Recibida" en su seguimiento).
+  // que el cliente vería como un segundo paso en su seguimiento).
   const repuestos = normalizarRepuestos(body.repuestos);
   let faltantesCompras: string[] = [];
   let faltantesFallidos = false;
@@ -231,11 +226,18 @@ export async function POST(req: NextRequest) {
     notaRepuestos = notaRepuestosRecepcion(clasificacion);
   }
 
+  // Lo que se pidió a Compras al recibir deja el equipo parado desde el
+  // principio: nace en "Falta repuesto" y vuelve solo a "En proceso"
+  // cuando Compras lo recibe (lib/estados.ts).
+  const estadoInicial = estadoSegunRepuestos(faltantesCompras.length);
+  if (estadoInicial !== ESTADO_INICIAL) {
+    await supabase.from("orden").update({ estado: estadoInicial }).eq("id", orden.id);
+  }
+
   await supabase.from("orden_evento").insert({
     empresa_id: perfil.empresa_id,
     orden_id: orden.id,
-    a_estado: "recibida",
-    a_fase: faseInicial?.nombre ?? null,
+    a_estado: estadoInicial,
     autor_id: user.id,
     nota: notaRepuestos ? `Recepción inicial. ${notaRepuestos}` : "Recepción inicial",
   });

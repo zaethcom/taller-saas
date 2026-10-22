@@ -1,7 +1,7 @@
 /**
  * POST /api/superadmin/empresas/<id>/tipo -- Body: { tipoId }
  * Le asigna a la empresa un tipo (0053) y le copia lo que trae: tipo de
- * equipo por defecto, fases de la orden y categorías iniciales. Solo
+ * equipo por defecto y categorías iniciales. Solo
  * agrega, así que sirve también para volver a aplicar un tipo después
  * de editarlo. Ver aplicarTipoEmpresa en lib/tipos-empresa.ts.
  */
@@ -27,7 +27,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const admin = clienteAdmin();
     const [{ data: empresa }, { data: tipo, error }] = await Promise.all([
       admin.from("empresa").select("id").eq("id", id).maybeSingle(),
-      admin.from("tipo_empresa").select("id, tipo_equipo, fases, categorias").eq("id", body.tipoId).maybeSingle(),
+      admin.from("tipo_empresa").select("id, tipo_equipo, categorias").eq("id", body.tipoId).maybeSingle(),
     ]);
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
