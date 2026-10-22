@@ -14,16 +14,19 @@
  *
  * Los dos catálogos siguen separados a propósito: un repuesto se vende
  * por cantidad y un artículo por unidad, y mezclarlos en una sola
- * rejilla obligaría a explicar esa diferencia en cada tarjeta.
+ * rejilla obligaría a explicar esa diferencia en cada tarjeta. Pero
+ * comparten una sola barra (Repuestos | Equipos, buscador y categoría)
+ * para que la pantalla no repita dos veces los mismos controles. Tocar
+ * la tarjeta agrega el producto; no hay un botón "Agregar" aparte.
  *
- * Al lado de cada lupa hay un botón que abre la cámara y lee el código
+ * Al lado de la lupa hay un botón que abre la cámara y lee el código
  * de barras (o QR) de la etiqueta. Lo leído, igual que un código exacto
  * escrito a mano o tecleado por un lector USB seguido de Enter, va
  * directo al carrito; si no coincide exacto con ningún código, queda
  * como búsqueda normal.
  */
 import { useEffect, useState } from "react";
-import { Trash2, Plus, Minus, Search, ShoppingCart, Lock, Check, ChevronDown, Tags, Printer, PlusCircle, ScanBarcode } from "lucide-react";
+import { Trash2, Plus, Minus, Search, ShoppingCart, Lock, Check, Printer, PlusCircle, ScanBarcode } from "lucide-react";
 import { FotoProducto } from "@/componentes/ui/foto-producto";
 import { Boton } from "@/componentes/ui/boton";
 import { Tarjeta } from "@/componentes/ui/tarjeta";
@@ -107,9 +110,9 @@ export default function PaginaVender() {
   const [resultadosArticulo, setResultadosArticulo] = useState<Articulo[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [categoriaId, setCategoriaId] = useState("");
-  const [categoriasAbiertas, setCategoriasAbiertas] = useState(false);
-  const [escaneando, setEscaneando] = useState<"repuesto" | "articulo" | null>(null);
-  const [avisoCodigo, setAvisoCodigo] = useState<{ texto: string; fallo: boolean; donde: Linea["kind"] } | null>(null);
+  const [vista, setVista] = useState<Linea["kind"]>("repuesto");
+  const [escaneando, setEscaneando] = useState(false);
+  const [avisoCodigo, setAvisoCodigo] = useState<{ texto: string; fallo: boolean } | null>(null);
 
   const total = carrito.reduce((s, l) => s + (l.kind === "repuesto" ? l.cantidad : 1) * l.precioUnit, 0);
   const unidades = carrito.reduce((s, l) => s + (l.kind === "repuesto" ? l.cantidad : 1), 0);
@@ -173,7 +176,7 @@ export default function PaginaVender() {
    * cámara cobran de una vez. Si no hay coincidencia exacta, la
    * búsqueda queda en pantalla para elegir a mano.
    */
-  async function buscarOAgregar(kind: Linea["kind"], texto: string, desdeCamara = false, donde = kind) {
+  async function buscarOAgregar(kind: Linea["kind"], texto: string, desdeCamara = false) {
     const codigo = texto.trim();
     setAvisoCodigo(null);
     if (kind === "repuesto") {
@@ -182,7 +185,7 @@ export default function PaginaVender() {
       if (exacto) {
         agregarRepuesto(exacto);
         setBuscarRepuesto("");
-        setAvisoCodigo({ texto: `Agregado: ${exacto.descripcion}`, fallo: false, donde });
+        setAvisoCodigo({ texto: `Agregado: ${exacto.descripcion}`, fallo: false });
         return;
       }
     } else {
@@ -194,70 +197,31 @@ export default function PaginaVender() {
         setAvisoCodigo({
           texto: `Agregado: ${[exacto.marca, exacto.modelo].filter(Boolean).join(" ") || exacto.tipo}`,
           fallo: false,
-          donde,
         });
         return;
       }
     }
     if (desdeCamara) {
-      setAvisoCodigo({ texto: `Ningún producto disponible tiene el código ${codigo}.`, fallo: true, donde });
+      setAvisoCodigo({ texto: `Ningún producto disponible tiene el código ${codigo}.`, fallo: true });
     }
   }
 
   /**
-   * Lo leído por cámara se clasifica por su forma, no por junto a qué
-   * lupa se tocó el botón: los artículos siempre llevan ART-000123 en
-   * la etiqueta; cualquier otro código es de un repuesto. El aviso sí
-   * sale donde se abrió la cámara, que es donde está mirando quien cobra.
+   * Lo leído por cámara se clasifica por su forma, no por la pestaña
+   * abierta: los artículos siempre llevan ART-000123 en la etiqueta;
+   * cualquier otro código es de un repuesto. La pestaña se cambia a la
+   * del código leído, para que quien cobra vea lo que se agregó.
    */
   async function codigoLeido(valor: string) {
-    const origen = escaneando ?? "repuesto";
-    setEscaneando(null);
+    setEscaneando(false);
     const kind = /^ART-?\d+$/i.test(valor.trim()) ? "articulo" : "repuesto";
-    await buscarOAgregar(kind, valor, true, origen);
+    setVista(kind);
+    await buscarOAgregar(kind, valor, true);
   }
 
-  function botonEscanear(kind: Linea["kind"]) {
-    return (
-      <Boton
-        type="button"
-        variante={escaneando === kind ? "primario" : "contorno"}
-        icono={<ScanBarcode size={17} strokeWidth={2} />}
-        onClick={() => {
-          setAvisoCodigo(null);
-          setEscaneando((e) => (e === kind ? null : kind));
-        }}
-        aria-label="Escanear código de barras con la cámara"
-        title="Escanear con la cámara"
-      />
-    );
-  }
-
-  function panelEscaneo(kind: Linea["kind"]) {
-    return (
-      <>
-        {escaneando === kind && (
-          <div style={{ marginBottom: 12 }}>
-            <LectorCodigoBarras
-              formats={FORMATOS_ESCANEO}
-              etiqueta="Ubica el código de barras del producto"
-              onDetectado={codigoLeido}
-              onCerrar={() => setEscaneando(null)}
-            />
-          </div>
-        )}
-        {avisoCodigo?.donde === kind && escaneando === null && (
-          <div style={{ marginBottom: 12 }}>
-            <Aviso
-              tono={avisoCodigo.fallo ? "peligro" : "ok"}
-              icono={avisoCodigo.fallo ? undefined : <Check size={17} strokeWidth={2.4} />}
-            >
-              {avisoCodigo.texto}
-            </Aviso>
-          </div>
-        )}
-      </>
-    );
+  function cambiarVista(kind: Linea["kind"]) {
+    setVista(kind);
+    setAvisoCodigo(null);
   }
 
   function agregarRepuesto(r: Repuesto) {
@@ -361,132 +325,119 @@ export default function PaginaVender() {
       <style>{`
         .pos{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:18px;align-items:start;}
         .pos-carrito{position:sticky;top:20px;}
-        .categorias-movil{display:none;}
         @media (max-width:1000px){
           .pos{grid-template-columns:minmax(0,1fr);}
           .pos-catalogo{order:2;}
           .pos-carrito{order:1;position:static;}
         }
-        /* Con 30+ categorías reales, la fila de pastillas envueltas se
-           come media pantalla del celular antes de llegar al catálogo --
-           por debajo de 640px se cambia por un desplegable con scroll
-           propio, del mismo modo que el menú lateral deja de ser un
-           riel fijo ahí. */
-        @media (max-width:640px){
-          .categorias-escritorio{display:none;}
-          .categorias-movil{display:block;}
-        }
+        .pos-categoria{width:auto;max-width:240px;flex:0 1 auto;}
+        /* La tarjeta entera agrega al carrito: es un botón, sin otro
+           botón "Agregar" adentro. Marcada en color si ya está. */
+        .producto{display:flex;flex-direction:column;gap:6px;padding:8px;text-align:left;font:inherit;color:inherit;cursor:pointer;}
+        .producto:hover:not(:disabled){border-color:var(--accent);}
+        .producto:disabled{cursor:default;opacity:.55;}
+        .producto-en-carrito,.producto-en-carrito:disabled{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);opacity:1;}
+        .producto-nombre{font-size:12px;font-weight:700;line-height:1.2;}
+        .producto-precio{display:flex;justify-content:space-between;align-items:baseline;gap:6px;font-size:14px;font-weight:800;}
+        .producto-precio>span+span{font-size:11px;font-weight:600;}
       `}</style>
 
       <TituloPantalla
         icono={<ShoppingCart size={24} strokeWidth={2} />}
         titulo="Vender"
-        descripcion="Busca un repuesto o un artículo y agrégalo al carrito."
       />
 
       <div className="pos">
-        <div className="pos-catalogo pila">
-          {categorias.length > 0 && (
-            <>
-              {/* Escritorio/tablet: la fila envuelta de siempre -- hay
-                  espacio de sobra para verlas todas de un vistazo. */}
-              <div className="categorias-escritorio fila" style={{ gap: 7 }}>
+        <div className="pos-catalogo pila" style={{ gap: 12 }}>
+          {/* Una sola barra: qué se vende (repuestos a granel o equipos
+              de a una unidad), qué se busca y en qué categoría. */}
+          <div className="fila" style={{ gap: 8 }}>
+            <div className="fila" style={{ gap: 6, flexWrap: "nowrap" }} role="group" aria-label="Qué vender">
+              {(["repuesto", "articulo"] as const).map((k) => (
                 <button
+                  key={k}
                   type="button"
-                  onClick={() => setCategoriaId("")}
-                  className={`pastilla${categoriaId === "" ? " pastilla-activa" : ""}`}
+                  onClick={() => cambiarVista(k)}
+                  aria-pressed={vista === k}
+                  className={`pastilla${vista === k ? " pastilla-activa" : ""}`}
                 >
-                  Todos
+                  {k === "repuesto" ? "Repuestos" : "Equipos"}
                 </button>
+              ))}
+            </div>
+            {categorias.length > 0 && (
+              <select
+                value={categoriaId}
+                onChange={(e) => setCategoriaId(e.target.value)}
+                aria-label="Categoría"
+                className="pos-categoria"
+              >
+                <option value="">Categoría: Todas</option>
                 {categorias.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setCategoriaId(c.id)}
-                    className={`pastilla${categoriaId === c.id ? " pastilla-activa" : ""}`}
-                  >
+                  <option key={c.id} value={c.id}>
                     {c.nombre}
-                  </button>
+                  </option>
                 ))}
-              </div>
+              </select>
+            )}
+          </div>
 
-              {/* Móvil: un desplegable -- la lista completa empuja el
-                  catálogo fuera de la pantalla si se muestra siempre. */}
-              <div className="categorias-movil">
-                <button
-                  type="button"
-                  onClick={() => setCategoriasAbiertas((a) => !a)}
-                  aria-expanded={categoriasAbiertas}
-                  className="pastilla"
-                  style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", justifyContent: "space-between" }}
-                >
-                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Tags size={15} strokeWidth={2} />
-                    {categoriaId ? categorias.find((c) => c.id === categoriaId)?.nombre : "Categorías: Todos"}
-                  </span>
-                  <ChevronDown
-                    size={16}
-                    strokeWidth={2}
-                    style={{ transform: categoriasAbiertas ? "rotate(180deg)" : undefined, transition: "transform .15s ease" }}
-                  />
-                </button>
-                {categoriasAbiertas && (
-                  <div
-                    className="pila"
-                    style={{ gap: 4, marginTop: 8, maxHeight: 260, overflowY: "auto", padding: 4 }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCategoriaId("");
-                        setCategoriasAbiertas(false);
-                      }}
-                      className={`pastilla${categoriaId === "" ? " pastilla-activa" : ""}`}
-                      style={{ textAlign: "left" }}
-                    >
-                      Todos
-                    </button>
-                    {categorias.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => {
-                          setCategoriaId(c.id);
-                          setCategoriasAbiertas(false);
-                        }}
-                        className={`pastilla${categoriaId === c.id ? " pastilla-activa" : ""}`}
-                        style={{ textAlign: "left" }}
-                      >
-                        {c.nombre}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          <section>
-            <form
-              className="fila"
-              style={{ gap: 8, marginBottom: 12, flexWrap: "nowrap" }}
-              onSubmit={(e) => {
-                e.preventDefault();
-                buscarOAgregar("repuesto", buscarRepuesto);
-              }}
-            >
+          <form
+            className="fila"
+            style={{ gap: 8, flexWrap: "nowrap" }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              buscarOAgregar(vista, vista === "repuesto" ? buscarRepuesto : buscarArticulo);
+            }}
+          >
+            {vista === "repuesto" ? (
               <input
-                placeholder="Buscar repuesto o accesorio por código o descripción"
+                placeholder="Buscar repuesto o accesorio por código o nombre"
                 value={buscarRepuesto}
                 onChange={(e) => setBuscarRepuesto(e.target.value)}
                 aria-label="Buscar repuesto o accesorio"
               />
-              <Boton type="submit" variante="contorno" icono={<Search size={17} strokeWidth={2} />} aria-label="Buscar" />
-              {botonEscanear("repuesto")}
-            </form>
-            {panelEscaneo("repuesto")}
+            ) : (
+              <input
+                placeholder="Buscar equipo por código (ART-000123), marca o modelo"
+                value={buscarArticulo}
+                onChange={(e) => setBuscarArticulo(e.target.value)}
+                aria-label="Buscar equipo"
+              />
+            )}
+            <Boton type="submit" variante="contorno" icono={<Search size={17} strokeWidth={2} />} aria-label="Buscar" />
+            <Boton
+              type="button"
+              variante={escaneando ? "primario" : "contorno"}
+              icono={<ScanBarcode size={17} strokeWidth={2} />}
+              onClick={() => {
+                setAvisoCodigo(null);
+                setEscaneando((e) => !e);
+              }}
+              aria-label="Escanear código de barras con la cámara"
+              title="Escanear con la cámara"
+            />
+          </form>
 
-            {resultadosRepuesto.length === 0 ? (
+          {escaneando && (
+            <LectorCodigoBarras
+              formats={FORMATOS_ESCANEO}
+              etiqueta="Ubica el código de barras del producto"
+              onDetectado={codigoLeido}
+              onCerrar={() => setEscaneando(false)}
+            />
+          )}
+          {avisoCodigo && !escaneando && (
+            <Aviso
+              tono={avisoCodigo.fallo ? "peligro" : "ok"}
+              icono={avisoCodigo.fallo ? undefined : <Check size={17} strokeWidth={2.4} />}
+            >
+              {avisoCodigo.texto}
+            </Aviso>
+          )}
+
+          {vista === "repuesto" ? (
+            resultadosRepuesto.length === 0 ? (
               <Tarjeta style={{ borderStyle: "dashed", textAlign: "center", color: "var(--ink-3)", fontSize: 13 }}>
                 Ningún repuesto coincide con esa búsqueda.
               </Tarjeta>
@@ -494,115 +445,64 @@ export default function PaginaVender() {
               <div className="rejilla-catalogo">
                 {resultadosRepuesto.map((r) => {
                   const agotado = r.existenciaAqui <= 0;
+                  const enCarrito = estaEnCarrito("repuesto", r.id);
                   return (
-                    <Tarjeta
+                    <button
                       key={r.id}
-                      relleno={false}
-                      style={{
-                        padding: 8,
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 6,
-                        opacity: agotado ? 0.55 : 1,
-                        borderColor: estaEnCarrito("repuesto", r.id) ? "var(--accent)" : undefined,
-                      }}
+                      type="button"
+                      className={`tarjeta producto${enCarrito ? " producto-en-carrito" : ""}`}
+                      onClick={() => agregarRepuesto(r)}
+                      disabled={agotado}
+                      aria-label={`Agregar ${r.descripcion} al carrito`}
                     >
                       <FotoProducto tipo="repuesto" id={r.id} imagenUrl={r.imagenUrl} editable={false} />
-                      <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>{r.descripcion}</div>
-                      <div className="cifra" style={{ fontSize: 10, color: "var(--ink-3)", marginTop: -4 }}>
-                        {r.codigo}
-                      </div>
-                      <div className="fila" style={{ justifyContent: "space-between", gap: 6 }}>
-                        <span className="cifra" style={{ fontSize: 14, fontWeight: 800 }}>
-                          {fmt(r.precioVenta)}
+                      <span className="producto-nombre">{r.descripcion}</span>
+                      <span className="producto-precio">
+                        <span className="cifra">{fmt(r.precioVenta)}</span>
+                        <span
+                          className="cifra"
+                          style={{ color: agotado ? "var(--ink-3)" : r.existenciaAqui <= 3 ? "var(--aviso)" : "var(--ink-3)" }}
+                          title="Unidades en esta sede"
+                        >
+                          {agotado ? "Agotado" : r.existenciaAqui}
                         </span>
-                        <Etiqueta tono={agotado ? "neutro" : r.existenciaAqui <= 3 ? "aviso" : "ok"}>
-                          <span className="cifra">{agotado ? "Agotado" : r.existenciaAqui}</span>
-                        </Etiqueta>
-                      </div>
-                      <Boton
-                        variante="primario"
-                        tamano="sm"
-                        ancho
-                        icono={<Plus size={15} strokeWidth={2.2} />}
-                        onClick={() => agregarRepuesto(r)}
-                        disabled={agotado}
-                      >
-                        Agregar
-                      </Boton>
-                    </Tarjeta>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          <section>
-            <form
-              className="fila"
-              style={{ gap: 8, marginBottom: 12, flexWrap: "nowrap" }}
-              onSubmit={(e) => {
-                e.preventDefault();
-                buscarOAgregar("articulo", buscarArticulo);
-              }}
-            >
-              <input
-                placeholder="Buscar artículo por código (ART-000123), marca o modelo"
-                value={buscarArticulo}
-                onChange={(e) => setBuscarArticulo(e.target.value)}
-                aria-label="Buscar artículo"
-              />
-              <Boton type="submit" variante="contorno" icono={<Search size={17} strokeWidth={2} />} aria-label="Buscar" />
-              {botonEscanear("articulo")}
-            </form>
-            {panelEscaneo("articulo")}
-
-            {resultadosArticulo.length === 0 ? (
-              <Tarjeta style={{ borderStyle: "dashed", textAlign: "center", color: "var(--ink-3)", fontSize: 13 }}>
-                Ningún artículo disponible coincide con esa búsqueda.
-              </Tarjeta>
-            ) : (
-              <div className="rejilla-catalogo">
-                {resultadosArticulo.map((a) => {
-                  const enCarrito = estaEnCarrito("articulo", a.id);
-                  return (
-                    <Tarjeta
-                      key={a.id}
-                      relleno={false}
-                      style={{
-                        padding: 8,
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 6,
-                        borderColor: enCarrito ? "var(--accent)" : undefined,
-                      }}
-                    >
-                      <FotoProducto tipo="articulo" id={a.id} imagenUrl={a.imagen_url} editable={false} />
-                      <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>
-                        {[a.marca, a.modelo].filter(Boolean).join(" ") || a.tipo}
-                      </div>
-                      <div className="cifra" style={{ fontSize: 10, color: "var(--ink-3)", marginTop: -4 }}>
-                        {a.codigo}
-                      </div>
-                      <span className="cifra" style={{ fontSize: 14, fontWeight: 800 }}>
-                        {fmt(a.precio_venta)}
                       </span>
-                      <Boton
-                        variante="primario"
-                        tamano="sm"
-                        ancho
-                        icono={enCarrito ? <Check size={15} strokeWidth={2.6} /> : <Plus size={15} strokeWidth={2.2} />}
-                        onClick={() => agregarArticulo(a)}
-                        disabled={enCarrito}
-                      >
-                        {enCarrito ? "En el carrito" : "Agregar"}
-                      </Boton>
-                    </Tarjeta>
+                    </button>
                   );
                 })}
               </div>
-            )}
-          </section>
+            )
+          ) : resultadosArticulo.length === 0 ? (
+            <Tarjeta style={{ borderStyle: "dashed", textAlign: "center", color: "var(--ink-3)", fontSize: 13 }}>
+              Ningún equipo disponible coincide con esa búsqueda.
+            </Tarjeta>
+          ) : (
+            <div className="rejilla-catalogo">
+              {resultadosArticulo.map((a) => {
+                const enCarrito = estaEnCarrito("articulo", a.id);
+                const nombre = [a.marca, a.modelo].filter(Boolean).join(" ") || a.tipo;
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    className={`tarjeta producto${enCarrito ? " producto-en-carrito" : ""}`}
+                    onClick={() => agregarArticulo(a)}
+                    disabled={enCarrito}
+                    aria-label={enCarrito ? `${nombre} ya está en el carrito` : `Agregar ${nombre} al carrito`}
+                  >
+                    <FotoProducto tipo="articulo" id={a.id} imagenUrl={a.imagen_url} editable={false} />
+                    <span className="producto-nombre">{nombre}</span>
+                    <span className="producto-precio">
+                      <span className="cifra">{fmt(a.precio_venta)}</span>
+                      <span className="cifra" style={{ color: "var(--ink-3)" }}>
+                        {a.codigo}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="pos-carrito">
@@ -773,6 +673,7 @@ export default function PaginaVender() {
                     onCambiarMontoRecibido={setMontoRecibido}
                     imprimir={imprimir}
                     onCambiarImprimir={setImprimir}
+                    ocultarImprimir
                   />
 
                   <Boton
@@ -791,6 +692,10 @@ export default function PaginaVender() {
                   >
                     <span className="cifra">{enviando ? "Cobrando…" : `Cobrar ${fmt(total)}`}</span>
                   </Boton>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--ink-2)", cursor: "pointer" }}>
+                    <input type="checkbox" checked={imprimir} onChange={(e) => setImprimir(e.target.checked)} />
+                    Imprimir recibo
+                  </label>
                 </>
               )}
 
