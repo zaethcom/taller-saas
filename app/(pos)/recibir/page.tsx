@@ -9,13 +9,15 @@
  *
  * El requisito de la Fase 3 del plano es que esto tome menos de tres
  * minutos -- por eso busca cliente y equipo por un solo campo (documento,
- * serial) antes de pedir llenar nada más, y por eso los tres pasos son
- * tres tarjetas numeradas en una sola pantalla, sin asistente ni
- * pestañas: quien recibe ve de un vistazo lo que le falta.
+ * serial) antes de pedir llenar nada más, y por eso los pasos son
+ * cuatro bloques numerados en una sola pantalla (cliente, equipo con su
+ * acceso, daño y motivo con valor y abono, fotos), sin asistente ni
+ * pestañas: quien recibe ve de un vistazo lo que le falta. Lo poco usado
+ * va plegado en «Más datos» y los botones de guardar quedan fijos abajo.
  */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Inbox, Search, Check, User, Wrench, FileText, Printer, ClipboardList, Barcode, KeyRound, Camera, Wallet, ShoppingBag, MessageCircle, Pencil } from "lucide-react";
+import { Inbox, Search, Check, Printer, Barcode, Camera, ShoppingBag, MessageCircle, Pencil } from "lucide-react";
 import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
 import { PatronGrid } from "@/componentes/patron-android/patron-grid";
 import { Boton } from "@/componentes/ui/boton";
@@ -66,38 +68,36 @@ interface Metodo {
 /** Valor del desplegable para escribir una marca o un modelo que no está en la lista. */
 const OTRA = "__otra__";
 
-/** El número del paso, para que las tres tarjetas se lean como una secuencia. */
-function Paso({ n, titulo, icono, children }: { n: number; titulo: string; icono: React.ReactNode; children: React.ReactNode }) {
+/** Un bloque numerado; con `listo` el número pasa a un visto. */
+function Paso({ n, titulo, listo, children }: { n: number; titulo: string; listo?: boolean; children: React.ReactNode }) {
   return (
     // El id permite que la ventana de "lo que falta" lleve al paso pendiente.
     <div id={`paso-${n}`} style={{ scrollMarginTop: 80 }}>
-    <Tarjeta>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <span
-          className="cifra"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 26,
-            height: 26,
-            borderRadius: "var(--r-sm)",
-            background: "var(--accent)",
-            color: "var(--accent-texto)",
-            fontSize: 13,
-            fontWeight: 800,
-            flexShrink: 0,
-          }}
-        >
-          {n}
-        </span>
-        <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {icono}
-          {titulo}
-        </h2>
-      </div>
-      {children}
-    </Tarjeta>
+      <Tarjeta>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <span
+            className="cifra"
+            aria-hidden
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 24,
+              height: 24,
+              borderRadius: "50%",
+              background: listo ? "var(--ok)" : "var(--accent)",
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 800,
+              flexShrink: 0,
+            }}
+          >
+            {listo ? <Check size={14} strokeWidth={3} /> : n}
+          </span>
+          <h2 style={{ fontSize: 16 }}>{titulo}</h2>
+        </div>
+        {children}
+      </Tarjeta>
     </div>
   );
 }
@@ -393,15 +393,15 @@ export default function PaginaRecibir() {
 
   // La foto o video de ingreso es opcional: se toma si se quiere.
   const faltantes: { mensaje: string; paso: number }[] = [];
-  if (!cliente && !clienteNuevo.nombre.trim()) faltantes.push({ mensaje: "Falta el nombre del cliente.", paso: 2 });
+  if (!cliente && !clienteNuevo.nombre.trim()) faltantes.push({ mensaje: "Falta el nombre del cliente.", paso: 1 });
   if (pideTelefonoAlterno && telefonoAlterno.replace(/\D/g, "").length < 7)
-    faltantes.push({ mensaje: "Falta el número alternativo de contacto.", paso: 2 });
-  if (!motivo.trim()) faltantes.push({ mensaje: "Falta el daño y motivo del servicio.", paso: 5 });
-  if (abono > valorServicio) faltantes.push({ mensaje: "El abono no puede ser mayor al valor del servicio.", paso: 6 });
+    faltantes.push({ mensaje: "Falta el número alternativo de contacto.", paso: 1 });
+  if (!motivo.trim()) faltantes.push({ mensaje: "Falta el daño y motivo del servicio.", paso: 3 });
+  if (abono > valorServicio) faltantes.push({ mensaje: "El abono no puede ser mayor al valor del servicio.", paso: 3 });
   else if (abono > 0 && turnoAbierto === false)
-    faltantes.push({ mensaje: "Para recibir un abono, abre el turno de caja.", paso: 6 });
+    faltantes.push({ mensaje: "Para recibir un abono, abre el turno de caja.", paso: 3 });
   else if (abono > 0 && metodo?.es_efectivo && montoRecibido < abono)
-    faltantes.push({ mensaje: "El efectivo recibido no alcanza el abono.", paso: 6 });
+    faltantes.push({ mensaje: "El efectivo recibido no alcanza el abono.", paso: 3 });
 
   function intentarGuardar(enviarWhatsapp = false) {
     if (faltantes.length) {
@@ -513,13 +513,6 @@ export default function PaginaRecibir() {
           >
             Corregir datos
           </Boton>
-          <Boton
-            variante="contorno"
-            icono={<ClipboardList size={18} strokeWidth={2} />}
-            onClick={() => router.push("/ordenes")}
-          >
-            Ver tablero de órdenes
-          </Boton>
         </div>
       </Tarjeta>
     );
@@ -527,103 +520,93 @@ export default function PaginaRecibir() {
 
   return (
     <div>
-      <TituloPantalla
-        titulo="Recibir equipo"
-      />
+      <TituloPantalla titulo="Recibir equipo" />
 
       <div className="pila">
-        <Paso n={1} titulo="Evidencia de ingreso (opcional)" icono={<Camera size={18} strokeWidth={2} color="var(--ink-2)" />}>
-          <EvidenciaIngreso archivos={evidencia} onChange={setEvidencia} onError={setErrorEvidencia} />
-          {errorEvidencia && (
-            <div style={{ marginTop: 12 }}>
-              <Aviso tono="peligro">{errorEvidencia}</Aviso>
-            </div>
-          )}
-        </Paso>
-
-        <Paso n={2} titulo="Cliente" icono={<User size={18} strokeWidth={2} color="var(--ink-2)" />}>
-          <form
-            className="fila"
-            style={{ gap: 8, flexWrap: "nowrap", marginBottom: cliente ? 12 : 14 }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              buscarCliente(documento, "documento");
-            }}
-          >
-            <input
-              placeholder="Documento o teléfono"
-              value={documento}
-              onChange={(e) => {
-                setDocumento(e.target.value);
-                setCliente(null);
-                setSinCoincidencia(false);
-              }}
-              aria-label="Documento o teléfono del cliente"
-            />
-            <Boton type="submit" variante="contorno" icono={<Search size={17} strokeWidth={2} />} disabled={buscandoCliente}>
-              Buscar
-            </Boton>
-          </form>
-
+        <Paso n={1} titulo="Cliente" listo={Boolean(cliente)}>
           {cliente ? (
-            <Aviso tono="ok" icono={<Check size={17} strokeWidth={2.4} />}>
-              <div className="fila" style={{ gap: 8, justifyContent: "space-between", alignItems: "center" }}>
-                <span>
-                  <strong>{cliente.nombre}</strong>
-                  {cliente.documento ? <span className="cifra"> · {cliente.documento}</span> : ""}
-                  {cliente.telefono ? <span className="cifra"> · {cliente.telefono}</span> : ""}
-                </span>
-                <Boton type="button" variante="fantasma" tamano="sm" onClick={cambiarCliente}>
-                  Cambiar
-                </Boton>
-              </div>
-            </Aviso>
-          ) : opcionesCliente.length > 0 ? (
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={{ color: "var(--ink-2)", fontSize: 14 }}>Varios clientes coinciden. Elige uno:</div>
-              {opcionesCliente.map((c) => (
-                <Boton key={c.id} type="button" variante="contorno" ancho onClick={() => elegirCliente(c)}>
-                  {c.nombre}
-                  {c.documento ? ` · ${c.documento}` : ""}
-                  {c.telefono ? ` · ${c.telefono}` : ""}
-                </Boton>
-              ))}
-              <Boton type="button" variante="fantasma" tamano="sm" onClick={() => setOpcionesCliente([])}>
-                Es un cliente nuevo
+            <div className="fila" style={{ gap: 8, justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ minWidth: 0 }}>
+                <strong>{cliente.nombre}</strong>
+                {cliente.documento ? <span className="cifra" style={{ color: "var(--ink-2)" }}> · {cliente.documento}</span> : ""}
+                {cliente.telefono ? <span className="cifra" style={{ color: "var(--ink-2)" }}> · {cliente.telefono}</span> : ""}
+              </span>
+              <Boton type="button" variante="fantasma" tamano="sm" onClick={cambiarCliente}>
+                Cambiar
               </Boton>
             </div>
           ) : (
             <>
-            {sinCoincidencia && !buscandoCliente && (
-              <div style={{ marginBottom: 10, color: "var(--ink-2)", fontSize: 14 }}>
-                No hay un cliente con ese documento o teléfono. Llena sus datos para registrarlo.
-              </div>
-            )}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-              <Campo etiqueta="Nombre del cliente">
+              {/* Busca sola al escribir; Enter busca de una vez. */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  buscarCliente(documento, "documento");
+                }}
+                style={{ marginBottom: 12, position: "relative" }}
+              >
                 <input
-                  placeholder="Nombre y apellido"
-                  value={clienteNuevo.nombre}
-                  onChange={(e) => setClienteNuevo((c) => ({ ...c, nombre: e.target.value }))}
+                  placeholder="Documento o teléfono del cliente"
+                  value={documento}
+                  onChange={(e) => {
+                    setDocumento(e.target.value);
+                    setCliente(null);
+                    setSinCoincidencia(false);
+                  }}
+                  aria-label="Documento o teléfono del cliente"
+                  style={{ paddingRight: 40 }}
                 />
-              </Campo>
-              <Campo etiqueta="Teléfono" ayuda="Por ahí se le avisa cuando el equipo esté listo.">
-                <input
-                  placeholder="300 000 0000"
-                  value={clienteNuevo.telefono}
-                  onChange={(e) => setClienteNuevo((c) => ({ ...c, telefono: e.target.value }))}
+                <Search
+                  size={17}
+                  strokeWidth={2}
+                  aria-hidden
+                  color="var(--ink-3)"
+                  style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", opacity: buscandoCliente ? 0.4 : 1 }}
                 />
-              </Campo>
-            </div>
+              </form>
+
+              {opcionesCliente.length > 0 ? (
+                <div style={{ display: "grid", gap: 8 }}>
+                  <div style={{ color: "var(--ink-2)", fontSize: 14 }}>Varios clientes coinciden:</div>
+                  {opcionesCliente.map((c) => (
+                    <Boton key={c.id} type="button" variante="contorno" ancho onClick={() => elegirCliente(c)}>
+                      {c.nombre}
+                      {c.documento ? ` · ${c.documento}` : ""}
+                      {c.telefono ? ` · ${c.telefono}` : ""}
+                    </Boton>
+                  ))}
+                  <Boton type="button" variante="fantasma" tamano="sm" onClick={() => setOpcionesCliente([])}>
+                    Es un cliente nuevo
+                  </Boton>
+                </div>
+              ) : (
+                <>
+                  {sinCoincidencia && !buscandoCliente && (
+                    <div style={{ marginBottom: 10, color: "var(--ink-2)", fontSize: 13 }}>Cliente nuevo: llena sus datos.</div>
+                  )}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+                    <input
+                      placeholder="Nombre y apellido"
+                      aria-label="Nombre del cliente"
+                      value={clienteNuevo.nombre}
+                      onChange={(e) => setClienteNuevo((c) => ({ ...c, nombre: e.target.value }))}
+                    />
+                    <input
+                      placeholder="Teléfono"
+                      aria-label="Teléfono del cliente"
+                      inputMode="tel"
+                      value={clienteNuevo.telefono}
+                      onChange={(e) => setClienteNuevo((c) => ({ ...c, telefono: e.target.value }))}
+                    />
+                  </div>
+                </>
+              )}
             </>
           )}
 
           {pideTelefonoAlterno && (
             <div style={{ marginTop: 12 }}>
-              <Campo
-                etiqueta="Número alternativo de contacto"
-                ayuda="Un familiar o el trabajo: el cliente deja su celular, así que por aquí se le envía el enlace por WhatsApp."
-              >
+              <Campo etiqueta="Número alternativo" ayuda="Un familiar o el trabajo: por aquí se le escribe mientras su celular está en el taller.">
                 <input
                   placeholder="300 000 0000"
                   value={telefonoAlterno}
@@ -635,45 +618,40 @@ export default function PaginaRecibir() {
           )}
         </Paso>
 
-        <Paso n={3} titulo="Equipo" icono={<Wrench size={18} strokeWidth={2} color="var(--ink-2)" />}>
+        <Paso n={2} titulo="Equipo" listo={Boolean(producto)}>
           <form
-            className="fila"
-            style={{ gap: 8, marginBottom: 14 }}
             onSubmit={(e) => {
               e.preventDefault();
               buscarProducto();
             }}
+            className="fila"
+            style={{ gap: 8, flexWrap: "nowrap", marginBottom: 12 }}
           >
             <input
-              style={{ flex: "1 1 220px", minWidth: 0 }}
-              placeholder="Serial (vacío = equipo nuevo, se genera al guardar)"
+              style={{ flex: 1, minWidth: 0 }}
+              placeholder="Serial (vacío = se genera al guardar)"
               value={serial}
               onChange={(e) => {
                 setSerial(e.target.value);
                 setProducto(null);
               }}
+              onBlur={() => {
+                if (serial.trim() && !producto && !buscandoProducto) buscarProducto();
+              }}
               aria-label="Serial del equipo"
             />
             <Boton
-              type="submit"
-              variante="contorno"
-              icono={<Search size={17} strokeWidth={2} />}
-              disabled={buscandoProducto || !serial.trim()}
-            >
-              Buscar
-            </Boton>
-            <Boton
               type="button"
               variante="contorno"
-              icono={<Barcode size={17} strokeWidth={2} />}
+              icono={<Barcode size={18} strokeWidth={2} />}
               onClick={() => setEscaneando(true)}
-            >
-              Escanear
-            </Boton>
+              aria-label="Escanear el código de barras del serial"
+              title="Escanear"
+            />
           </form>
 
           {escaneando && (
-            <div style={{ marginBottom: 14 }}>
+            <div style={{ marginBottom: 12 }}>
               <LectorCodigoBarras
                 formats={["code_128", "ean_13", "upc_a"]}
                 etiqueta="Ubica el código de barras del serial"
@@ -693,23 +671,23 @@ export default function PaginaRecibir() {
               <strong>
                 {producto.marca} {producto.modelo}
               </strong>{" "}
-              ({producto.tipo})
+              ({producto.tipo}) · ya estaba registrado
             </Aviso>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(160px, 100%), 1fr))", gap: 12 }}>
-              <Campo etiqueta="Tipo">
-                <select
-                  value={productoNuevo.tipo}
-                  onChange={(e) => setProductoNuevo((p) => ({ ...p, tipo: e.target.value }))}
-                >
-                  <option value="patineta">Patineta</option>
-                  <option value="celular">Celular</option>
-                  <option value="computador">Computador</option>
-                </select>
-              </Campo>
-              <Campo etiqueta="Marca">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))", gap: 10 }}>
+              <select
+                aria-label="Tipo de equipo"
+                value={productoNuevo.tipo}
+                onChange={(e) => setProductoNuevo((p) => ({ ...p, tipo: e.target.value }))}
+              >
+                <option value="patineta">Patineta</option>
+                <option value="celular">Celular</option>
+                <option value="computador">Computador</option>
+              </select>
+              <div>
                 {marcas.length > 0 && (
                   <select
+                    aria-label="Marca"
                     value={marcaOtra ? OTRA : productoNuevo.marca}
                     onChange={(e) => {
                       const otra = e.target.value === OTRA;
@@ -718,7 +696,7 @@ export default function PaginaRecibir() {
                       setProductoNuevo((p) => ({ ...p, marca: otra ? "" : e.target.value, modelo: "" }));
                     }}
                   >
-                    <option value="">Escoge la marca</option>
+                    <option value="">Marca</option>
                     {marcas.map((m) => (
                       <option key={m.marca} value={m.marca}>
                         {m.marca}
@@ -730,15 +708,17 @@ export default function PaginaRecibir() {
                 {(marcas.length === 0 || marcaOtra) && (
                   <input
                     placeholder="Escribe la marca"
+                    aria-label="Marca"
                     style={marcas.length > 0 ? { marginTop: 6 } : undefined}
                     value={productoNuevo.marca}
                     onChange={(e) => setProductoNuevo((p) => ({ ...p, marca: e.target.value }))}
                   />
                 )}
-              </Campo>
-              <Campo etiqueta="Modelo">
+              </div>
+              <div>
                 {modelosDeMarca.length > 0 && (
                   <select
+                    aria-label="Modelo"
                     value={modeloOtro ? OTRA : productoNuevo.modelo}
                     onChange={(e) => {
                       const otro = e.target.value === OTRA;
@@ -746,7 +726,7 @@ export default function PaginaRecibir() {
                       setProductoNuevo((p) => ({ ...p, modelo: otro ? "" : e.target.value }));
                     }}
                   >
-                    <option value="">Escoge el modelo</option>
+                    <option value="">Modelo</option>
                     {modelosDeMarca.map((m) => (
                       <option key={m} value={m}>
                         {m}
@@ -758,115 +738,93 @@ export default function PaginaRecibir() {
                 {(modelosDeMarca.length === 0 || modeloOtro) && (
                   <input
                     placeholder="Escribe el modelo"
+                    aria-label="Modelo"
                     style={modelosDeMarca.length > 0 ? { marginTop: 6 } : undefined}
                     value={productoNuevo.modelo}
                     onChange={(e) => setProductoNuevo((p) => ({ ...p, modelo: e.target.value }))}
                   />
                 )}
-              </Campo>
+              </div>
             </div>
           )}
 
-          <div style={{ marginTop: 14 }}>
-            <Campo etiqueta="Info adicional" ayuda="Lo que nota quien recibe, ej. &quot;trae cargador y forro&quot;. Opcional.">
-              <input
-                placeholder="Opcional"
-                value={infoAdicional}
-                onChange={(e) => setInfoAdicional(e.target.value)}
-              />
-            </Campo>
-          </div>
-        </Paso>
-
-        <Paso n={4} titulo="Acceso" icono={<KeyRound size={18} strokeWidth={2} color="var(--ink-2)" />}>
-          <p className="campo-ayuda" style={{ marginTop: 0, marginBottom: 12 }}>
-            Opcional -- solo si el servicio necesita entrar al equipo. Se borra solo al entregarlo.
-          </p>
-          <div className="fila" style={{ gap: 8, marginBottom: 14 }}>
+          {/* El acceso al equipo, opcional; se borra solo al entregarlo. */}
+          <div className="fila" style={{ gap: 6, marginTop: 14, alignItems: "center" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-2)", marginRight: 4 }}>Acceso</span>
             {(
               [
-                { valor: "", etiqueta: "Sin acceso" },
+                { valor: "", etiqueta: "Ninguno" },
                 { valor: "pin", etiqueta: "PIN" },
-                // Siempre visible: antes dependía de que el tipo fuera "celular",
-                // y con el tipo por defecto (patineta) el patrón no aparecía.
                 { valor: "patron", etiqueta: "Patrón" },
                 { valor: "contrasena", etiqueta: "Contraseña" },
-                { valor: "otro", etiqueta: "Otros" },
+                { valor: "otro", etiqueta: "Otro" },
               ] as const
             ).map((o) => (
-              <Boton
+              <button
                 key={o.valor}
-                tamano="sm"
-                variante={tipoAcceso === o.valor ? "primario" : "contorno"}
+                type="button"
+                className={`pastilla${tipoAcceso === o.valor ? " pastilla-activa" : ""}`}
                 onClick={() => setTipoAcceso(o.valor)}
                 aria-pressed={tipoAcceso === o.valor}
               >
                 {o.etiqueta}
-              </Boton>
+              </button>
             ))}
           </div>
 
-          {tipoAcceso === "pin" && (
-            <Campo etiqueta="PIN" ayuda="Solo números, de cualquier largo.">
-              <input
-                value={pinAcceso}
-                onChange={(e) => setPinAcceso(e.target.value.replace(/\D/g, ""))}
-                inputMode="numeric"
-                className="cifra"
-                style={{ maxWidth: 220 }}
-              />
-            </Campo>
-          )}
-
-          {tipoAcceso === "patron" && <PatronGrid valor={patronAcceso} onChange={setPatronAcceso} />}
-
-          {tipoAcceso === "contrasena" && (
-            <Campo etiqueta="Contraseña" ayuda="Letras, números, palabras o símbolos, tal como la dicta el cliente.">
-              <input
-                value={contrasenaAcceso}
-                onChange={(e) => setContrasenaAcceso(e.target.value)}
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-              />
-            </Campo>
-          )}
-
-          {tipoAcceso === "otro" && (
-            <Campo etiqueta="Método de acceso" ayuda="Describe cómo se entra, ej. &quot;cuenta Google del cliente&quot;.">
-              <input value={otroAcceso} onChange={(e) => setOtroAcceso(e.target.value)} />
-            </Campo>
-          )}
-
           {tipoAcceso && (
-            <div style={{ marginTop: 12 }}>
-              <Campo etiqueta="Nota" ayuda="Opcional, ej. &quot;solo huella, el PIN es de respaldo&quot;.">
-                <input value={notaAcceso} onChange={(e) => setNotaAcceso(e.target.value)} />
-              </Campo>
+            <div className="pila" style={{ gap: 10, marginTop: 12 }}>
+              {tipoAcceso === "pin" && (
+                <input
+                  value={pinAcceso}
+                  onChange={(e) => setPinAcceso(e.target.value.replace(/\D/g, ""))}
+                  inputMode="numeric"
+                  className="cifra"
+                  placeholder="PIN (solo números)"
+                  aria-label="PIN"
+                  style={{ maxWidth: 220 }}
+                />
+              )}
+              {tipoAcceso === "patron" && <PatronGrid valor={patronAcceso} onChange={setPatronAcceso} />}
+              {tipoAcceso === "contrasena" && (
+                <input
+                  value={contrasenaAcceso}
+                  onChange={(e) => setContrasenaAcceso(e.target.value)}
+                  placeholder="Contraseña, tal como la dicta el cliente"
+                  aria-label="Contraseña"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+              )}
+              {tipoAcceso === "otro" && (
+                <input
+                  value={otroAcceso}
+                  onChange={(e) => setOtroAcceso(e.target.value)}
+                  placeholder="Cómo se entra, ej. cuenta Google del cliente"
+                  aria-label="Método de acceso"
+                />
+              )}
+              <input
+                value={notaAcceso}
+                onChange={(e) => setNotaAcceso(e.target.value)}
+                placeholder="Nota (opcional), ej. solo huella"
+                aria-label="Nota del acceso"
+              />
             </div>
           )}
         </Paso>
 
-        <Paso n={5} titulo="Daño y motivo" icono={<FileText size={18} strokeWidth={2} color="var(--ink-2)" />}>
-          <Campo ayuda="El daño identificado y el servicio que se va a realizar. Es lo que lee el técnico al abrir la orden.">
-            <textarea
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-              rows={3}
-              aria-label="Motivo de la recepción"
-            />
-          </Campo>
-          <div style={{ marginTop: 14 }}>
-            {/* No va en <Campo>: es un <label> y aquí hay varios controles. */}
-            <span className="campo-etiqueta">Repuestos que necesita</span>
-            <RepuestosNecesarios repuestos={repuestos} onChange={setRepuestos} />
-            <div className="campo-ayuda">
-              Opcional. Busca en todo el catálogo. Lo que no hay en esta sede, o no está en el catálogo, pasa solo a Compras
-              con el número de esta orden. Se compra cuando el cliente apruebe.
-            </div>
-          </div>
-          <div style={{ marginTop: 14 }}>
-            <Campo etiqueta="Valor del servicio" ayuda="Opcional. Queda en la cuenta de la orden y en el comprobante.">
+        <Paso n={3} titulo="Daño y motivo" listo={Boolean(motivo.trim())}>
+          <textarea
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            rows={3}
+            placeholder="El daño y el servicio que se va a hacer"
+            aria-label="Daño y motivo"
+          />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginTop: 12 }}>
+            <Campo etiqueta="Valor del servicio">
               <input
                 type="number"
                 min={0}
@@ -878,35 +836,35 @@ export default function PaginaRecibir() {
                   setValorServicio(valor);
                   if (!valor) setAbono(0);
                 }}
-                placeholder="0"
-                style={{ maxWidth: 200 }}
+                placeholder="Opcional"
+              />
+            </Campo>
+            <Campo etiqueta="Abono">
+              <input
+                type="number"
+                min={0}
+                max={valorServicio}
+                inputMode="numeric"
+                className="cifra"
+                value={abono || ""}
+                onChange={(e) => setAbono(Math.max(0, Number(e.target.value) || 0))}
+                placeholder={valorServicio > 0 ? "Opcional" : "Pon primero el valor"}
+                disabled={!(valorServicio > 0)}
               />
             </Campo>
           </div>
-        </Paso>
-
-        {valorServicio > 0 && (
-          <Paso n={6} titulo="Abono" icono={<Wallet size={18} strokeWidth={2} color="var(--ink-2)" />}>
-            <div className="fila" style={{ gap: 12, alignItems: "flex-end", marginBottom: 14 }}>
-              <Campo etiqueta="Abono del cliente" ayuda="Opcional. Entra a la caja y a la cuenta de este equipo.">
-                <input
-                  type="number"
-                  min={0}
-                  max={valorServicio}
-                  inputMode="numeric"
-                  className="cifra"
-                  value={abono || ""}
-                  onChange={(e) => setAbono(Math.max(0, Number(e.target.value) || 0))}
-                  placeholder="0"
-                  style={{ maxWidth: 200 }}
-                />
-              </Campo>
-              <div className="cifra" style={{ paddingBottom: 10 }}>
-                Saldo restante: <strong>{formatearMoneda(saldo)}</strong>
-              </div>
+          {valorServicio > 0 && abono > 0 && (
+            <div className="cifra" style={{ marginTop: 8, fontSize: 13, color: "var(--ink-2)" }}>
+              Saldo: <strong>{formatearMoneda(saldo)}</strong>
             </div>
-            {abono > 0 && turnoAbierto === false && <AvisoTurnoCerrado />}
-            {abono > 0 && metodos.length > 0 && (
+          )}
+          {abono > 0 && turnoAbierto === false && (
+            <div style={{ marginTop: 12 }}>
+              <AvisoTurnoCerrado />
+            </div>
+          )}
+          {abono > 0 && metodos.length > 0 && (
+            <div style={{ marginTop: 12 }}>
               <PanelCobro
                 total={abono}
                 metodos={metodos}
@@ -914,36 +872,61 @@ export default function PaginaRecibir() {
                 onCambiarMetodo={setMetodoPagoId}
                 montoRecibido={montoRecibido}
                 onCambiarMontoRecibido={setMontoRecibido}
-                // El abono sale en el comprobante de recepción, no lleva ticket aparte.
                 ocultarImprimir
                 imprimir={false}
                 onCambiarImprimir={() => {}}
               />
-            )}
-          </Paso>
-        )}
+            </div>
+          )}
+        </Paso>
 
-        <div className="fila">
+        <Paso n={4} titulo="Fotos (opcional)" listo={evidencia.length > 0}>
+          <EvidenciaIngreso archivos={evidencia} onChange={setEvidencia} onError={setErrorEvidencia} />
+          {errorEvidencia && (
+            <div style={{ marginTop: 12 }}>
+              <Aviso tono="peligro">{errorEvidencia}</Aviso>
+            </div>
+          )}
+        </Paso>
+
+        <details className="mas-opciones">
+          <summary>Más datos: info adicional y repuestos que necesita</summary>
+          <div className="pila" style={{ gap: 14, marginTop: 12 }}>
+            <Campo etiqueta="Info adicional">
+              <input
+                placeholder="Ej. trae cargador y forro"
+                value={infoAdicional}
+                onChange={(e) => setInfoAdicional(e.target.value)}
+              />
+            </Campo>
+            <div>
+              {/* No va en <Campo>: es un <label> y aquí hay varios controles. */}
+              <span className="campo-etiqueta">Repuestos que necesita</span>
+              <RepuestosNecesarios repuestos={repuestos} onChange={setRepuestos} />
+              <div className="campo-ayuda">Lo que no hay en esta sede pasa a Compras con el número de la orden.</div>
+            </div>
+          </div>
+        </details>
+
+        {/* Fija abajo: guardar siempre a la vista, sin bajar hasta el final. */}
+        <div className="barra-acciones">
+          {/* Guarda e imprime igual que el principal y además abre el
+              mensaje con el enlace de seguimiento para el cliente. */}
+          <Boton
+            variante="contorno"
+            icono={<MessageCircle size={18} strokeWidth={2} />}
+            disabled={guardando}
+            onClick={() => intentarGuardar(true)}
+          >
+            WhatsApp
+          </Boton>
           <Boton
             variante="primario"
-            tamano="lg"
-            icono={<Printer size={19} strokeWidth={2} />}
+            icono={<Printer size={18} strokeWidth={2} />}
             disabled={guardando}
             onClick={() => intentarGuardar()}
           >
             {guardando ? "Guardando…" : "Recibir e imprimir"}
-          </Boton>
-          {/* Aparte, a propósito: guarda e imprime igual que el de al
-              lado y además abre el mensaje con el enlace de seguimiento,
-              listo para mandar al cliente. */}
-          <Boton
-            variante="contorno"
-            tamano="lg"
-            icono={<MessageCircle size={19} strokeWidth={2} />}
-            disabled={guardando}
-            onClick={() => intentarGuardar(true)}
-          >
-            Enviar por WhatsApp
           </Boton>
         </div>
 
