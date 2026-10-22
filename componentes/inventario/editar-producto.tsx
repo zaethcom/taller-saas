@@ -11,10 +11,13 @@
  *
  * Los datos de un repuesto son del catálogo, no de la sede: cambiarlos
  * en una tarjeta los cambia en las tarjetas de las otras sedes.
+ *
+ * Aquí viven también "En venta" y la reimpresión de la etiqueta, que
+ * antes iban sueltos en cada tarjeta y la llenaban de controles.
  */
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, X } from "lucide-react";
+import { Pencil, Printer, X } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { Campo } from "@/componentes/ui/campo";
 import { CONDICIONES_ARTICULO } from "@/lib/edicion-producto";
@@ -30,6 +33,7 @@ export interface RepuestoEditable {
   modelo?: string | null;
   categoria_id?: string | null;
   observacion?: string | null;
+  en_venta?: boolean;
 }
 
 export interface ArticuloEditable {
@@ -71,6 +75,7 @@ function datosIniciales(p: Props): Record<string, string> {
       modelo: str(r.modelo),
       categoriaId: str(r.categoria_id),
       observacion: str(r.observacion),
+      enVenta: r.en_venta === false ? "no" : "si",
     };
   }
   const a = p.articulo;
@@ -95,6 +100,9 @@ export function EditarProducto(props: Props) {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copias, setCopias] = useState("1");
+  const [imprimiendo, setImprimiendo] = useState(false);
+  const [impresa, setImpresa] = useState(false);
 
   useEffect(() => {
     if (!abierto) return;
@@ -109,7 +117,30 @@ export function EditarProducto(props: Props) {
     setCantidad(str(props.existencia?.cantidad));
     setMotivo("");
     setError(null);
+    setCopias("1");
+    setImpresa(false);
     setAbierto(true);
+  }
+
+  async function imprimir() {
+    setImprimiendo(true);
+    setError(null);
+    setImpresa(false);
+    try {
+      const producto = props.repuesto ? { repuestoId: props.repuesto.id } : { articuloId: props.articulo.id };
+      const res = await fetch("/api/inventario/etiqueta", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...producto, copias: Number(copias) }),
+      });
+      const datos = await res.json();
+      if (!res.ok) throw new Error(datos.error ?? "no se pudo imprimir");
+      setImpresa(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo imprimir");
+    } finally {
+      setImprimiendo(false);
+    }
   }
 
   const campo = (nombre: string) => ({
@@ -151,7 +182,9 @@ export function EditarProducto(props: Props) {
         const res = await fetch(url, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(cambiados),
+          body: JSON.stringify(
+            "enVenta" in cambiados ? { ...cambiados, enVenta: cambiados.enVenta === "si" } : cambiados,
+          ),
         });
         if (!res.ok) throw new Error((await res.json()).error ?? "No se pudieron guardar los datos");
       }
@@ -298,6 +331,15 @@ export function EditarProducto(props: Props) {
               <Campo etiqueta="Observación">
                 <input {...campo("observacion")} />
               </Campo>
+              <label className="interruptor" title="Un repuesto que no está en venta no aparece en Vender">
+                <input
+                  type="checkbox"
+                  checked={datos.enVenta !== "no"}
+                  onChange={(e) => setDatos((d) => ({ ...d, enVenta: e.target.checked ? "si" : "no" }))}
+                />
+                <span className="interruptor-pista" aria-hidden />
+                En venta (aparece en Vender)
+              </label>
 
               {props.existencia.sedeId && (
                 <div
@@ -368,6 +410,32 @@ export function EditarProducto(props: Props) {
               </Campo>
             </>
           )}
+
+          <div className="fila" style={{ gap: 8, borderTop: "1px solid var(--rule)", paddingTop: 10, marginTop: 2 }}>
+            <span className="campo-etiqueta" style={{ margin: 0 }}>
+              Etiqueta
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={copias}
+              onChange={(e) => setCopias(e.target.value)}
+              className="cifra"
+              aria-label="Copias"
+              style={{ width: 70 }}
+            />
+            <Boton
+              type="button"
+              variante="contorno"
+              tamano="sm"
+              icono={<Printer size={15} strokeWidth={2} />}
+              onClick={imprimir}
+              disabled={imprimiendo || !(Number(copias) >= 1)}
+            >
+              {imprimiendo ? "Enviando…" : impresa ? "Enviada" : "Imprimir"}
+            </Boton>
+          </div>
 
           <VentanaError mensaje={error} onCerrar={() => setError(null)} />
           <div className="fila" style={{ justifyContent: "flex-end", gap: 8 }}>

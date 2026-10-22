@@ -8,9 +8,8 @@
  * nuevo inline: mismo formulario cubre los dos casos del punto 3 del
  * documento de requerimientos sin un flujo aparte.
  *
- * Colapsado por defecto: esta pantalla la abren sobre todo para mirar
- * existencias, no para recibir -- el formulario no debe competir por
- * espacio con la rejilla de catálogo hasta que alguien lo pide.
+ * Vive en Recibir mercancía (pestaña Repuestos), siempre abierto con
+ * `fijo`. Sin `fijo` arranca colapsado detrás de un botón.
  */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -47,9 +46,9 @@ const enlace: React.CSSProperties = {
   font: "inherit",
 };
 
-export function FormularioRecepcion({ sedeIdDefault }: { sedeIdDefault: string | null }) {
+export function FormularioRecepcion({ sedeIdDefault, fijo = false }: { sedeIdDefault: string | null; fijo?: boolean }) {
   const router = useRouter();
-  const [abierto, setAbierto] = useState(false);
+  const [abierto, setAbierto] = useState(fijo);
 
   const [buscar, setBuscar] = useState("");
   const [resultados, setResultados] = useState<ResultadoRepuesto[]>([]);
@@ -190,7 +189,8 @@ export function FormularioRecepcion({ sedeIdDefault }: { sedeIdDefault: string |
   }
 
   return (
-    <Tarjeta style={{ marginBottom: 18 }}>
+    <Tarjeta style={fijo ? undefined : { marginBottom: 18 }}>
+      {!fijo && (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
           <PackagePlus size={17} strokeWidth={2} />
@@ -207,6 +207,7 @@ export function FormularioRecepcion({ sedeIdDefault }: { sedeIdDefault: string |
           }}
         />
       </div>
+      )}
 
       <form onSubmit={recibir} className="pila" style={{ gap: 12 }}>
         {!seleccionado && !modoNuevo && (
