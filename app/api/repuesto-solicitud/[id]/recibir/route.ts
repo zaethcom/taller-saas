@@ -12,6 +12,9 @@
  * repuesto", pasa sola a reparación. En cualquier caso el técnico de la
  * orden recibe el aviso (globo y push): "llegó el repuesto, la orden
  * está lista para seguir".
+ *
+ * Un encargo de mostrador (sin orden, desde Vender) solo se marca
+ * recibido: /compras ofrece avisarle al cliente por WhatsApp.
  */
 import { NextResponse } from "next/server";
 import { clienteAdmin, clienteServidor } from "@/lib/supabase/servidor";
@@ -53,7 +56,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     })
     .eq("id", id)
     .eq("estado", "faltante")
-    .select("id, orden_id, empresa_id")
+    .select("id, orden_id, empresa_id, cliente_nombre, cliente_telefono")
     .maybeSingle();
 
   if (error) {
@@ -63,11 +66,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "el faltante no existe o ya fue procesado" }, { status: 409 });
   }
 
-  const { data: orden } = await supabase
-    .from("orden")
-    .select("id, empresa_id, estado, fase:fase_id ( nombre )")
-    .eq("id", data.orden_id)
-    .maybeSingle();
+  const { data: orden } = data.orden_id
+    ? await supabase
+        .from("orden")
+        .select("id, empresa_id, estado, fase:fase_id ( nombre )")
+        .eq("id", data.orden_id)
+        .maybeSingle()
+    : { data: null };
 
   let estado: Estado | null = (orden?.estado as Estado | undefined) ?? null;
   if (orden) {
@@ -120,5 +125,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     });
   }
 
-  return NextResponse.json({ ok: true, ordenId: data.orden_id, estado });
+  return NextResponse.json({
+    ok: true,
+    ordenId: data.orden_id,
+    estado,
+    cliente: data.orden_id ? null : { nombre: data.cliente_nombre, telefono: data.cliente_telefono },
+  });
 }

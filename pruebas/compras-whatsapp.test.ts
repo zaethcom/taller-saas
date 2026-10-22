@@ -20,7 +20,7 @@ describe("mensajePedido", () => {
       "Mensajero",
     );
     expect(texto).toBe(
-      "Hola Mensajero, pedido de repuestos:\n• Pantalla x1 para Celular Samsung A12 (orden #45, prioridad urgente)\n• Pin de carga x2 (prioridad normal)",
+      "Hola Mensajero, pedido de repuestos:\n• Pantalla x1 para Celular Samsung A12 (orden #45, prioridad urgente)\n• Pin de carga x2 (encargo, prioridad normal)",
     );
   });
 });

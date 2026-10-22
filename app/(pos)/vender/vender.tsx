@@ -19,6 +19,10 @@
  * para que la pantalla no repita dos veces los mismos controles. Tocar
  * la tarjeta agrega el producto; no hay un botón "Agregar" aparte.
  *
+ * «Compras», antes de Repuestos y Equipos, es para encargar lo que el
+ * cliente pide y no hay: va a la lista de Compras con su nombre y
+ * teléfono (componentes/cobro/encargo-compras.tsx).
+ *
  * Al lado de la lupa hay un botón que abre la cámara y lee el código
  * de barras (o QR) de la etiqueta. Lo leído, igual que un código exacto
  * escrito a mano o tecleado por un lector USB seguido de Enter, va
@@ -35,6 +39,7 @@ import { Aviso } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { PanelCobro } from "@/componentes/cobro/panel-cobro";
 import { ClienteVentaSelector, clienteEnVenta, type ClienteVenta } from "@/componentes/cobro/cliente-venta";
+import { EncargoCompras } from "@/componentes/cobro/encargo-compras";
 import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-turno";
 import { LectorCodigoBarras } from "@/componentes/lector-codigos/lector-codigo-barras";
 import { almacenNavegador, guardarCarrito, guardarCliente, leerCarrito, leerCliente, type LineaGuardada, type LineaRepuestoGuardada } from "@/lib/carrito-guardado";
@@ -101,6 +106,8 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [categoriaId, setCategoriaId] = useState("");
   const [vista, setVista] = useState<Linea["kind"]>("repuesto");
+  // «Compras»: encargo para un cliente en vez del catálogo.
+  const [encargo, setEncargo] = useState(false);
   const [escaneando, setEscaneando] = useState(false);
   const [avisoCodigo, setAvisoCodigo] = useState<{ texto: string; fallo: boolean } | null>(null);
 
@@ -222,11 +229,13 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
     setEscaneando(false);
     const kind = /^ART-?\d+$/i.test(valor.trim()) ? "articulo" : "repuesto";
     setVista(kind);
+    setEncargo(false);
     await buscarOAgregar(kind, valor, true);
   }
 
   function cambiarVista(kind: Linea["kind"]) {
     setVista(kind);
+    setEncargo(false);
     setAvisoCodigo(null);
   }
 
@@ -365,19 +374,30 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
               de a una unidad), qué se busca y en qué categoría. */}
           <div className="fila" style={{ gap: 8 }}>
             <div className="fila" style={{ gap: 6, flexWrap: "nowrap" }} role="group" aria-label="Qué vender">
+              <button
+                type="button"
+                onClick={() => {
+                  setEncargo(true);
+                  setEscaneando(false);
+                }}
+                aria-pressed={encargo}
+                className={`pastilla${encargo ? " pastilla-activa" : ""}`}
+              >
+                Compras
+              </button>
               {(["repuesto", "articulo"] as const).map((k) => (
                 <button
                   key={k}
                   type="button"
                   onClick={() => cambiarVista(k)}
-                  aria-pressed={vista === k}
-                  className={`pastilla${vista === k ? " pastilla-activa" : ""}`}
+                  aria-pressed={!encargo && vista === k}
+                  className={`pastilla${!encargo && vista === k ? " pastilla-activa" : ""}`}
                 >
                   {k === "repuesto" ? "Repuestos" : "Equipos"}
                 </button>
               ))}
             </div>
-            {categorias.length > 0 && (
+            {categorias.length > 0 && !encargo && (
               <select
                 value={categoriaId}
                 onChange={(e) => setCategoriaId(e.target.value)}
@@ -394,6 +414,10 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
             )}
           </div>
 
+          {encargo ? (
+            <EncargoCompras cliente={cliente} />
+          ) : (
+          <>
           <form
             className="fila"
             style={{ gap: 8, flexWrap: "nowrap" }}
@@ -514,6 +538,8 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
                 );
               })}
             </div>
+          )}
+          </>
           )}
         </div>
 
