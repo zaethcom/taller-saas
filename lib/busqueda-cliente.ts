@@ -21,7 +21,7 @@ export interface ClienteBuscado {
 }
 
 export interface ClienteEncontrado extends ClienteBuscado {
-  coincide: "documento" | "telefono";
+  coincide: "documento" | "telefono" | "nombre";
 }
 
 /** Lo escrito alcanza para buscar como documento o como teléfono. */

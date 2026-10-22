@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { claveCarrito, guardarCarrito, leerCarrito, type Almacen, type LineaGuardada } from "../lib/carrito-guardado";
+import {
+  claveCarrito,
+  guardarCarrito,
+  guardarCliente,
+  leerCarrito,
+  leerCliente,
+  type Almacen,
+  type LineaGuardada,
+} from "../lib/carrito-guardado";
 
 function almacenFalso(): Almacen & { datos: Map<string, string> } {
   const datos = new Map<string, string>();
@@ -66,5 +74,39 @@ describe("guardarCarrito / leerCarrito", () => {
       removeItem: () => {},
     };
     expect(() => guardarCarrito(a, "k", lineas)).not.toThrow();
+  });
+});
+
+describe("guardarCliente / leerCliente", () => {
+  it("guarda el cliente al lado del carrito y lo vuelve a leer", () => {
+    const a = almacenFalso();
+    const cliente = { id: "c1", nombre: "Ana Pérez", documento: "1023456", telefono: null };
+    guardarCliente(a, "k", cliente);
+    expect(a.datos.has("k:cliente")).toBe(true);
+    expect(leerCliente(a, "k")).toEqual(cliente);
+  });
+
+  it("un cliente nuevo (sin id) también se conserva", () => {
+    const a = almacenFalso();
+    guardarCliente(a, "k", { id: null, nombre: "Luis", documento: null, telefono: "3001234567" });
+    expect(leerCliente(a, "k")).toEqual({ id: null, nombre: "Luis", documento: null, telefono: "3001234567" });
+  });
+
+  it("consumidor final borra la clave", () => {
+    const a = almacenFalso();
+    guardarCliente(a, "k", { id: "c1", nombre: "Ana", documento: null, telefono: null });
+    guardarCliente(a, "k", null);
+    expect(a.datos.has("k:cliente")).toBe(false);
+    expect(leerCliente(a, "k")).toBeNull();
+  });
+
+  it("descarta lo que no entiende", () => {
+    const a = almacenFalso();
+    a.setItem("k:cliente", "{roto");
+    expect(leerCliente(a, "k")).toBeNull();
+    a.setItem("k:cliente", JSON.stringify({ id: 5, nombre: "X" }));
+    expect(leerCliente(a, "k")).toBeNull();
+    a.setItem("k:cliente", JSON.stringify({ id: "c1", nombre: "  " }));
+    expect(leerCliente(a, "k")).toBeNull();
   });
 });

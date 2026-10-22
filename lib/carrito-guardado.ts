@@ -100,3 +100,43 @@ export function almacenNavegador(): Almacen | null {
     return null;
   }
 }
+
+/**
+ * El cliente elegido para la venta en curso (componentes/cobro/
+ * cliente-venta.tsx) se guarda al lado del carrito, con la misma clave
+ * más ":cliente", y se borra con él. id null: cliente nuevo que se
+ * crea al cobrar.
+ */
+export interface ClienteGuardado {
+  id: string | null;
+  nombre: string;
+  documento: string | null;
+  telefono: string | null;
+}
+
+const textoONulo = (v: unknown): string | null => (esTexto(v) && v.trim() ? v : null);
+
+export function leerCliente(almacen: Almacen | null, clave: string): ClienteGuardado | null {
+  if (!almacen) return null;
+  try {
+    const crudo = almacen.getItem(`${clave}:cliente`);
+    if (!crudo) return null;
+    const c = JSON.parse(crudo) as Record<string, unknown> | null;
+    if (!c || typeof c !== "object" || !esTexto(c.nombre) || !c.nombre.trim()) return null;
+    if (c.id !== null && !esTexto(c.id)) return null;
+    return { id: c.id, nombre: c.nombre, documento: textoONulo(c.documento), telefono: textoONulo(c.telefono) };
+  } catch {
+    return null;
+  }
+}
+
+/** null (consumidor final) borra la clave. */
+export function guardarCliente(almacen: Almacen | null, clave: string, cliente: ClienteGuardado | null): void {
+  if (!almacen) return;
+  try {
+    if (!cliente) almacen.removeItem(`${clave}:cliente`);
+    else almacen.setItem(`${clave}:cliente`, JSON.stringify(cliente));
+  } catch {
+    // Igual que el carrito: sin almacenamiento, solo no sobrevive.
+  }
+}

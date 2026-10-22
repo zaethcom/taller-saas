@@ -20,6 +20,7 @@ interface Recibo {
   tipo: string;
   creadaEn: string;
   medioPago: string | null;
+  cliente: string | null;
   items: { descripcion: string; cantidad: number; precioUnit: number }[];
 }
 
@@ -100,6 +101,13 @@ export function UltimosRecibos() {
                     <span className="cifra" style={{ fontSize: 12, color: "var(--ink-3)" }}>
                       {hora(r.creadaEn)}
                     </span>
+                    {r.cliente && (
+                      <span
+                        style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12, color: "var(--ink-2)" }}
+                      >
+                        {r.cliente}
+                      </span>
+                    )}
                     <span className="cifra" style={{ marginLeft: "auto", fontSize: 13, fontWeight: 800 }}>
                       {fmt(r.total)}
                     </span>
