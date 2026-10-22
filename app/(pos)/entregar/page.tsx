@@ -20,6 +20,7 @@
  * /abonos redirige aquí con ?modo=abonar.
  */
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, Eraser, Lock, Printer, QrCode, ThumbsUp } from "lucide-react";
 import { FirmaCanvas, type FirmaCanvasHandle } from "@/componentes/evidencia/firma-canvas";
@@ -401,6 +402,13 @@ export default function PaginaCobrarEntregar() {
   return (
     <div>
       <TituloPantalla titulo="Cobrar y entregar" />
+      <style>{`
+        .cuenta-cobro{display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:12px;margin-top:14px;padding:12px 14px;border-radius:var(--r-md);background:var(--surface-2);align-items:end;}
+        .cuenta-cobro .campo-etiqueta{margin:0 0 2px;}
+        .cuenta-cifra{font-size:18px;font-weight:800;letter-spacing:-0.01em;}
+        .cuenta-saldo{text-align:right;}
+        @media (max-width:520px){.cuenta-cobro{grid-template-columns:1fr 1fr;}.cuenta-saldo{grid-column:1 / -1;text-align:left;border-top:1px solid var(--rule);padding-top:8px;}}
+      `}</style>
 
       <div className="pila">
         <form
@@ -466,10 +474,41 @@ export default function PaginaCobrarEntregar() {
               )}
             </div>
 
+            {/* La cuenta siempre a la vista, con el precio grande: valor de
+                la orden, lo abonado y lo que falta. El detalle (líneas y
+                pagos) va debajo, más pequeño. */}
+            {orden.valor > 0 ? (
+              <div className="cuenta-cobro">
+                <div>
+                  <div className="campo-etiqueta">Valor de la orden</div>
+                  <div className="cifra cuenta-cifra">{fmt(orden.valor)}</div>
+                </div>
+                <div>
+                  <div className="campo-etiqueta">Abonado</div>
+                  <div className="cifra cuenta-cifra" style={{ color: "var(--ink-2)" }}>
+                    {fmt(orden.pagado)}
+                  </div>
+                </div>
+                <div className="cuenta-saldo">
+                  <div className="campo-etiqueta">{orden.saldoPendiente > 0 ? "Saldo por cobrar" : "Saldo"}</div>
+                  <div className="cifra cuenta-cifra" style={{ fontSize: 28 }}>
+                    {fmt(orden.saldoPendiente)}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginTop: 14 }}>
+                <Aviso tono="aviso">
+                  Esta orden todavía no tiene precio.{" "}
+                  <Link href={`/orden/${orden.id}/cotizacion`}>Ponerle precio en la cotización</Link>
+                </Aviso>
+              </div>
+            )}
+
             {(orden.items.length > 0 || orden.pagos.length > 0) && (
-              <div style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid var(--rule)" }}>
+              <div style={{ marginTop: 10 }}>
                 {orden.items.map((it, i) => (
-                  <div key={`i${i}`} className="fila" style={{ justifyContent: "space-between", fontSize: 13, padding: "4px 0" }}>
+                  <div key={`i${i}`} className="fila" style={{ justifyContent: "space-between", fontSize: 13, padding: "3px 0" }}>
                     <span>
                       {it.cantidad > 1 ? `${it.cantidad}× ` : ""}
                       {it.descripcion}
@@ -477,17 +516,14 @@ export default function PaginaCobrarEntregar() {
                     <span className="cifra">{fmt(it.cantidad * it.precioUnit)}</span>
                   </div>
                 ))}
-                {orden.pagos.length > 0 && (
-                  <div className="fila" style={{ justifyContent: "space-between", fontSize: 13, padding: "4px 0", fontWeight: 700 }}>
-                    <span>Valor de la orden</span>
-                    <span className="cifra">{fmt(orden.valor)}</span>
-                  </div>
+                {orden.items.length === 0 && orden.valor > 0 && (
+                  <div style={{ fontSize: 13, color: "var(--ink-3)", padding: "3px 0" }}>Según la cotización enviada.</div>
                 )}
                 {orden.pagos.map((p) => (
                   <div
                     key={p.numero}
                     className="fila"
-                    style={{ justifyContent: "space-between", fontSize: 13, padding: "4px 0", color: "var(--ink-2)" }}
+                    style={{ justifyContent: "space-between", fontSize: 13, padding: "3px 0", color: "var(--ink-2)" }}
                   >
                     <span>
                       {p.tipo === "anticipo" ? "Abono" : "Pago"} · {new Date(p.fecha).toLocaleDateString("es-CO")}
@@ -498,13 +534,6 @@ export default function PaginaCobrarEntregar() {
                 ))}
               </div>
             )}
-            <div
-              className="fila"
-              style={{ justifyContent: "space-between", fontSize: 15, fontWeight: 800, marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--rule)" }}
-            >
-              <span>Saldo</span>
-              <span className="cifra">{fmt(orden.saldoPendiente)}</span>
-            </div>
 
             {estado === "esperando_aprobacion" && (
               <div style={{ marginTop: 14 }}>
@@ -571,6 +600,11 @@ export default function PaginaCobrarEntregar() {
                 <Boton variante="contorno" tamano="sm" onClick={() => setMonto(orden.saldoPendiente)}>
                   Todo el saldo
                 </Boton>
+                {monto > 0 && monto <= orden.saldoPendiente && (
+                  <span style={{ fontSize: 13, color: "var(--ink-2)", paddingBottom: 8 }}>
+                    Queda: <strong className="cifra">{fmt(orden.saldoPendiente - monto)}</strong>
+                  </span>
+                )}
               </div>
               {monto > 0 && metodos.length > 0 && (
                 <PanelCobro
