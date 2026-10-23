@@ -19,8 +19,9 @@ import sharp from "sharp";
 // 96 puntos = 12mm de alto: antes eran 160 (20mm) y el logo solo se
 // comía casi un tercio del recibo de venta.
 // lienzoDots: el ancho total del bitmap con el logo centrado adentro.
-// 512 cabe en cualquier impresora de 80mm (512 o 576 puntos útiles).
-export const TAMANO_RECIBO = { anchoDots: 384, altoMaximoDots: 96, lienzoDots: 512 };
+// 480 = el área de impresión que fija estacion/escpos.ts:areaImpresion
+// (40 letras de 12 puntos); un lienzo más ancho se saldría de esa área.
+export const TAMANO_RECIBO = { anchoDots: 384, altoMaximoDots: 96, lienzoDots: 480 };
 // Rollo de 58mm: 384 puntos útiles en total.
 export const TAMANO_RECIBO_58 = { anchoDots: 320, altoMaximoDots: 80, lienzoDots: 384 };
 export const TAMANO_ETIQUETA = { anchoDots: 200, altoMaximoDots: 50 };

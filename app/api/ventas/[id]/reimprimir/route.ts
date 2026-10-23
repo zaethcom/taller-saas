@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
+import { fechaHoraRecibo } from "@/lib/fecha-recibo";
 import { encolarImpresion } from "@/lib/impresion";
 import { clienteImpreso } from "@/lib/cliente-venta";
 
@@ -27,7 +28,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: perfil } = await supabase
     .from("perfil")
-    .select("empresa_id, sede_id, nombre, codigo")
+    .select("empresa_id, sede_id, nombre")
     .eq("id", user.id)
     .single();
   const sedeActivaId = await obtenerSedeActivaId(supabase);
@@ -38,7 +39,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const [{ data: venta }, { data: items }, { data: pago }] = await Promise.all([
     supabase
       .from("venta")
-      .select("numero, total, empresa_id, cliente(nombre, documento, telefono)")
+      .select("numero, total, empresa_id, creada_en, cliente(nombre, documento, telefono)")
       .eq("id", id)
       .maybeSingle(),
     supabase.from("venta_item").select("descripcion, cantidad, precio_unit").eq("venta_id", id),
@@ -56,6 +57,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     creadoPor: user.id,
     carga: {
       numeroVenta: venta.numero,
+      // La fecha de la venta, no la de hoy: es una copia del mismo recibo.
+      fecha: fechaHoraRecibo(venta.creada_en),
       items: (items ?? []).map((i) => ({
         descripcion: i.descripcion,
         cantidad: i.cantidad,
@@ -64,7 +67,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       total: Number(venta.total),
       medioPago: pago?.medio ?? "",
       abreCajon: false, // reimpresión: el cajón ya se abrió (o no) en el cobro original
-      cajero: perfil.codigo ? `${perfil.codigo} · ${perfil.nombre}` : perfil.nombre,
+      cajero: perfil.nombre,
       cliente: clienteImpreso(
         venta.cliente as unknown as { nombre: string; documento: string | null; telefono: string | null } | null,
       ),

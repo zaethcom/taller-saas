@@ -10,7 +10,7 @@
  * de la migración 0048; mientras no esté aplicada, GET responde "pplb"
  * y PATCH guarda lo demás y avisa solo si se pidió Zebra.
  *
- * `etiquetas.ajustes` (oscuridad, velocidad, avance, sensor, corrimientos)
+ * `etiquetas.ajustes` (oscuridad, velocidad, avance, sensor, corrimiento vertical, giro)
  * vive en `etiquetas_ajustes`, migración 0067, con el mismo trato: sin la
  * migración, GET responde {} y PATCH avisa solo si se pidió algún ajuste.
  */
@@ -32,7 +32,7 @@ interface CuerpoDestino {
 
 interface CuerpoImpresoras {
   tickets: CuerpoDestino & { anchoMm?: 58 | 80 };
-  etiquetas: CuerpoDestino & { lenguaje?: Lenguaje; ajustes?: unknown };
+  etiquetas: CuerpoDestino & { lenguaje?: Lenguaje; ajusteMm?: number; ajustes?: unknown };
 }
 
 function destinoValido(d: Partial<CuerpoDestino> | undefined): d is CuerpoDestino {
@@ -82,6 +82,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .eq("sede_id", id)
     .maybeSingle();
 
+  // Columna de la migración 0066: sin ella, la etiqueta no se corre.
+  const { data: ajuste } = await supabase
+    .from("impresora_sede")
+    .select("etiquetas_ajuste_mm")
+    .eq("sede_id", id)
+    .maybeSingle();
+
   return NextResponse.json({
     tickets: {
       host: data.tickets_host,
@@ -94,6 +101,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       puerto: data.etiquetas_puerto,
       protocolo: data.etiquetas_protocolo,
       lenguaje: idioma?.etiquetas_lenguaje ?? "pplb",
+      ajusteMm: Number(ajuste?.etiquetas_ajuste_mm ?? 0),
       ajustes: await leerAjustesEtiquetadora(supabase, id),
     },
   });
@@ -154,6 +162,24 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       {
         error:
           "Se guardaron las impresoras, pero no el papel de 58 mm: falta aplicar la migración 0060_ancho_papel_tickets en la base.",
+      },
+      { status: 500 },
+    );
+  }
+
+  const ajusteMm = Number(body.etiquetas.ajusteMm ?? 0);
+  if (!Number.isFinite(ajusteMm) || ajusteMm < -15 || ajusteMm > 15) {
+    return NextResponse.json({ error: "el corrimiento de la etiqueta va de -15 a 15 mm" }, { status: 400 });
+  }
+  const { error: errAjuste } = await supabase
+    .from("impresora_sede")
+    .update({ etiquetas_ajuste_mm: Math.round(ajusteMm * 10) / 10 })
+    .eq("sede_id", id);
+  if (errAjuste && ajusteMm !== 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Se guardaron las impresoras, pero no el corrimiento de la etiqueta: falta aplicar la migración 0066_etiquetas_ajuste en la base.",
       },
       { status: 500 },
     );

@@ -15,6 +15,8 @@ import {
   kardex,
   ordenesTaller,
   productividadTecnicos,
+  recibosImpresos,
+  TIPOS_RECIBO,
   utilidadArticulos,
   ventasPorCategoria,
   ventasPorFecha,
@@ -34,6 +36,7 @@ import {
   type OrdenFila,
   type PagoFila,
   type PagoTurnoFila,
+  type ReciboFila,
   type MovimientoTurnoFila,
   type Persona,
   type RepuestoCat,
@@ -348,5 +351,26 @@ export async function generarInforme(supabase: SupabaseClient, id: IdInforme, f:
     }
     case "metricas-piloto":
       return metricasPiloto(supabase);
+    case "recibos": {
+      const [recibos, c] = await Promise.all([
+        todas<ReciboFila>((a, b) => {
+          let q = supabase
+            .from("trabajo_impresion")
+            .select(
+              "id, tipo, sede_id, creado_por, creado_en, estado, impreso_en, error, " +
+                "numero_venta:carga->>numeroVenta, numero_orden:carga->>numeroOrden, numero_traslado:carga->>numeroTraslado, " +
+                "etiqueta_total:carga->>etiquetaTotal, cliente_venta:carga->cliente->>nombre, cliente_recepcion:carga->>clienteNombre, " +
+                "total:carga->>total, valor_servicio:carga->>valorServicio, efectivo_contado:carga->>efectivoContado, imprimir:carga->>imprimir",
+            )
+            .in("tipo", [...TIPOS_RECIBO])
+            .gte("creado_en", inicio)
+            .lt("creado_en", fin);
+          if (f.sedeId) q = q.eq("sede_id", f.sedeId);
+          return q.order("creado_en").order("id").range(a, b);
+        }),
+        catalogos(supabase),
+      ]);
+      return recibosImpresos(recibos, c);
+    }
   }
 }

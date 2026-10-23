@@ -7,7 +7,16 @@
 
 export type UsoEtiqueta = "orden" | "articulo" | "repuesto";
 export type TipoCodigo = "qr" | "barras";
-export type CampoEtiqueta = "logo" | "eslogan" | "empresa" | "texto_codigo" | "descripcion" | "marco";
+export type CampoEtiqueta =
+  | "logo"
+  | "eslogan"
+  | "empresa"
+  | "texto_codigo"
+  | "descripcion"
+  | "marco"
+  | CampoOrden;
+/** Datos de la orden y del cliente: solo en la etiqueta del equipo recibido. */
+export type CampoOrden = "cliente" | "telefono" | "numero_orden" | "valor" | "motivo";
 
 export interface DisenoEtiqueta {
   anchoMm: number;
@@ -35,6 +44,12 @@ export interface DatosEtiqueta {
   /** Logo y eslogan de la empresa (Configuración > Marca), para las plantillas que los piden. */
   logoUrl?: string | null;
   eslogan?: string | null;
+  /** Etiqueta del equipo recibido: datos de la orden y del cliente. */
+  numeroOrden?: number | null;
+  clienteNombre?: string | null;
+  clienteTelefono?: string | null;
+  valorServicio?: number | null;
+  motivo?: string | null;
 }
 
 export const USOS: { valor: UsoEtiqueta; etiqueta: string; ayuda: string }[] = [
@@ -51,9 +66,27 @@ export const CAMPOS: { valor: Exclude<CampoEtiqueta, "marco">; etiqueta: string 
   { valor: "descripcion", etiqueta: "Descripción (equipo, artículo o repuesto)" },
 ];
 
+/** Casillas extra de la etiqueta del equipo recibido (uso "orden"). */
+export const CAMPOS_ORDEN: { valor: CampoOrden; etiqueta: string }[] = [
+  { valor: "cliente", etiqueta: "Nombre del cliente" },
+  { valor: "telefono", etiqueta: "Teléfono del cliente" },
+  { valor: "numero_orden", etiqueta: "Número de orden" },
+  { valor: "valor", etiqueta: "Valor del servicio" },
+  { valor: "motivo", etiqueta: "Motivo (para qué es el equipo)" },
+];
+
 /** Datos de muestra para la vista previa y la impresión de prueba. */
 export const DATOS_EJEMPLO: Record<UsoEtiqueta, DatosEtiqueta> = {
-  orden: { codigo: "OR000123", empresa: "Mi Taller", descripcion: "Xiaomi Pro 2" },
+  orden: {
+    codigo: "OR000123",
+    empresa: "Mi Taller",
+    descripcion: "Xiaomi Pro 2",
+    numeroOrden: 123,
+    clienteNombre: "Juan Pérez",
+    clienteTelefono: "300 123 4567",
+    valorServicio: 120000,
+    motivo: "Cambio de pantalla y revisión de batería",
+  },
   articulo: { codigo: "ART-000123", empresa: "Mi Taller", descripcion: "Xiaomi Pro 2" },
   repuesto: { codigo: "REP-0042", empresa: "Mi Taller", descripcion: "Llanta 10 pulgadas" },
 };
@@ -96,6 +129,18 @@ export const MODELOS: { id: string; nombre: string; uso: UsoEtiqueta; diseno: Om
     diseno: { anchoMm: 55, altoMm: 60, dpi: 203, codigo: "qr", campos: ["logo", "eslogan", "texto_codigo", "marco"] },
   },
   {
+    id: "orden-55x60-cliente",
+    nombre: "Equipo 55 × 60 QR con datos del cliente",
+    uso: "orden",
+    diseno: {
+      anchoMm: 55,
+      altoMm: 60,
+      dpi: 203,
+      codigo: "qr",
+      campos: ["logo", "texto_codigo", "numero_orden", "cliente", "telefono", "valor", "motivo", "marco"],
+    },
+  },
+  {
     id: "articulo-50x30",
     nombre: "Artículo 50 × 30 código de barras",
     uso: "articulo",
@@ -124,7 +169,16 @@ export const MODELOS: { id: string; nombre: string; uso: UsoEtiqueta; diseno: Om
 export const LIMITES = { anchoMin: 15, anchoMax: 104, altoMin: 10, altoMax: 150 } as const;
 
 const USOS_VALIDOS = new Set<string>(USOS.map((u) => u.valor));
-const CAMPOS_VALIDOS = new Set<string>(["logo", "eslogan", "empresa", "texto_codigo", "descripcion", "marco"]);
+const CAMPOS_VALIDOS = new Set<string>([
+  "logo",
+  "eslogan",
+  "empresa",
+  "texto_codigo",
+  "descripcion",
+  "marco",
+  ...CAMPOS_ORDEN.map((c) => c.valor),
+]);
+const CAMPOS_SOLO_ORDEN = new Set<string>(CAMPOS_ORDEN.map((c) => c.valor));
 
 export type ResultadoValidacion =
   | { ok: true; valor: Omit<PlantillaEtiqueta, "id" | "activa"> }
@@ -160,7 +214,8 @@ export function validarPlantilla(entrada: Record<string, unknown>): ResultadoVal
   if (camposEntrada.some((c) => typeof c !== "string" || !CAMPOS_VALIDOS.has(c))) {
     return { ok: false, error: "hay un campo de etiqueta desconocido" };
   }
-  const campos = [...new Set(camposEntrada as CampoEtiqueta[])];
+  // Los datos del cliente solo existen en la etiqueta del equipo recibido.
+  const campos = [...new Set(camposEntrada as CampoEtiqueta[])].filter((c) => uso === "orden" || !CAMPOS_SOLO_ORDEN.has(c));
 
   const fondoUrl = typeof entrada.fondoUrl === "string" && entrada.fondoUrl.trim() ? entrada.fondoUrl.trim() : null;
   if (fondoUrl && !/^https:\/\//.test(fondoUrl)) return { ok: false, error: "la imagen de fondo debe ser una URL https" };

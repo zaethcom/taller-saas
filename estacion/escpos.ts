@@ -73,8 +73,33 @@ export function interlineado(puntos: number): Buffer {
 
 export const INTERLINEADO_COMPACTO = 26;
 
-/** Caracteres por renglón de la fuente A en papel de 80mm. */
-export const COLUMNAS_TICKET = 48;
+/**
+ * Caracteres por renglón de la fuente A en papel de 80mm, dentro del área
+ * de [areaImpresion]. Antes eran 48, el máximo de una Epson de 576 puntos,
+ * pero la Sewoo de Polaco Scooter solo tiene 512 puntos útiles (42 letras):
+ * el monto de cada ítem y la raya separadora se partían al renglón siguiente
+ * y el texto quedaba pegado a los bordes. 40 letras más un margen caben en
+ * cualquier impresora de 80mm.
+ */
+export const COLUMNAS_TICKET = 40;
+
+/** Margen izquierdo y ancho del área de impresión en papel de 80mm, en puntos. */
+const MARGEN_80_DOTS = 16;
+const AREA_80_DOTS = COLUMNAS_TICKET * 12; // fuente A: 12 puntos por letra
+
+/**
+ * GS L + GS W: deja un margen a la izquierda y limita el renglón a
+ * COLUMNAS_TICKET letras, para que nada quede pegado al borde del papel.
+ * Va al principio del ticket (después de ESC @, que lo resetea). En 58mm no
+ * hace nada: ese rollo ya se calcula con sus 32 letras de siempre.
+ */
+export function areaImpresion(anchoMm?: number | null): Buffer {
+  if (anchoMm === 58) return Buffer.alloc(0);
+  return Buffer.from([
+    GS, 0x4c, MARGEN_80_DOTS & 0xff, (MARGEN_80_DOTS >> 8) & 0xff,
+    GS, 0x57, AREA_80_DOTS & 0xff, (AREA_80_DOTS >> 8) & 0xff,
+  ]);
+}
 
 /** Caracteres por renglón de la fuente A según el ancho del rollo (58mm = 32). */
 export function columnasPapel(anchoMm?: number | null): number {
@@ -138,6 +163,14 @@ export function renglones(lineas: string[]): Buffer[] {
 export function dosColumnas(izq: string, der: string, ancho = COLUMNAS_TICKET): string | null {
   const espacio = ancho - izq.length - der.length;
   return espacio >= 1 ? izq + " ".repeat(espacio) + der : null;
+}
+
+/**
+ * GS ! n -- solo doble alto (0x01): letra más grande y legible sin perder
+ * letras por renglón. Para los ítems del recibo.
+ */
+export function altoDoble(activo: boolean): Buffer {
+  return Buffer.from([GS, 0x21, activo ? 0x01 : 0x00]);
 }
 
 export function tamano(doble: boolean): Buffer {

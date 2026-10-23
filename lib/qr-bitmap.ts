@@ -16,7 +16,10 @@ import sharp from "sharp";
 import QRCode from "qrcode";
 import type { LogoRaster } from "./logo-bitmap";
 
-export async function generarQrRaster(contenido: string, anchoDots = 216, lienzoDots = 512): Promise<LogoRaster> {
+// lienzoDots: 480 = el área de impresión de 80mm que fija
+// estacion/escpos.ts:areaImpresion. Con 512 cada fila del bitmap era más
+// ancha que el área, la impresora la partía y el QR salía rayado.
+export async function generarQrRaster(contenido: string, anchoDots = 216, lienzoDots = 480): Promise<LogoRaster> {
   const svg = await QRCode.toString(contenido, {
     type: "svg",
     margin: 1,

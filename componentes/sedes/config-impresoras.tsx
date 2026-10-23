@@ -17,7 +17,7 @@
  * reporta error) o nada (salió).
  *
  * «Ajustes de la etiquetadora» (oscuridad, velocidad, avance, sensor,
- * corrimientos, giro) viajan dentro de cada etiqueta -- ver
+ * corrimiento vertical, giro) viajan dentro de cada etiqueta -- ver
  * estacion/ajustes-etiquetadora.ts. Un campo vacío no se manda: la
  * impresora sigue con lo suyo.
  */
@@ -47,7 +47,6 @@ interface AjustesGuardados {
   sensor?: "espacio" | "marca" | "continuo";
   metodo?: "directa" | "transferencia";
   verticalMm?: number;
-  horizontalMm?: number;
   girar?: boolean;
 }
 
@@ -61,7 +60,6 @@ const AJUSTES_VACIOS: AjustesFormulario = {
   sensor: "",
   metodo: "",
   verticalMm: "",
-  horizontalMm: "",
   girar: false,
 };
 
@@ -93,7 +91,7 @@ function aGuardar(f: AjustesFormulario): AjustesGuardados {
 
 interface Impresoras {
   tickets: Destino & { anchoMm?: AnchoPapel };
-  etiquetas: Destino & { lenguaje?: Lenguaje; ajustes?: AjustesGuardados };
+  etiquetas: Destino & { lenguaje?: Lenguaje; ajusteMm?: number; ajustes?: AjustesGuardados };
 }
 
 const DESTINO_VACIO: Destino = { host: "", puerto: 9100, protocolo: "crudo" };
@@ -269,7 +267,7 @@ function AjustesEtiquetadora({
         </div>
       )}
       <div style={columnas}>
-        <Campo etiqueta="Mover abajo (mm)" ayuda={esZebra ? "Negativo sube el dibujo." : "Solo hacia abajo en Argox."}>
+        <Campo etiqueta="Mover abajo (mm)" ayuda={`${esZebra ? "Negativo sube el dibujo." : "Solo hacia abajo en Argox."} Para los lados, «Correr la etiqueta».`}>
           <input
             type="number"
             step="0.5"
@@ -278,21 +276,6 @@ function AjustesEtiquetadora({
             placeholder="0"
             value={valor.verticalMm}
             onChange={cambiar("verticalMm")}
-            className="cifra"
-          />
-        </Campo>
-        <Campo
-          etiqueta="Mover a la derecha (mm)"
-          ayuda={esZebra ? "Negativo lo corre a la izquierda." : "Solo hacia la derecha en Argox."}
-        >
-          <input
-            type="number"
-            step="0.5"
-            min={esZebra ? -15 : 0}
-            max={15}
-            placeholder="0"
-            value={valor.horizontalMm}
-            onChange={cambiar("horizontalMm")}
             className="cifra"
           />
         </Campo>
@@ -409,6 +392,8 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
   const [etiquetas, setEtiquetas] = useState<Destino>(DESTINO_VACIO);
   const [lenguaje, setLenguaje] = useState<Lenguaje>("pplb");
   const [anchoPapel, setAnchoPapel] = useState<AnchoPapel>(80);
+  // Texto y no número: se puede escribir "-" o "1." a medio camino.
+  const [ajusteEtiqueta, setAjusteEtiqueta] = useState("0");
   const [ajustes, setAjustes] = useState<AjustesFormulario>(AJUSTES_VACIOS);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -427,6 +412,7 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
           setEtiquetas(data.etiquetas);
           setLenguaje(data.etiquetas.lenguaje ?? "pplb");
           setAnchoPapel(data.tickets.anchoMm === 58 ? 58 : 80);
+          setAjusteEtiqueta(String(data.etiquetas.ajusteMm ?? 0));
           setAjustes(aFormulario(data.etiquetas.ajustes));
         }
       })
@@ -448,6 +434,7 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
           etiquetas: {
             ...paraGuardar(lenguaje === "escpos" && !listo(etiquetas) ? tickets : etiquetas),
             lenguaje,
+            ajusteMm: Number(ajusteEtiqueta.replace(",", ".")) || 0,
             ajustes: aGuardar(ajustes),
           },
         }),
@@ -519,6 +506,18 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
                 <option value="zpl">Zebra (ZPL)</option>
                 <option value="escpos">No tengo etiquetadora: imprimir en la POS de tickets</option>
               </select>
+            </Campo>
+            <Campo
+              etiqueta="Correr la etiqueta (mm)"
+              ayuda="Si sale cortada por la izquierda, pon un número positivo (ej. 4) para correrla a la derecha; si sale cortada por la derecha, uno negativo. Guarda y usa «Probar» hasta que salga completa."
+            >
+              <input
+                type="text"
+                inputMode="decimal"
+                value={ajusteEtiqueta}
+                onChange={(e) => setAjusteEtiqueta(e.target.value.replace(/[^0-9.,-]/g, "").slice(0, 5))}
+                className="cifra"
+              />
             </Campo>
           </div>
           {lenguaje !== "escpos" && (

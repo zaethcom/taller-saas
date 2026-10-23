@@ -1,7 +1,7 @@
 /**
  * Los ajustes de la etiquetadora que se eligen por sede en Configurar
  * impresoras (oscuridad, velocidad, avance al terminar, sensor,
- * corrimientos, giro), en vez de tener que cambiarlos con los botones de
+ * corrimiento vertical, giro), en vez de tener que cambiarlos con los botones de
  * la impresora o una utilidad del fabricante. Se mandan dentro de cada
  * etiqueta, así que valen aunque alguien reinicie o recalibre la impresora.
  *
@@ -16,8 +16,9 @@
  *
  * Comandos (manual de programación ZPL II de Zebra y EPL2/PPLB de Argox):
  * - Zebra: ~SD oscuridad 00-30, ^PR velocidad en pulg/s, ~TA avance al
- *   terminar (±120 puntos), ^MN sensor, ^MT método, ^LT/^LS corrimientos,
- *   ^PO giro.
+ *   terminar (±120 puntos), ^MN sensor, ^MT método, ^LT corrimiento vertical,
+ *   ^PO giro. El corrimiento a los lados es «Correr la etiqueta» (0066), que
+ *   mueve la imagen misma en lib/impresion.ts y vale para cualquier marca.
  * - Argox: D oscuridad 0-15, R punto de inicio (sin negativos), ZT/ZB giro.
  */
 import type { LenguajeEtiquetas } from "./destino";
@@ -38,8 +39,6 @@ export interface AjustesEtiquetadora {
   metodo?: MetodoImpresion;
   /** Corre la impresión hacia abajo (+) o hacia arriba (−), en mm. */
   verticalMm?: number;
-  /** Corre la impresión hacia la derecha (+) o hacia la izquierda (−), en mm. */
-  horizontalMm?: number;
   /** Imprime la etiqueta de cabeza (girada 180°). */
   girar?: boolean;
 }
@@ -71,8 +70,6 @@ export function normalizarAjustes(entrada: unknown): AjustesEtiquetadora {
   if (e.metodo === "directa" || e.metodo === "transferencia") a.metodo = e.metodo;
   const vertical = numero(e.verticalMm, -MAX_MM, MAX_MM);
   if (vertical) a.verticalMm = vertical;
-  const horizontal = numero(e.horizontalMm, -MAX_MM, MAX_MM);
-  if (horizontal) a.horizontalMm = horizontal;
   if (e.girar === true) a.girar = true;
   return a;
 }
@@ -89,7 +86,7 @@ const LETRA_SENSOR: Record<SensorEtiquetas, string> = { espacio: "W", marca: "M"
 
 /**
  * Los comandos ZPL que van justo después de ^XA. Sin ningún ajuste, nada.
- * Con alguno, el avance, los corrimientos y el giro van siempre (en 0 o
+ * Con alguno, el avance, el corrimiento y el giro van siempre (en 0 o
  * normal si no se llenaron): la Zebra los recuerda entre etiquetas hasta
  * que se apaga, y así borrar uno en la web también lo deshace en la
  * impresora.
@@ -102,10 +99,8 @@ export function comandosZpl(a: AjustesEtiquetadora): string {
   if (a.sensor) c.push(`^MN${LETRA_SENSOR[a.sensor]}`);
   if (a.metodo) c.push(`^MT${a.metodo === "transferencia" ? "T" : "D"}`);
   c.push(`~TA${conSigno(a.avanceMm ? puntos(a.avanceMm) : 0)}`);
-  // ^LT mueve todo hacia abajo con valores positivos; ^LS mueve hacia la
-  // izquierda con positivos, por eso va con el signo invertido.
+  // ^LT mueve todo hacia abajo con valores positivos.
   c.push(`^LT${a.verticalMm ? puntos(a.verticalMm) : 0}`);
-  c.push(`^LS${a.horizontalMm ? -puntos(a.horizontalMm) : 0}`);
   c.push(a.girar ? "^POI" : "^PON");
   return c.join("");
 }
@@ -119,9 +114,7 @@ export function comandosPplb(a: AjustesEtiquetadora): string {
   if (Object.keys(a).length === 0) return "";
   const c: string[] = [];
   if (a.oscuridad !== undefined) c.push(`D${Math.round(a.oscuridad / 2)}`);
-  if (a.verticalMm || a.horizontalMm) {
-    c.push(`R${Math.max(0, puntos(a.horizontalMm ?? 0))},${Math.max(0, puntos(a.verticalMm ?? 0))}`);
-  }
+  if (a.verticalMm && a.verticalMm > 0) c.push(`R0,${puntos(a.verticalMm)}`);
   c.push(a.girar ? "ZB" : "ZT");
   return c.map((l) => `${l}\r\n`).join("");
 }

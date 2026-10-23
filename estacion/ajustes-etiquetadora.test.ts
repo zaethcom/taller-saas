@@ -11,7 +11,7 @@ describe("normalizarAjustes", () => {
 
   it("recorta lo que se sale de rango y acepta coma decimal", () => {
     expect(
-      normalizarAjustes({ oscuridad: 45, velocidad: 1, avanceMm: "20", verticalMm: "-2,5", horizontalMm: 0 }),
+      normalizarAjustes({ oscuridad: 45, velocidad: 1, avanceMm: "20", verticalMm: "-2,5" }),
     ).toEqual({ oscuridad: 30, velocidad: 2, avanceMm: 15, verticalMm: -2.5 });
   });
 
@@ -31,7 +31,7 @@ describe("comandosZpl", () => {
 
   it("oscuridad, velocidad y avance de 5 mm", () => {
     expect(comandosZpl({ oscuridad: 8, velocidad: 2, avanceMm: 5 })).toBe(
-      "~SD08^PR2,2,2~TA040^LT0^LS0^PON",
+      "~SD08^PR2,2,2~TA040^LT0^PON",
     );
   });
 
@@ -42,10 +42,9 @@ describe("comandosZpl", () => {
         sensor: "espacio",
         metodo: "directa",
         verticalMm: 1.5,
-        horizontalMm: 2,
         girar: true,
       }),
-    ).toBe("^MNW^MTD~TA-016^LT12^LS-16^POI");
+    ).toBe("^MNW^MTD~TA-016^LT12^POI");
   });
 
   it("avance de 10 mm son 80 puntos", () => {
@@ -54,10 +53,9 @@ describe("comandosZpl", () => {
 });
 
 describe("comandosPplb", () => {
-  it("Argox: oscuridad a la mitad, punto de inicio sin negativos y giro", () => {
-    expect(comandosPplb({ oscuridad: 20, verticalMm: -3, horizontalMm: 2, girar: true })).toBe(
-      "D10\r\nR16,0\r\nZB\r\n",
-    );
+  it("Argox: oscuridad a la mitad, punto de inicio hacia abajo y giro", () => {
+    expect(comandosPplb({ oscuridad: 20, verticalMm: 2, girar: true })).toBe("D10\r\nR0,16\r\nZB\r\n");
+    expect(comandosPplb({ verticalMm: -3 })).toBe("ZT\r\n");
   });
 
   it("ignora lo que Argox no entiende", () => {
@@ -69,7 +67,7 @@ describe("comandosPplb", () => {
 describe("aplicarAjustes", () => {
   it("ZPL: los mete después de ^XA", () => {
     const r = aplicarAjustes(Buffer.from("^XA^CI28^FO0,0^FDx^FS^XZ"), "zpl", { oscuridad: 10 });
-    expect(r.toString()).toBe("^XA~SD10~TA000^LT0^LS0^PON^CI28^FO0,0^FDx^FS^XZ");
+    expect(r.toString()).toBe("^XA~SD10~TA000^LT0^PON^CI28^FO0,0^FDx^FS^XZ");
   });
 
   it("PPLB: van antes de N", () => {

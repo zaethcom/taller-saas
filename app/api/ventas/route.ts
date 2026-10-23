@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
 
   const { data: perfil } = await supabase
     .from("perfil")
-    .select("empresa_id, sede_id, nombre, codigo")
+    .select("empresa_id, sede_id, nombre")
     .eq("id", user.id)
     .single();
   const sedeActivaId = await obtenerSedeActivaId(supabase);
@@ -352,7 +352,7 @@ export async function POST(req: NextRequest) {
       total,
       medioPago: metodo.nombre,
       abreCajon: metodo.es_efectivo,
-      cajero: perfil.codigo ? `${perfil.codigo} · ${perfil.nombre}` : perfil.nombre,
+      cajero: perfil.nombre,
       cliente: clienteImpreso(cliente),
       montoRecibido: metodo.es_efectivo ? body.montoRecibido ?? null : null,
       cambio: metodo.es_efectivo && body.montoRecibido ? body.montoRecibido - total : null,
