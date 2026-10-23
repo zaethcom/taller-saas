@@ -330,7 +330,9 @@ export async function POST(req: NextRequest) {
       producto: nombreProducto,
       serial: producto?.serial ?? "",
       motivo: body.motivo.trim(),
-      fecha: new Date().toLocaleDateString("es-CO"),
+      // Hora de Colombia: el servidor está en UTC y de noche ponía el día siguiente.
+      fecha: new Date().toLocaleDateString("es-CO", { timeZone: "America/Bogota" }),
+      recibidoPor: perfil.nombre,
       urlSeguimiento,
       valorServicio: valorServicio || null,
       abono: abono && abonoRegistrado ? { monto: abono.monto, medio: abono.metodo.nombre } : null,

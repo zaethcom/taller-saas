@@ -36,6 +36,8 @@ export interface CargaComprobanteRecepcion extends CargaMarcaEmpresa {
   valorServicio?: number | null;
   abono?: { monto: number; medio: string } | null;
   saldo?: number | null;
+  /** Quién recibió el equipo: "Pepito Pérez". Opcional: trabajos viejos no lo traen. */
+  recibidoPor?: string | null;
 }
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
@@ -88,18 +90,18 @@ export function comprobanteRecepcion(c: CargaComprobanteRecepcion): Buffer {
     ...renglones(juntar([`Cliente: ${c.clienteNombre}`, c.clienteTelefono ?? ""], columnas)),
     ...renglones(juntar([`Equipo: ${c.producto}`, `Serial: ${c.serial}`], columnas)),
     ...renglones(ajustar(`Motivo: ${c.motivo}`, columnas)),
+    ...(c.recibidoPor ? renglones(ajustar(`Recibió: ${c.recibidoPor}`, columnas)) : []),
     ...cuentaRecepcion(c),
 
     alinear("centro"),
     ...(c.qrRaster
       ? [imagenRaster(c.qrRaster.anchoDots, c.qrRaster.altoDots, Buffer.from(c.qrRaster.datosBase64, "base64")), salto()]
       : []),
+    // Partidos por palabras: a 40 letras la impresora cortaba "eq / uipo".
     negrita(true),
-    texto(angosto ? "Escanea para ver tu orden" : "Escanea para ver el estado de tu orden"),
+    ...renglones(ajustar(angosto ? "Escanea para ver tu orden" : "Escanea para ver el estado de tu orden", columnas)),
     negrita(false),
-    salto(),
-    texto(angosto ? "Conserve este recibo" : "Conserve este recibo para reclamar su equipo"),
-    salto(),
+    ...renglones(ajustar(angosto ? "Conserve este recibo" : "Conserve este recibo para reclamar su equipo", columnas)),
 
     ...piePersonalizado(c),
     // GS V 66 ya avanza el papel hasta la cuchilla antes de cortar.
