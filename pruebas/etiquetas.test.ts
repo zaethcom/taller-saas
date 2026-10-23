@@ -222,3 +222,35 @@ describe("rasterEtiqueta", () => {
     expect(bits(fila(girado, 0))).toBe([...bits(fila(derecho, 199))].reverse().join(""));
   });
 });
+
+describe("disenarEtiqueta() -- el QR tiene prioridad en el diseño de marca", () => {
+  // La plantilla real de Polaco Scooter (60.5 x 40 mm, logo, datos de la orden, caja del código).
+  const marca = {
+    anchoMm: 60.5,
+    altoMm: 40,
+    dpi: 203 as const,
+    codigo: "qr" as const,
+    girar: false,
+    fondoUrl: null,
+    campos: ["cliente", "telefono", "numero_orden", "valor", "motivo", "marco", "logo", "texto_codigo", "empresa", "descripcion", "eslogan"],
+  };
+  const datos = {
+    codigo: "OR000123",
+    empresa: "Polaco Scooter",
+    descripcion: "Xiaomi Pro 2",
+    logoUrl: "https://ejemplo/logo.png",
+    eslogan: "",
+    numeroOrden: 123,
+    clienteNombre: "Juan Perez",
+    clienteTelefono: "3001234567",
+    valorServicio: 120000,
+    motivo: "No enciende",
+  };
+
+  it("el QR se lleva al menos un tercio del alto útil y no avisa que no escanea", () => {
+    const r = disenarEtiqueta(marca as never, datos as never);
+    expect(r.avisos.some((a) => a.includes("QR"))).toBe(false);
+    expect(r.avisos.some((a) => a.includes("No caben"))).toBe(false);
+  });
+
+});
