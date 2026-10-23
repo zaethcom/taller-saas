@@ -9,11 +9,17 @@
  * `etiquetas.lenguaje` ("pplb" Argox / "zpl" Zebra) vive en una columna
  * de la migración 0048; mientras no esté aplicada, GET responde "pplb"
  * y PATCH guarda lo demás y avisa solo si se pidió Zebra.
+ *
+ * `etiquetas.ajustes` (oscuridad, velocidad, avance, sensor, corrimiento vertical, giro)
+ * vive en `etiquetas_ajustes`, migración 0067, con el mismo trato: sin la
+ * migración, GET responde {} y PATCH avisa solo si se pidió algún ajuste.
  */
 import { NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
+import { leerAjustesEtiquetadora } from "@/lib/ajustes-etiquetadora";
+import { normalizarAjustes } from "@/estacion/ajustes-etiquetadora";
 
 type Protocolo = "crudo" | "puente_android";
 type Lenguaje = "pplb" | "zpl" | "escpos";
@@ -26,7 +32,7 @@ interface CuerpoDestino {
 
 interface CuerpoImpresoras {
   tickets: CuerpoDestino & { anchoMm?: 58 | 80 };
-  etiquetas: CuerpoDestino & { lenguaje?: Lenguaje; ajusteMm?: number };
+  etiquetas: CuerpoDestino & { lenguaje?: Lenguaje; ajusteMm?: number; ajustes?: unknown };
 }
 
 function destinoValido(d: Partial<CuerpoDestino> | undefined): d is CuerpoDestino {
@@ -96,6 +102,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       protocolo: data.etiquetas_protocolo,
       lenguaje: idioma?.etiquetas_lenguaje ?? "pplb",
       ajusteMm: Number(ajuste?.etiquetas_ajuste_mm ?? 0),
+      ajustes: await leerAjustesEtiquetadora(supabase, id),
     },
   });
 }
@@ -196,6 +203,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       {
         error:
           "Se guardaron las impresoras, pero no el idioma Zebra: falta aplicar la migración 0048_lenguaje_etiquetas en la base.",
+      },
+      { status: 500 },
+    );
+  }
+
+  const ajustes = normalizarAjustes(body.etiquetas.ajustes);
+  const { error: errAjustes } = await supabase
+    .from("impresora_sede")
+    .update({ etiquetas_ajustes: ajustes })
+    .eq("sede_id", id);
+  if (errAjustes && Object.keys(ajustes).length > 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Se guardaron las impresoras, pero no los ajustes de la etiquetadora: falta aplicar la migración 0067_ajustes_etiquetadora en la base.",
       },
       { status: 500 },
     );

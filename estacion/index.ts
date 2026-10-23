@@ -14,7 +14,7 @@
  * Android) que arranque solo y reinicie si el proceso muere.
  */
 import { readFileSync } from "node:fs";
-import { crearDestinos, type ConfigImpresoras, type LenguajeEtiquetas } from "./destino";
+import { crearDestinos, type ConfigImpresora, type ConfigImpresoras } from "./destino";
 import { resolverImpresion, type TrabajoPendiente } from "./resolver";
 
 interface Config {
@@ -98,11 +98,11 @@ async function reportarResultado(
 async function procesarUnTrabajo(
   config: Config,
   destinos: ReturnType<typeof crearDestinos>,
-  lenguaje: LenguajeEtiquetas | undefined,
+  etiquetas: ConfigImpresora,
   trabajo: TrabajoPendiente,
 ): Promise<void> {
   try {
-    const { destino, contenido } = resolverImpresion(trabajo, lenguaje);
+    const { destino, contenido } = resolverImpresion(trabajo, etiquetas.lenguaje, etiquetas.ajustes);
     await destinos[destino].enviar(contenido);
     await reportarResultado(config, trabajo.id, { ok: true });
     console.log(`[estacion] impreso ${trabajo.tipo} (${trabajo.id})`);
@@ -145,7 +145,7 @@ async function cicloPrincipal(config: Config): Promise<void> {
     try {
       const pendientes = await obtenerPendientes(config);
       for (const trabajo of pendientes) {
-        await procesarUnTrabajo(config, destinos, impresoras.etiquetas.lenguaje, trabajo);
+        await procesarUnTrabajo(config, destinos, impresoras.etiquetas, trabajo);
       }
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : String(err);
