@@ -21,13 +21,14 @@ export type IdInforme =
   | "ordenes-taller"
   | "productividad-tecnicos"
   | "utilidad-articulos"
-  | "metricas-piloto";
+  | "metricas-piloto"
+  | "recibos";
 
 export interface DefInforme {
   id: IdInforme;
   nombre: string;
   descripcion: string;
-  grupo: "Ventas" | "Caja" | "Inventario" | "Taller";
+  grupo: "Ventas" | "Caja" | "Inventario" | "Taller" | "Recibos";
   /** false: es una foto a hoy (inventario) o no depende de fechas. */
   usaFechas: boolean;
   usaSede: boolean;
@@ -51,9 +52,10 @@ export const INFORMES: DefInforme[] = [
   { id: "ordenes-taller", nombre: "Órdenes del taller", descripcion: "Órdenes por estado y tiempos de reparación.", grupo: "Taller", usaFechas: true, usaSede: true },
   { id: "productividad-tecnicos", nombre: "Productividad por técnico", descripcion: "Equipos asignados, terminados y tiempo promedio.", grupo: "Taller", usaFechas: true, usaSede: true },
   { id: "metricas-piloto", nombre: "Métricas del piloto", descripcion: "Las métricas de éxito del piloto (Fase 8).", grupo: "Taller", usaFechas: false, usaSede: false },
+  { id: "recibos", nombre: "Recibos impresos", descripcion: "Cada recibo que se mandó a imprimir: ventas, abonos, recepciones, cierres y traslados.", grupo: "Recibos", usaFechas: true, usaSede: true },
 ];
 
-export const GRUPOS: DefInforme["grupo"][] = ["Ventas", "Caja", "Inventario", "Taller"];
+export const GRUPOS: DefInforme["grupo"][] = ["Ventas", "Caja", "Inventario", "Taller", "Recibos"];
 
 export function buscarInforme(id: string | undefined | null): DefInforme {
   return INFORMES.find((i) => i.id === id) ?? INFORMES[0]!;
