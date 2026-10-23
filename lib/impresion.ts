@@ -7,6 +7,7 @@
  * Ver supabase/migrations/0005_impresion.sql para el porqué de este diseño.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { desplazarRaster, PUNTOS_POR_MM } from "./etiquetas/desplazar";
 import { generarLogoRaster, TAMANO_RECIBO, TAMANO_RECIBO_58, type LogoRaster } from "./logo-bitmap";
 import { generarEtiquetaQrRaster } from "./etiqueta-bitmap";
 import { generarQrRaster } from "./qr-bitmap";
@@ -372,6 +373,22 @@ export async function encolarImpresion<T extends TipoTrabajo>(
   } else if (params.tipo === "etiqueta_qr") {
     const { codigoEntrada } = params.carga as unknown as { codigoEntrada: string };
     carga = { etiquetaRaster: await generarEtiquetaQrRaster(codigoEntrada) };
+  }
+
+  // Corrimiento de la etiqueta por sede (migración 0066): mueve la imagen
+  // para que no salga cortada por un lado. Solo aplica a etiquetas ya
+  // dibujadas como bitmap; sin la columna, no se mueve nada.
+  if (TIPOS_ETIQUETA.has(params.tipo)) {
+    const raster = (carga as { etiquetaRaster?: LogoRaster }).etiquetaRaster;
+    if (raster) {
+      const { data: ajuste } = await supabase
+        .from("impresora_sede")
+        .select("etiquetas_ajuste_mm")
+        .eq("sede_id", params.sedeId)
+        .maybeSingle();
+      const mm = Number(ajuste?.etiquetas_ajuste_mm ?? 0);
+      if (mm) carga = { ...carga, etiquetaRaster: desplazarRaster(raster, mm * PUNTOS_POR_MM) };
+    }
   }
 
   // Solo cuenta si la etiqueta termina en la POS (estacion/etiqueta-escpos.ts);
