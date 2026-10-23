@@ -14,6 +14,7 @@ import { obtenerSedeActivaId } from "@/lib/perfil";
 import { encolarImpresion } from "@/lib/impresion";
 import { puede } from "@/lib/permisos";
 import { codigoEntrada } from "@/lib/codigo-entrada";
+import { obtenerCuentaOrden } from "@/lib/cuenta-orden";
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -37,7 +38,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const [{ data: orden }, { data: config }] = await Promise.all([
     supabase
       .from("orden")
-      .select("numero, empresa_id, producto:producto_id ( tipo, marca, modelo )")
+      .select("numero, empresa_id, motivo, producto:producto_id ( tipo, marca, modelo, cliente:cliente_id ( nombre, telefono ) )")
       .eq("id", id)
       .maybeSingle(),
     supabase.from("empresa_config").select("prefijo_etiqueta").eq("empresa_id", perfil.empresa_id).maybeSingle(),
@@ -47,8 +48,16 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   }
 
   // El join de Supabase infiere `producto` como arreglo aunque sea 1:1.
-  const producto = orden.producto as unknown as { tipo: string; marca: string | null; modelo: string | null } | null;
+  const producto = orden.producto as unknown as {
+    tipo: string;
+    marca: string | null;
+    modelo: string | null;
+    cliente: { nombre: string; telefono: string | null } | null;
+  } | null;
   const nombreProducto = [producto?.marca, producto?.modelo].filter(Boolean).join(" ") || producto?.tipo || "";
+  // El valor que sale en la etiqueta (si la plantilla lo pide) es el de
+  // la cuenta de la orden hoy, no solo el que se puso al recibir.
+  const cuenta = await obtenerCuentaOrden(supabase, id);
 
   await encolarImpresion(supabase, {
     empresaId: perfil.empresa_id,
@@ -56,7 +65,15 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     tipo: "etiqueta_qr",
     creadoPor: user.id,
     ordenId: id,
-    carga: { codigoEntrada: codigoEntrada(config?.prefijo_etiqueta, orden.numero), producto: nombreProducto },
+    carga: {
+      codigoEntrada: codigoEntrada(config?.prefijo_etiqueta, orden.numero),
+      producto: nombreProducto,
+      numeroOrden: orden.numero,
+      clienteNombre: producto?.cliente?.nombre ?? null,
+      clienteTelefono: producto?.cliente?.telefono ?? null,
+      valorServicio: cuenta?.valor || null,
+      motivo: orden.motivo,
+    },
   });
 
   return NextResponse.json({ ok: true });

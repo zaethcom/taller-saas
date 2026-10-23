@@ -350,7 +350,15 @@ export async function POST(req: NextRequest) {
     // marca/modelo, número de orden) ya van en el comprobante impreso
     // arriba, que sí tiene espacio. `producto` solo lo imprime una
     // plantilla de etiqueta más grande que lo pida (0046).
-    carga: { codigoEntrada, producto: nombreProducto },
+    carga: {
+      codigoEntrada,
+      producto: nombreProducto,
+      numeroOrden: orden.numero,
+      clienteNombre: cliente?.nombre ?? null,
+      clienteTelefono: cliente?.telefono ?? null,
+      valorServicio: valorServicio || null,
+      motivo: body.motivo.trim(),
+    },
   });
 
   const esCelular = /cel|tel[eé]fono|smartphone/i.test(producto?.tipo ?? "");

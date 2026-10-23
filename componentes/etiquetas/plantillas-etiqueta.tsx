@@ -19,6 +19,7 @@ import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { subirFondoEtiqueta } from "@/lib/subir-logo";
 import {
   CAMPOS,
+  CAMPOS_ORDEN,
   ETIQUETA_DE_FABRICA,
   LIMITES,
   MODELOS,
@@ -396,7 +397,11 @@ export function PlantillasEtiqueta({ empresaId }: { empresaId: string | null }) 
           <div>
             <span className="campo-etiqueta">Qué lleva</span>
             <div className="pila" style={{ gap: 6 }}>
-              {[...CAMPOS, { valor: "marco" as const, etiqueta: "Marco redondeado" }].map((c) => (
+              {[
+                ...CAMPOS,
+                ...(borrador.uso === "orden" ? CAMPOS_ORDEN : []),
+                { valor: "marco" as const, etiqueta: "Marco redondeado" },
+              ].map((c) => (
                 <label key={c.valor} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
                   <input
                     type="checkbox"

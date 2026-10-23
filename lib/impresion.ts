@@ -40,6 +40,12 @@ interface CargaEtiquetaQr {
   codigoEntrada: string;
   /** Marca/modelo del equipo -- solo lo usa una plantilla con "descripción" (0046). */
   producto?: string | null;
+  /** Datos de la orden y del cliente -- solo los imprime una plantilla que los pida. */
+  numeroOrden?: number | null;
+  clienteNombre?: string | null;
+  clienteTelefono?: string | null;
+  valorServicio?: number | null;
+  motivo?: string | null;
 }
 
 /**
@@ -166,7 +172,15 @@ function datosDeCarga(tipo: TipoTrabajo, carga: Record<string, unknown>): DatosE
   const texto = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
   switch (tipo) {
     case "etiqueta_qr":
-      return { codigo: String(carga.codigoEntrada ?? ""), descripcion: texto(carga.producto) };
+      return {
+        codigo: String(carga.codigoEntrada ?? ""),
+        descripcion: texto(carga.producto),
+        numeroOrden: typeof carga.numeroOrden === "number" ? carga.numeroOrden : null,
+        clienteNombre: texto(carga.clienteNombre),
+        clienteTelefono: texto(carga.clienteTelefono),
+        valorServicio: typeof carga.valorServicio === "number" ? carga.valorServicio : null,
+        motivo: texto(carga.motivo),
+      };
     case "etiqueta_articulo":
       return {
         codigo: String(carga.codigo ?? ""),
