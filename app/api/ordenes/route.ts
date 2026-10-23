@@ -30,6 +30,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
+import { fechaHoraRecibo } from "@/lib/fecha-recibo";
 import { encolarImpresion } from "@/lib/impresion";
 import { notificarCliente } from "@/lib/mensajeria/notificar";
 import { generarSerialEquipo } from "@/lib/serial-equipo";
@@ -331,7 +332,7 @@ export async function POST(req: NextRequest) {
       serial: producto?.serial ?? "",
       motivo: body.motivo.trim(),
       // Hora de Colombia: el servidor está en UTC y de noche ponía el día siguiente.
-      fecha: new Date().toLocaleDateString("es-CO", { timeZone: "America/Bogota" }),
+      fecha: fechaHoraRecibo(new Date()),
       recibidoPor: perfil.nombre,
       urlSeguimiento,
       valorServicio: valorServicio || null,

@@ -8,6 +8,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { desplazarRaster, PUNTOS_POR_MM } from "./etiquetas/desplazar";
+import { fechaHoraRecibo } from "./fecha-recibo";
 import { generarLogoRaster, TAMANO_RECIBO, TAMANO_RECIBO_58, type LogoRaster } from "./logo-bitmap";
 import { generarEtiquetaQrRaster } from "./etiqueta-bitmap";
 import { generarQrRaster } from "./qr-bitmap";
@@ -67,6 +68,8 @@ interface CargaMarcaEmpresa {
 
 interface CargaReciboVenta extends CargaMarcaEmpresa {
   numeroVenta: number;
+  /** Fecha y hora del recibo; si falta, encolarImpresion pone la de ahora. */
+  fecha?: string;
   items: { descripcion: string; cantidad: number; precioUnit: number }[];
   total: number;
   medioPago: string;
@@ -373,6 +376,12 @@ export async function encolarImpresion<T extends TipoTrabajo>(
   } else if (params.tipo === "etiqueta_qr") {
     const { codigoEntrada } = params.carga as unknown as { codigoEntrada: string };
     carga = { etiquetaRaster: await generarEtiquetaQrRaster(codigoEntrada) };
+  }
+
+  // Todo recibo de venta lleva fecha y hora. Quien encola puede mandar la
+  // suya (la reimpresión manda la de la venta original); si no, la de ahora.
+  if (params.tipo === "recibo_venta" && !(carga as { fecha?: string }).fecha) {
+    carga = { ...carga, fecha: fechaHoraRecibo(new Date()) };
   }
 
   // Corrimiento de la etiqueta por sede (migración 0066): mueve la imagen

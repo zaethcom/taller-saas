@@ -10,6 +10,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { encolarImpresion } from "./impresion";
+import { fechaHoraRecibo } from "./fecha-recibo";
 import { codigoEntrada } from "./codigo-entrada";
 import { obtenerCuentaOrden, type CuentaOrden } from "./cuenta-orden";
 
@@ -42,7 +43,7 @@ export function cargaComprobanteRecepcion(d: DatosComprobante, urlApp: string) {
     producto: nombreProducto,
     serial: producto?.serial ?? "",
     motivo: d.motivo,
-    fecha: new Date(d.abiertaEn).toLocaleDateString("es-CO", { timeZone: "America/Bogota" }),
+    fecha: fechaHoraRecibo(d.abiertaEn),
     urlSeguimiento: `${urlApp}/seguimiento/${d.tokenPublico}`,
     valorServicio: valor > 0 ? valor : null,
     abono: valor > 0 && pagado > 0 ? { monto: pagado, medio: medios.length > 1 ? "varios" : (medios[0] ?? "—") } : null,

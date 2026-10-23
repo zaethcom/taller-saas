@@ -21,6 +21,8 @@ import { encabezadoEmpresa, piePersonalizado, type CargaMarcaEmpresa } from "../
 
 export interface CargaReciboVenta extends CargaMarcaEmpresa {
   numeroVenta: number;
+  /** «22/10/2026 7:39 p. m.»: lo pone lib/impresion.ts al encolar (o la venta original al reimprimir). */
+  fecha?: string;
   items: { descripcion: string; cantidad: number; precioUnit: number }[];
   total: number;
   medioPago: string;
@@ -76,7 +78,9 @@ export function reciboVenta(c: CargaReciboVenta): Buffer {
     texto(`Venta #${c.numeroVenta}`),
     tamano(false),
     negrita(false),
-    salto(2),
+    salto(),
+    ...(c.fecha ? [texto(c.fecha), salto()] : []),
+    salto(),
     alinear("izquierda"),
   ];
 

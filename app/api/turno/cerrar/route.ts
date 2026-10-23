@@ -13,6 +13,7 @@ import { encolarImpresion } from "@/lib/impresion";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
 import type { Rol } from "@/lib/permisos";
+import { fechaHoraRecibo } from "@/lib/fecha-recibo";
 
 const ETIQUETA_ROL: Record<Rol, string> = {
   admin: "Administrador",
@@ -22,20 +23,6 @@ const ETIQUETA_ROL: Record<Rol, string> = {
   cajero: "Cajero",
 };
 
-/**
- * Hora de Colombia, no la del servidor: en Vercel corre en UTC y el comprobante
- * salía con cinco horas de más (un cierre a las 7:39 p. m. decía 12:39 a. m.).
- */
-function fechaHora(d: Date): string {
-  return d.toLocaleString("es-CO", {
-    timeZone: "America/Bogota",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as { efectivoContado?: number };
@@ -127,8 +114,8 @@ export async function POST(req: NextRequest) {
     tipo: "cierre_caja",
     creadoPor: user.id,
     carga: {
-      aperturaEn: fechaHora(new Date(turno.abierto_en)),
-      cierreEn: fechaHora(cierreEn),
+      aperturaEn: fechaHoraRecibo(turno.abierto_en),
+      cierreEn: fechaHoraRecibo(cierreEn),
       abiertoPor: persona(turno.abierto_por),
       cerradoPor: persona(user.id),
       baseInicial: resumen.baseInicial,

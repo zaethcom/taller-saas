@@ -1113,3 +1113,146 @@ export function utilidadArticulos(items: ItemArticuloFila[], c: Catalogos): Info
     ],
   };
 }
+
+// ── Recibos impresos ────────────────────────────────────────────────
+
+/**
+ * Un recibo encolado para imprimir (trabajo_impresion), con solo los
+ * datos de la carga que el informe muestra: la carga completa trae el
+ * logo y el QR en bitmap y pesaría demasiado traerla entera.
+ */
+export interface ReciboFila {
+  id: string;
+  tipo: string;
+  sede_id: string;
+  creado_por: string | null;
+  creado_en: string;
+  estado: string;
+  impreso_en: string | null;
+  error: string | null;
+  numero_venta: string | null;
+  numero_orden: string | null;
+  numero_traslado: string | null;
+  etiqueta_total: string | null;
+  cliente_venta: string | null;
+  cliente_recepcion: string | null;
+  total: string | null;
+  valor_servicio: string | null;
+  efectivo_contado: string | null;
+  imprimir: string | null;
+}
+
+/** Los tipos de trabajo que son un recibo en papel (los mismos que llevan la marca de la empresa). */
+export const TIPOS_RECIBO = ["recibo_venta", "comprobante_recepcion", "cierre_caja", "comprobante_traslado"] as const;
+
+const NOMBRE_RECIBO: Record<string, string> = {
+  recibo_venta: "Venta",
+  comprobante_recepcion: "Recepción de equipo",
+  cierre_caja: "Cierre de caja",
+  comprobante_traslado: "Traslado",
+};
+
+const ESTADO_RECIBO: Record<string, string> = {
+  impreso: "Impreso",
+  pendiente: "En cola",
+  error: "Error",
+};
+
+function numeroONulo(s: string | null): number | null {
+  if (s === null || s === "") return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** «Venta», o «Abono» cuando el recibo de venta es un abono a una orden o encargo. */
+function nombreRecibo(r: ReciboFila): string {
+  if (r.tipo === "recibo_venta" && r.etiqueta_total && r.etiqueta_total.toUpperCase() !== "TOTAL") {
+    return r.etiqueta_total.charAt(0).toUpperCase() + r.etiqueta_total.slice(1).toLowerCase();
+  }
+  return NOMBRE_RECIBO[r.tipo] ?? r.tipo;
+}
+
+function referenciaRecibo(r: ReciboFila): string {
+  if (r.numero_venta) return `Venta #${r.numero_venta}`;
+  if (r.numero_orden) return `Orden #${r.numero_orden}`;
+  if (r.numero_traslado) return `Traslado #${r.numero_traslado}`;
+  return "—";
+}
+
+function valorRecibo(r: ReciboFila): number | null {
+  if (r.tipo === "recibo_venta") return numeroONulo(r.total);
+  if (r.tipo === "comprobante_recepcion") return numeroONulo(r.valor_servicio);
+  if (r.tipo === "cierre_caja") return numeroONulo(r.efectivo_contado);
+  return null;
+}
+
+export function recibosImpresos(recibos: ReciboFila[], c: Catalogos): Informe {
+  // «Imprimir recibo» desmarcado en el cobro: el trabajo solo abre el cajón, no hay papel.
+  const enPapel = recibos.filter((r) => !(r.tipo === "recibo_venta" && r.imprimir === "false"));
+
+  const filas = [...enPapel]
+    .sort((a, b) => b.creado_en.localeCompare(a.creado_en))
+    .map((r) => ({
+      fecha: r.creado_en,
+      recibo: nombreRecibo(r),
+      referencia: referenciaRecibo(r),
+      cliente: r.cliente_venta ?? r.cliente_recepcion ?? "—",
+      valor: valorRecibo(r),
+      // Solo el nombre: el código del usuario es de acceso y no va a la vista.
+      quien: (r.creado_por && c.personas.get(r.creado_por)?.nombre) || "—",
+      sede: nombreSede(c, r.sede_id),
+      estado: r.estado === "error" && r.error ? `Error: ${r.error}` : (ESTADO_RECIBO[r.estado] ?? r.estado),
+    }));
+
+  const porTipo = new Map<string, { cantidad: number; valor: number }>();
+  for (const f of filas) {
+    const g = porTipo.get(f.recibo) ?? { cantidad: 0, valor: 0 };
+    g.cantidad += 1;
+    g.valor += f.valor ?? 0;
+    porTipo.set(f.recibo, g);
+  }
+
+  const cuenta = (estado: string) => enPapel.filter((r) => r.estado === estado).length;
+  const notas: string[] = [];
+  if (cuenta("error") > 0) notas.push("Los recibos con error no salieron de la impresora: revisa la estación o la conexión de esa sede.");
+  if (cuenta("pendiente") > 0) notas.push("«En cola» quiere decir que la estación de esa sede todavía no los recogió.");
+  notas.push("Valor: el total en ventas y abonos, el valor del servicio en recepciones y el efectivo contado en cierres de caja.");
+
+  return {
+    titulo: "Recibos impresos",
+    resumen: [
+      { rotulo: "Recibos", valor: filas.length, formato: "numero" },
+      { rotulo: "Impresos", valor: cuenta("impreso"), formato: "numero" },
+      { rotulo: "En cola", valor: cuenta("pendiente"), formato: "numero" },
+      { rotulo: "Con error", valor: cuenta("error"), formato: "numero" },
+    ],
+    tablas: [
+      {
+        titulo: "Por tipo de recibo",
+        columnas: [
+          { clave: "recibo", titulo: "Recibo", formato: "texto" },
+          { clave: "cantidad", titulo: "Cantidad", formato: "numero" },
+        ],
+        filas: [...porTipo.entries()]
+          .sort((a, b) => b[1].cantidad - a[1].cantidad)
+          .map(([recibo, g]) => ({ recibo, cantidad: g.cantidad })),
+        totales: { recibo: "Total", cantidad: filas.length },
+      },
+      {
+        titulo: "Todos los recibos",
+        columnas: [
+          { clave: "fecha", titulo: "Fecha", formato: "fechaHora" },
+          { clave: "recibo", titulo: "Recibo", formato: "texto" },
+          { clave: "referencia", titulo: "Número", formato: "texto" },
+          { clave: "cliente", titulo: "Cliente", formato: "texto" },
+          { clave: "valor", titulo: "Valor", formato: "moneda" },
+          { clave: "quien", titulo: "Quién", formato: "texto" },
+          { clave: "sede", titulo: "Sede", formato: "texto" },
+          { clave: "estado", titulo: "Estado", formato: "texto" },
+        ],
+        filas,
+      },
+    ],
+    notas,
+  };
+}
