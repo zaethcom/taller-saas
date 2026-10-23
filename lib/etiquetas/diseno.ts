@@ -172,6 +172,9 @@ function texto(x: number, y: number, l: Linea, ancla: "start" | "middle"): strin
 
 const ETIQUETA_CAJA = "CÓDIGO:";
 
+/** El QR no baja de esta fracción del alto útil del sticker (ver el apilado en disenarEtiqueta). */
+const QR_MINIMO = 0.33;
+
 /** «CÓDIGO:» va más chico que los demás textos, para dejarle el espacio al código. */
 function fuenteCaja(fuenteChica: number): number {
   return Math.max(13, Math.round(fuenteChica * 0.7));
@@ -335,16 +338,45 @@ export function disenarEtiqueta(p: DisenoEtiqueta, datos: DatosEtiqueta, conFond
   } else {
     // Apilado: logo, eslogan y empresa arriba; código; código en texto y
     // descripción abajo.
-    const altoLogo = logoUrl ? Math.round(h * 0.27) : 0;
-    const arriba: Linea[] = [];
-    if (eslogan) arriba.push({ texto: eslogan, fuente: fuenteChica, negrita: false, conRayas: true, entero: true });
-    if (empresa) arriba.push({ texto: empresa, fuente: fuenteChica, negrita: true });
-    const abajo: Linea[] = [];
-    if (textoCodigo) {
-      const enCaja = Boolean(logoUrl || eslogan) && p.codigo === "qr";
-      abajo.push({ texto: textoCodigo, fuente: fuenteCodigo, negrita: true, entero: true, enCaja });
+    // Con QR el código tiene prioridad sobre lo decorativo: el lado del QR
+    // no baja de QR_MINIMO del alto útil. Si lo demás no lo deja, primero
+    // se achica el logo, después se quita la empresa en texto (el logo ya
+    // la muestra) y por último la descripción. Antes el QR se quedaba con
+    // lo que sobraba: en el sticker de 60x40 de Polaco Scooter con logo,
+    // datos de la orden y caja del código salía de 3 mm y no escaneaba.
+    const minimoQr = p.codigo === "qr" ? Math.round(h * QR_MINIMO) : 0;
+    let altoLogo = logoUrl ? Math.round(h * 0.27) : 0;
+    let conEmpresa = Boolean(empresa);
+    let conDescripcion = Boolean(descripcion);
+    const enCaja = Boolean(logoUrl || eslogan) && p.codigo === "qr";
+    const altoLinea = (l: Linea) => Math.round(l.fuente * (l.enCaja ? 2 : 1.2));
+    const armarArriba = () => {
+      const ls: Linea[] = [];
+      if (eslogan) ls.push({ texto: eslogan, fuente: fuenteChica, negrita: false, conRayas: true, entero: true });
+      if (empresa && conEmpresa) ls.push({ texto: empresa, fuente: fuenteChica, negrita: true });
+      return ls;
+    };
+    const armarAbajo = () => {
+      const ls: Linea[] = [];
+      if (textoCodigo) ls.push({ texto: textoCodigo, fuente: fuenteCodigo, negrita: true, entero: true, enCaja });
+      if (descripcion && conDescripcion) ls.push({ texto: descripcion, fuente: fuenteChica, negrita: false });
+      return ls;
+    };
+    const libreParaCodigo = () => {
+      const a = armarArriba();
+      const b = armarAbajo();
+      const altoA = (logoUrl ? altoLogo + separacion : 0) + a.reduce((x, l) => x + altoLinea(l), 0) + (a.length ? separacion : 0);
+      const altoB = b.reduce((x, l) => x + altoLinea(l), 0) + (b.length ? separacion : 0);
+      return h - altoA - altoB;
+    };
+    if (minimoQr && libreParaCodigo() < minimoQr) {
+      const logoMinimo = Math.round(h * 0.14);
+      if (altoLogo > logoMinimo) altoLogo = Math.max(logoMinimo, altoLogo - (minimoQr - libreParaCodigo()));
+      if (libreParaCodigo() < minimoQr && logoUrl && conEmpresa) conEmpresa = false;
+      if (libreParaCodigo() < minimoQr && conDescripcion) conDescripcion = false;
     }
-    if (descripcion) abajo.push({ texto: descripcion, fuente: fuenteChica, negrita: false });
+    const arriba = armarArriba();
+    const abajo = armarAbajo();
     // Con QR los datos de la orden van a la derecha del código; con
     // barras (que necesitan el ancho) van debajo de todo.
     // Si al lado del QR no caben ni 12 letras (sticker chico), van debajo.
@@ -354,7 +386,6 @@ export function disenarEtiqueta(p: DisenoEtiqueta, datos: DatosEtiqueta, conFond
     const arribaAjustado = arriba.map((l) => ajustar(l, anchoUtil(l)));
     const abajoAjustado = abajo.map((l) => ajustar(l, anchoUtil(l)));
 
-    const altoLinea = (l: Linea) => Math.round(l.fuente * (l.enCaja ? 2 : 1.2));
     const altoArriba =
       (logoUrl ? altoLogo + separacion : 0) +
       arribaAjustado.reduce((s, l) => s + altoLinea(l), 0) +

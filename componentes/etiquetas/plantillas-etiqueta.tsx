@@ -371,8 +371,10 @@ export function PlantillasEtiqueta({ empresaId }: { empresaId: string | null }) 
                   value={borrador.dpi}
                   onChange={(e) => setBorrador({ ...borrador, dpi: Number(e.target.value) === 300 ? 300 : 203 })}
                 >
-                  <option value={203}>203 dpi</option>
-                  <option value={300}>300 dpi</option>
+                  {/* La resolución tiene que ser la de la impresora: con 300 en una de
+                      203 la etiqueta sale 1,5 veces más grande y cortada. */}
+                  <option value={203}>203 dpi (Zebra ZP 500, Argox, la mayoría)</option>
+                  <option value={300}>300 dpi (solo si la impresora lo dice)</option>
                 </select>
               </Campo>
             </div>
