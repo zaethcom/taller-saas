@@ -24,7 +24,7 @@ export async function GET() {
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
-  // tipos_equipo va en su propia consulta: si la columna (0066) todavía
+  // tipos_equipo va en su propia consulta: si la columna (0068) todavía
   // no existe, solo se usan los tipos de siempre y lo demás no se pierde.
   const [config, { data: empresa }, { data: tipos }] = await Promise.all([
     obtenerConfiguracion(supabase, perfil.empresaId),

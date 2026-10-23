@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0066_tipos_equipo.sql
+-- 0068_tipos_equipo.sql
 -- Los tipos de equipo de Recibir equipo (Patineta, Celular,
 -- Computador...) pasan a ser editables por cada empresa en
 -- Configuración → Taller. Se guardan como [{ "valor", "etiqueta" }]:

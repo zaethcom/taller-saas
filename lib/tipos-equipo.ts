@@ -1,7 +1,7 @@
 /**
  * Tipos de equipo que ofrece Recibir equipo (Patineta, Celular,
  * Computador...). Cada empresa los edita en Configuración → Taller y
- * quedan en empresa_config.tipos_equipo (0066_tipos_equipo.sql); sin
+ * quedan en empresa_config.tipos_equipo (0068_tipos_equipo.sql); sin
  * nada guardado se usan los de siempre.
  *
  * Cada tipo tiene un `valor` (lo que se guarda en producto.tipo) y una
