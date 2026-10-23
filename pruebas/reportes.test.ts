@@ -285,3 +285,51 @@ describe("recibosImpresos", () => {
     expect(inf.resumen.map((r) => r.valor)).toEqual([4, 2, 1, 1]);
   });
 });
+
+describe("recibosImpresos -- consecutivo", () => {
+  const r = (id: string, creado_en: string, extra: Partial<ReciboFila>): ReciboFila => ({
+    id,
+    tipo: "recibo_venta",
+    sede_id: "s1",
+    creado_por: "u1",
+    creado_en,
+    estado: "impreso",
+    impreso_en: creado_en,
+    error: null,
+    numero_venta: null,
+    numero_orden: null,
+    numero_traslado: null,
+    etiqueta_total: null,
+    cliente_venta: null,
+    cliente_recepcion: null,
+    total: null,
+    valor_servicio: null,
+    efectivo_contado: null,
+    imprimir: null,
+    ...extra,
+  });
+  const inf = recibosImpresos(
+    [
+      r("c", "2026-10-22T22:00:00Z", { numero_venta: "62" }),
+      r("a", "2026-10-22T20:00:00Z", { numero_venta: "61" }),
+      r("b", "2026-10-22T21:00:00Z", { tipo: "comprobante_recepcion", numero_orden: "17" }),
+      r("d", "2026-10-22T23:00:00Z", { numero_venta: "61" }),
+    ],
+    cat,
+  );
+  const filas = inf.tablas[1]!.filas;
+
+  it("ventas y órdenes juntas, del más viejo al más nuevo, numeradas 1, 2, 3...", () => {
+    expect(filas.map((f) => [f.consecutivo, f.referencia])).toEqual([
+      [1, "Venta #61"],
+      [2, "Orden #17"],
+      [3, "Venta #62"],
+      [4, "Venta #61"],
+    ]);
+  });
+
+  it("marca como reimpresión la segunda vez que sale el mismo número", () => {
+    expect(filas[0]!.recibo).toBe("Venta");
+    expect(filas[3]!.recibo).toBe("Venta (reimpresión)");
+  });
+});

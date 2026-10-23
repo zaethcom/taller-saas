@@ -1190,12 +1190,26 @@ export function recibosImpresos(recibos: ReciboFila[], c: Catalogos): Informe {
   // «Imprimir recibo» desmarcado en el cobro: el trabajo solo abre el cajón, no hay papel.
   const enPapel = recibos.filter((r) => !(r.tipo === "recibo_venta" && r.imprimir === "false"));
 
+  // En orden de llegada, del más viejo al más nuevo, con un consecutivo
+  // corrido: así se lee como un libro de recibos y se nota si falta uno.
+  // La primera vez que sale una venta u orden es el original; si el mismo
+  // número vuelve a salir, es una reimpresión.
+  const vistos = new Set<string>();
   const filas = [...enPapel]
-    .sort((a, b) => b.creado_en.localeCompare(a.creado_en))
-    .map((r) => ({
+    .sort((a, b) => a.creado_en.localeCompare(b.creado_en) || a.id.localeCompare(b.id))
+    .map((r, i) => {
+      const referencia = referenciaRecibo(r);
+      const clave = `${r.tipo}|${referencia}`;
+      const reimpresion = referencia !== "—" && vistos.has(clave);
+      vistos.add(clave);
+      return { r, i, referencia, reimpresion };
+    })
+    .map(({ r, i, referencia, reimpresion }) => ({
+      consecutivo: i + 1,
       fecha: r.creado_en,
-      recibo: nombreRecibo(r),
-      referencia: referenciaRecibo(r),
+      impreso: r.impreso_en,
+      recibo: reimpresion ? `${nombreRecibo(r)} (reimpresión)` : nombreRecibo(r),
+      referencia,
       cliente: r.cliente_venta ?? r.cliente_recepcion ?? "—",
       valor: valorRecibo(r),
       // Solo el nombre: el código del usuario es de acceso y no va a la vista.
@@ -1241,7 +1255,9 @@ export function recibosImpresos(recibos: ReciboFila[], c: Catalogos): Informe {
       {
         titulo: "Todos los recibos",
         columnas: [
-          { clave: "fecha", titulo: "Fecha", formato: "fechaHora" },
+          { clave: "consecutivo", titulo: "Consecutivo", formato: "numero" },
+          { clave: "fecha", titulo: "Recibido", formato: "fechaHora" },
+          { clave: "impreso", titulo: "Impreso", formato: "fechaHora" },
           { clave: "recibo", titulo: "Recibo", formato: "texto" },
           { clave: "referencia", titulo: "Número", formato: "texto" },
           { clave: "cliente", titulo: "Cliente", formato: "texto" },
