@@ -121,6 +121,9 @@ interface CargaCierreCaja extends CargaMarcaEmpresa {
   efectivoEsperado: number;
   efectivoContado: number;
   diferencia: number;
+  /** "Nombre (Rol)" de quien abrió y quien cerró el turno. */
+  abiertoPor?: string;
+  cerradoPor?: string;
 }
 
 interface CargaAbrirCajon {

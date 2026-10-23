@@ -150,7 +150,7 @@ async function imprimirComprobanteEntrega(
       .eq("orden_id", ordenId)
       .eq("anulada", false)
       .order("creada_en", { ascending: true }),
-    supabase.from("perfil").select("nombre, codigo").eq("id", userId).maybeSingle(),
+    supabase.from("perfil").select("nombre").eq("id", userId).maybeSingle(),
     supabase.from("orden").select("numero").eq("id", ordenId).maybeSingle(),
     obtenerCuentaOrden(supabase, ordenId),
   ]);
@@ -181,7 +181,7 @@ async function imprimirComprobanteEntrega(
           ? { numeroOrden: orden.numero, valor: cuenta.valor, abonadoAntes: cuenta.pagado, saldo: cuenta.saldo }
           : null,
       abreCajon: false,
-      cajero: perfil ? (perfil.codigo ? `${perfil.codigo} · ${perfil.nombre}` : perfil.nombre) : null,
+      cajero: perfil ? perfil.nombre : null,
       imprimir: true,
     },
   });

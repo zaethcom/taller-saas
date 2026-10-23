@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
 
   const { data: perfil } = await supabase
     .from("perfil")
-    .select("empresa_id, sede_id, nombre, codigo")
+    .select("empresa_id, sede_id, nombre")
     .eq("id", user.id)
     .single();
   const sedeActivaId = await obtenerSedeActivaId(supabase);
@@ -269,7 +269,7 @@ export async function POST(req: NextRequest) {
       numeroOrden: orden.numero,
       valorOrden: valorServicio,
       pagadoAntes: 0,
-      cajero: perfil.codigo ? `${perfil.codigo} · ${perfil.nombre}` : perfil.nombre,
+      cajero: perfil.nombre,
       imprimir: false,
     });
     abonoRegistrado = r.ok;
