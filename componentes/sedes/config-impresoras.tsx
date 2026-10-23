@@ -36,7 +36,7 @@ interface Destino {
 
 interface Impresoras {
   tickets: Destino & { anchoMm?: AnchoPapel };
-  etiquetas: Destino & { lenguaje?: Lenguaje };
+  etiquetas: Destino & { lenguaje?: Lenguaje; ajusteMm?: number };
 }
 
 const DESTINO_VACIO: Destino = { host: "", puerto: 9100, protocolo: "crudo" };
@@ -211,6 +211,8 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
   const [etiquetas, setEtiquetas] = useState<Destino>(DESTINO_VACIO);
   const [lenguaje, setLenguaje] = useState<Lenguaje>("pplb");
   const [anchoPapel, setAnchoPapel] = useState<AnchoPapel>(80);
+  // Texto y no número: se puede escribir "-" o "1." a medio camino.
+  const [ajusteEtiqueta, setAjusteEtiqueta] = useState("0");
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -228,6 +230,7 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
           setEtiquetas(data.etiquetas);
           setLenguaje(data.etiquetas.lenguaje ?? "pplb");
           setAnchoPapel(data.tickets.anchoMm === 58 ? 58 : 80);
+          setAjusteEtiqueta(String(data.etiquetas.ajusteMm ?? 0));
         }
       })
       .catch(() => {})
@@ -245,7 +248,11 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
         body: JSON.stringify({
           tickets: { ...paraGuardar(tickets), anchoMm: anchoPapel },
           // Sin etiquetadora, las etiquetas van a la POS: lo que diga el destino de etiquetas no se usa.
-          etiquetas: { ...paraGuardar(lenguaje === "escpos" && !listo(etiquetas) ? tickets : etiquetas), lenguaje },
+          etiquetas: {
+            ...paraGuardar(lenguaje === "escpos" && !listo(etiquetas) ? tickets : etiquetas),
+            lenguaje,
+            ajusteMm: Number(ajusteEtiqueta.replace(",", ".")) || 0,
+          },
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
@@ -315,6 +322,18 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
                 <option value="zpl">Zebra (ZPL)</option>
                 <option value="escpos">No tengo etiquetadora: imprimir en la POS de tickets</option>
               </select>
+            </Campo>
+            <Campo
+              etiqueta="Correr la etiqueta (mm)"
+              ayuda="Si sale cortada por la izquierda, pon un número positivo (ej. 4) para correrla a la derecha; si sale cortada por la derecha, uno negativo. Guarda y usa «Probar» hasta que salga completa."
+            >
+              <input
+                type="text"
+                inputMode="decimal"
+                value={ajusteEtiqueta}
+                onChange={(e) => setAjusteEtiqueta(e.target.value.replace(/[^0-9.,-]/g, "").slice(0, 5))}
+                className="cifra"
+              />
             </Campo>
           </div>
         </div>
