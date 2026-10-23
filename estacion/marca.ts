@@ -5,7 +5,7 @@
  * lib/impresion.ts:CargaMarcaEmpresa, que agrega estos campos solo,
  * sin que la pantalla que encola el trabajo tenga que pedirlos.
  */
-import { ajustar, alinear, columnasPapel, imagenRaster, juntar, renglones, negrita, salto, tamano, texto } from "./escpos";
+import { ajustar, alinear, areaImpresion, columnasPapel, imagenRaster, juntar, renglones, negrita, salto, tamano, texto } from "./escpos";
 
 export interface LogoRaster {
   anchoDots: number;
@@ -24,7 +24,9 @@ export interface CargaMarcaEmpresa {
 }
 
 export function encabezadoEmpresa(c: CargaMarcaEmpresa): Buffer[] {
-  const partes: Buffer[] = [alinear("centro")];
+  // El margen y el ancho útil van aquí porque todos los recibos de verdad
+  // empiezan por este encabezado, justo después de ESC @.
+  const partes: Buffer[] = [areaImpresion(c.anchoPapelMm), alinear("centro")];
 
   if (c.logoRaster) {
     partes.push(

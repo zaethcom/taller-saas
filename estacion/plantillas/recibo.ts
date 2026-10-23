@@ -1,6 +1,7 @@
 import {
   abrirCajon,
   ajustar,
+  altoDoble,
   alinear,
   columnasPapel,
   componer,
@@ -13,12 +14,15 @@ import {
   negrita,
   renglones,
   salto,
+  tamano,
   texto,
 } from "../escpos";
 import { encabezadoEmpresa, piePersonalizado, type CargaMarcaEmpresa } from "../marca";
 
 export interface CargaReciboVenta extends CargaMarcaEmpresa {
   numeroVenta: number;
+  /** «22/10/2026 7:39 p. m.»: lo pone lib/impresion.ts al encolar (o la venta original al reimprimir). */
+  fecha?: string;
   items: { descripcion: string; cantidad: number; precioUnit: number }[];
   total: number;
   medioPago: string;
@@ -67,9 +71,15 @@ export function reciboVenta(c: CargaReciboVenta): Buffer {
     inicializar(),
     interlineado(INTERLINEADO_COMPACTO),
     ...encabezadoEmpresa(c),
+    salto(),
+    // El número de venta en grande: es lo que se busca al reclamar o devolver.
     negrita(true),
+    tamano(true),
     texto(`Venta #${c.numeroVenta}`),
+    tamano(false),
     negrita(false),
+    salto(),
+    ...(c.fecha ? [texto(c.fecha), salto()] : []),
     salto(),
     alinear("izquierda"),
   ];
@@ -84,22 +94,28 @@ export function reciboVenta(c: CargaReciboVenta): Buffer {
   // Texto a la izquierda y monto a la derecha; si no caben juntos, el
   // texto se parte por palabras y el monto va al final del último renglón
   // (o debajo, alineado a la derecha).
-  const renglon = (izq: string, der: string) => {
-    const lineas = ajustar(izq, columnas);
+  // `ancho`: letras por renglón; la mitad cuando la letra va a doble ancho.
+  const renglon = (izq: string, der: string, ancho = columnas) => {
+    const lineas = ajustar(izq, ancho);
     const ultima = lineas.pop() ?? "";
     partes.push(...renglones(lineas));
-    const junto = dosColumnas(ultima, der, columnas);
+    const junto = dosColumnas(ultima, der, ancho);
     if (junto) partes.push(texto(junto), salto());
     else partes.push(texto(ultima), salto(), alinear("derecha"), texto(der), salto(), alinear("izquierda"));
   };
 
+  // Los ítems a doble alto: la letra normal se leía muy pequeña. Doble alto
+  // no le quita letras al renglón, así que el monto sigue cabiendo al lado.
+  partes.push(altoDoble(true));
   for (const item of c.items) {
     renglon(`${item.cantidad} x ${item.descripcion}`, fmt(item.cantidad * item.precioUnit));
   }
+  partes.push(altoDoble(false));
 
-  partes.push(texto("-".repeat(columnas)), salto(), negrita(true));
-  renglon(c.etiquetaTotal ?? "TOTAL", fmt(c.total));
-  partes.push(negrita(false));
+  // El total a doble alto y doble ancho: la mitad de letras por renglón.
+  partes.push(texto("-".repeat(columnas)), salto(), negrita(true), tamano(true));
+  renglon(c.etiquetaTotal ?? "TOTAL", fmt(c.total), Math.floor(columnas / 2));
+  partes.push(tamano(false), negrita(false));
 
   const pago = [`Pagado con ${c.medioPago}`];
   if (c.montoRecibido != null) pago.push(`Recibido ${fmt(c.montoRecibido)}`);

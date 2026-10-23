@@ -11,6 +11,8 @@ import {
   utilidadArticulos,
   type Catalogos,
   type VentaFila,
+  recibosImpresos,
+  type ReciboFila,
 } from "../lib/reportes/informes";
 import { leerParametros } from "../lib/reportes/parametros";
 import { informeAExcel, informeAPdf } from "../lib/reportes/exportar";
@@ -234,5 +236,100 @@ describe("exportación", () => {
   it("genera un PDF válido", () => {
     const buf = Buffer.from(informeAPdf(inf, enc));
     expect(buf.subarray(0, 5).toString()).toBe("%PDF-");
+  });
+});
+
+describe("recibosImpresos", () => {
+  const base: ReciboFila = {
+    id: "x",
+    tipo: "recibo_venta",
+    sede_id: "s1",
+    creado_por: "u1",
+    creado_en: "2026-10-22T20:00:00Z",
+    estado: "impreso",
+    impreso_en: null,
+    error: null,
+    numero_venta: null,
+    numero_orden: null,
+    numero_traslado: null,
+    etiqueta_total: null,
+    cliente_venta: null,
+    cliente_recepcion: null,
+    total: null,
+    valor_servicio: null,
+    efectivo_contado: null,
+    imprimir: null,
+  };
+  const recibos: ReciboFila[] = [
+    { ...base, id: "1", numero_venta: "62", total: "799800", cliente_venta: "Juan" },
+    { ...base, id: "2", numero_venta: "63", total: "50000", etiqueta_total: "ABONO", estado: "error", error: "sin papel" },
+    { ...base, id: "3", tipo: "comprobante_recepcion", numero_orden: "17", cliente_recepcion: "Albeiro", valor_servicio: "185540", creado_por: "u2" },
+    { ...base, id: "4", tipo: "cierre_caja", efectivo_contado: "1186300", estado: "pendiente" },
+    // «Imprimir recibo» desmarcado: solo abrió el cajón, no hubo papel.
+    { ...base, id: "5", numero_venta: "64", total: "1000", imprimir: "false" },
+  ];
+  const inf = recibosImpresos(recibos, cat);
+
+  it("lista cada recibo en papel con su tipo, número, cliente, valor, quién y estado", () => {
+    const filas = inf.tablas[1]!.filas;
+    expect(filas).toHaveLength(4);
+    expect(filas).toContainEqual(
+      expect.objectContaining({ recibo: "Venta", referencia: "Venta #62", cliente: "Juan", valor: 799800, quien: "Ana", sede: "Local 1", estado: "Impreso" }),
+    );
+    expect(filas).toContainEqual(expect.objectContaining({ recibo: "Abono", estado: "Error: sin papel" }));
+    expect(filas).toContainEqual(expect.objectContaining({ recibo: "Recepción de equipo", referencia: "Orden #17", valor: 185540, quien: "Luis" }));
+    expect(filas).toContainEqual(expect.objectContaining({ recibo: "Cierre de caja", valor: 1186300, estado: "En cola" }));
+  });
+
+  it("resume cuántos salieron, cuántos esperan y cuántos fallaron", () => {
+    expect(inf.resumen.map((r) => r.valor)).toEqual([4, 2, 1, 1]);
+  });
+});
+
+describe("recibosImpresos -- consecutivo", () => {
+  const r = (id: string, creado_en: string, extra: Partial<ReciboFila>): ReciboFila => ({
+    id,
+    tipo: "recibo_venta",
+    sede_id: "s1",
+    creado_por: "u1",
+    creado_en,
+    estado: "impreso",
+    impreso_en: creado_en,
+    error: null,
+    numero_venta: null,
+    numero_orden: null,
+    numero_traslado: null,
+    etiqueta_total: null,
+    cliente_venta: null,
+    cliente_recepcion: null,
+    total: null,
+    valor_servicio: null,
+    efectivo_contado: null,
+    imprimir: null,
+    ...extra,
+  });
+  const inf = recibosImpresos(
+    [
+      r("c", "2026-10-22T22:00:00Z", { numero_venta: "62" }),
+      r("a", "2026-10-22T20:00:00Z", { numero_venta: "61" }),
+      r("b", "2026-10-22T21:00:00Z", { tipo: "comprobante_recepcion", numero_orden: "17" }),
+      r("d", "2026-10-22T23:00:00Z", { numero_venta: "61" }),
+    ],
+    cat,
+  );
+  const filas = inf.tablas[1]!.filas;
+
+  it("ventas y órdenes juntas, del más viejo al más nuevo, numeradas 1, 2, 3...", () => {
+    expect(filas.map((f) => [f.consecutivo, f.referencia])).toEqual([
+      [1, "Venta #61"],
+      [2, "Orden #17"],
+      [3, "Venta #62"],
+      [4, "Venta #61"],
+    ]);
+  });
+
+  it("marca como reimpresión la segunda vez que sale el mismo número", () => {
+    expect(filas[0]!.recibo).toBe("Venta");
+    expect(filas[3]!.recibo).toBe("Venta (reimpresión)");
   });
 });

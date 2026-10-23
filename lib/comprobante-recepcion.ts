@@ -10,6 +10,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { encolarImpresion } from "./impresion";
+import { fechaHoraRecibo } from "./fecha-recibo";
 import { codigoEntrada } from "./codigo-entrada";
 import { obtenerCuentaOrden, type CuentaOrden } from "./cuenta-orden";
 
@@ -23,6 +24,8 @@ export interface DatosComprobante {
   cliente: { nombre: string; telefono: string | null } | null;
   producto: { serial: string; tipo: string; marca: string | null; modelo: string | null } | null;
   cuenta: Pick<CuentaOrden, "valor" | "pagado" | "saldo" | "pagos"> | null;
+  /** Nombre de quien recibió el equipo (autor del primer evento de la orden). */
+  recibidoPor?: string | null;
 }
 
 /** La carga del trabajo 'comprobante_recepcion', igual a la que arma /api/ordenes al recibir. */
@@ -40,11 +43,12 @@ export function cargaComprobanteRecepcion(d: DatosComprobante, urlApp: string) {
     producto: nombreProducto,
     serial: producto?.serial ?? "",
     motivo: d.motivo,
-    fecha: new Date(d.abiertaEn).toLocaleDateString("es-CO", { timeZone: "America/Bogota" }),
+    fecha: fechaHoraRecibo(d.abiertaEn),
     urlSeguimiento: `${urlApp}/seguimiento/${d.tokenPublico}`,
     valorServicio: valor > 0 ? valor : null,
     abono: valor > 0 && pagado > 0 ? { monto: pagado, medio: medios.length > 1 ? "varios" : (medios[0] ?? "—") } : null,
     saldo: valor > 0 ? (d.cuenta?.saldo ?? valor - pagado) : null,
+    recibidoPor: d.recibidoPor ?? null,
   };
 }
 
@@ -56,7 +60,7 @@ export async function reimprimirComprobanteRecepcion(
   supabase: SupabaseClient,
   params: { ordenId: string; empresaId: string; sedeId: string; creadoPor: string },
 ): Promise<{ id: string } | null> {
-  const [{ data: orden }, { data: config }, cuenta] = await Promise.all([
+  const [{ data: orden }, { data: config }, cuenta, { data: recepcion }] = await Promise.all([
     supabase
       .from("orden")
       .select(
@@ -66,6 +70,15 @@ export async function reimprimirComprobanteRecepcion(
       .maybeSingle(),
     supabase.from("empresa_config").select("prefijo_etiqueta").eq("empresa_id", params.empresaId).maybeSingle(),
     obtenerCuentaOrden(supabase, params.ordenId),
+    // Quién recibió el equipo: el autor del primer evento de la orden (el que
+    // inserta /api/ordenes al crearla). La orden no guarda ese dato aparte.
+    supabase
+      .from("orden_evento")
+      .select("autor:autor_id ( nombre )")
+      .eq("orden_id", params.ordenId)
+      .order("ocurrio_en", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
   ]);
   if (!orden || orden.empresa_id !== params.empresaId) return null;
 
@@ -85,6 +98,7 @@ export async function reimprimirComprobanteRecepcion(
       cliente: producto?.cliente ?? null,
       producto,
       cuenta,
+      recibidoPor: (recepcion?.autor as unknown as { nombre: string } | null)?.nombre ?? null,
     },
     process.env.NEXT_PUBLIC_APP_URL ?? "",
   );

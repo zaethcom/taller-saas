@@ -30,6 +30,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
+import { fechaHoraRecibo } from "@/lib/fecha-recibo";
 import { encolarImpresion } from "@/lib/impresion";
 import { notificarCliente } from "@/lib/mensajeria/notificar";
 import { generarSerialEquipo } from "@/lib/serial-equipo";
@@ -99,7 +100,7 @@ export async function POST(req: NextRequest) {
 
   const { data: perfil } = await supabase
     .from("perfil")
-    .select("empresa_id, sede_id, nombre, codigo")
+    .select("empresa_id, sede_id, nombre")
     .eq("id", user.id)
     .single();
   const sedeActivaId = await obtenerSedeActivaId(supabase);
@@ -269,7 +270,7 @@ export async function POST(req: NextRequest) {
       numeroOrden: orden.numero,
       valorOrden: valorServicio,
       pagadoAntes: 0,
-      cajero: perfil.codigo ? `${perfil.codigo} · ${perfil.nombre}` : perfil.nombre,
+      cajero: perfil.nombre,
       imprimir: false,
     });
     abonoRegistrado = r.ok;
@@ -330,7 +331,9 @@ export async function POST(req: NextRequest) {
       producto: nombreProducto,
       serial: producto?.serial ?? "",
       motivo: body.motivo.trim(),
-      fecha: new Date().toLocaleDateString("es-CO"),
+      // Hora de Colombia: el servidor está en UTC y de noche ponía el día siguiente.
+      fecha: fechaHoraRecibo(new Date()),
+      recibidoPor: perfil.nombre,
       urlSeguimiento,
       valorServicio: valorServicio || null,
       abono: abono && abonoRegistrado ? { monto: abono.monto, medio: abono.metodo.nombre } : null,
@@ -350,7 +353,15 @@ export async function POST(req: NextRequest) {
     // marca/modelo, número de orden) ya van en el comprobante impreso
     // arriba, que sí tiene espacio. `producto` solo lo imprime una
     // plantilla de etiqueta más grande que lo pida (0046).
-    carga: { codigoEntrada, producto: nombreProducto },
+    carga: {
+      codigoEntrada,
+      producto: nombreProducto,
+      numeroOrden: orden.numero,
+      clienteNombre: cliente?.nombre ?? null,
+      clienteTelefono: cliente?.telefono ?? null,
+      valorServicio: valorServicio || null,
+      motivo: body.motivo.trim(),
+    },
   });
 
   const esCelular = /cel|tel[eé]fono|smartphone/i.test(producto?.tipo ?? "");

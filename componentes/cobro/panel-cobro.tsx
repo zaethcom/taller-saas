@@ -30,6 +30,7 @@ export function PanelCobro({
   imprimir,
   onCambiarImprimir,
   ocultarImprimir = false,
+  accion,
 }: {
   total: number;
   metodos: Metodo[];
@@ -41,6 +42,8 @@ export function PanelCobro({
   onCambiarImprimir: (imprimir: boolean) => void;
   /** Sin el checkbox de recibo -- p. ej. el abono al recibir, que sale en el comprobante. */
   ocultarImprimir?: boolean;
+  /** Botón que va en la misma fila de "Imprimir recibo" (p. ej. Cobrar y entregar). */
+  accion?: React.ReactNode;
 }) {
   const metodo = metodos.find((m) => m.id === metodoPagoId);
   const cambio = montoRecibido - total;
@@ -110,11 +113,16 @@ export function PanelCobro({
         </div>
       )}
 
-      {!ocultarImprimir && (
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
-          <input type="checkbox" checked={imprimir} onChange={(e) => onCambiarImprimir(e.target.checked)} />
-          Imprimir recibo
-        </label>
+      {(!ocultarImprimir || accion) && (
+        <div className="fila" style={{ gap: 12, alignItems: "center" }}>
+          {!ocultarImprimir && (
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+              <input type="checkbox" checked={imprimir} onChange={(e) => onCambiarImprimir(e.target.checked)} />
+              Imprimir recibo
+            </label>
+          )}
+          {accion && <div style={{ flex: 1, minWidth: 220 }}>{accion}</div>}
+        </div>
       )}
     </div>
   );

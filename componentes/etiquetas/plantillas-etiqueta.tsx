@@ -19,6 +19,7 @@ import { Etiqueta } from "@/componentes/ui/etiqueta";
 import { subirFondoEtiqueta } from "@/lib/subir-logo";
 import {
   CAMPOS,
+  CAMPOS_ORDEN,
   ETIQUETA_DE_FABRICA,
   LIMITES,
   MODELOS,
@@ -370,8 +371,10 @@ export function PlantillasEtiqueta({ empresaId }: { empresaId: string | null }) 
                   value={borrador.dpi}
                   onChange={(e) => setBorrador({ ...borrador, dpi: Number(e.target.value) === 300 ? 300 : 203 })}
                 >
-                  <option value={203}>203 dpi</option>
-                  <option value={300}>300 dpi</option>
+                  {/* La resolución tiene que ser la de la impresora: con 300 en una de
+                      203 la etiqueta sale 1,5 veces más grande y cortada. */}
+                  <option value={203}>203 dpi (Zebra ZP 500, Argox, la mayoría)</option>
+                  <option value={300}>300 dpi (solo si la impresora lo dice)</option>
                 </select>
               </Campo>
             </div>
@@ -396,7 +399,11 @@ export function PlantillasEtiqueta({ empresaId }: { empresaId: string | null }) 
           <div>
             <span className="campo-etiqueta">Qué lleva</span>
             <div className="pila" style={{ gap: 6 }}>
-              {[...CAMPOS, { valor: "marco" as const, etiqueta: "Marco redondeado" }].map((c) => (
+              {[
+                ...CAMPOS,
+                ...(borrador.uso === "orden" ? CAMPOS_ORDEN : []),
+                { valor: "marco" as const, etiqueta: "Marco redondeado" },
+              ].map((c) => (
                 <label key={c.valor} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
                   <input
                     type="checkbox"

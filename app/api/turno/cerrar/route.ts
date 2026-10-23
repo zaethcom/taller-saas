@@ -3,7 +3,8 @@
  * Body: { efectivoContado: number }
  * Cierra el turno abierto de la sede, calcula la diferencia con
  * lib/caja.ts, y encola el comprobante de cierre -- con la firma del
- * responsable, tal como sale en la plantilla de estacion/plantillas/cierre.ts.
+ * responsable (nombre y rol de quien abrió y quien cerró), tal como sale en la
+ * plantilla de estacion/plantillas/cierre.ts.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { calcularDiferencia, efectivoEsperado, totalesMovimientos } from "@/lib/caja";
@@ -11,6 +12,17 @@ import { movimientosDelTurno } from "@/lib/movimiento-caja";
 import { encolarImpresion } from "@/lib/impresion";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
+import type { Rol } from "@/lib/permisos";
+import { fechaHoraRecibo } from "@/lib/fecha-recibo";
+
+const ETIQUETA_ROL: Record<Rol, string> = {
+  admin: "Administrador",
+  recepcion: "Recepción",
+  tecnico: "Técnico",
+  compras: "Compras",
+  cajero: "Cajero",
+};
+
 
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as { efectivoContado?: number };
@@ -39,7 +51,7 @@ export async function POST(req: NextRequest) {
 
   const { data: turno } = await supabase
     .from("turno_caja")
-    .select("id, base_inicial, abierto_en")
+    .select("id, base_inicial, abierto_en, abierto_por")
     .eq("sede_id", sedeActivaId)
     .is("cerrado_en", null)
     .order("abierto_en", { ascending: false })
@@ -84,14 +96,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: errCierre.message }, { status: 500 });
   }
 
+  // Nombre y rol de quien abrió y quien cerró, para que el comprobante diga quién
+  // responde por la caja y no solo «Firma responsable».
+  const { data: personas } = await supabase
+    .from("perfil")
+    .select("id, nombre, rol")
+    .in("id", [turno.abierto_por, user.id]);
+  const persona = (id: string) => {
+    const p = (personas ?? []).find((x) => x.id === id);
+    return p ? `${p.nombre} (${ETIQUETA_ROL[p.rol as Rol] ?? p.rol})` : undefined;
+  };
+  const cierreEn = new Date();
+
   await encolarImpresion(supabase, {
     empresaId: perfil.empresa_id,
     sedeId: sedeActivaId,
     tipo: "cierre_caja",
     creadoPor: user.id,
     carga: {
-      aperturaEn: new Date(turno.abierto_en).toLocaleString("es-CO"),
-      cierreEn: new Date().toLocaleString("es-CO"),
+      aperturaEn: fechaHoraRecibo(turno.abierto_en),
+      cierreEn: fechaHoraRecibo(cierreEn),
+      abiertoPor: persona(turno.abierto_por),
+      cerradoPor: persona(user.id),
       baseInicial: resumen.baseInicial,
       totalVentas,
       ingresos,

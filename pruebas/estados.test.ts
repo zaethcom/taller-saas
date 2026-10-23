@@ -22,7 +22,7 @@ import {
 } from "../lib/estados";
 
 const TODOS_LOS_ESTADOS = Object.keys(TRANSICIONES) as Estado[];
-const PARA_ENTREGAR = new Set<Requisito>(["tiene_foto_salida", "tiene_firma", "saldo_en_cero"]);
+const PARA_ENTREGAR = new Set<Requisito>(["saldo_en_cero"]);
 
 describe("los estados simples (0065)", () => {
   it("son cuatro mientras el equipo está en el taller, más entregada", () => {
@@ -125,12 +125,12 @@ describe("transicionar() — la puerta única de cambio de estado", () => {
   it("entregar sin reparar no pide aprobación, pero sí lo de toda entrega", () => {
     expect(() => transicionar("esperando_cliente", "entregada", PARA_ENTREGAR)).not.toThrow();
     expect(() =>
-      transicionar("en_proceso", "entregada", new Set<Requisito>(["tiene_foto_salida", "tiene_firma"])),
+      transicionar("en_proceso", "entregada", new Set<Requisito>()),
     ).toThrow(RequisitoFaltanteError);
   });
 
-  it("entregar exige foto de salida, firma y saldo en cero, las tres juntas", () => {
-    expect(REQUISITOS.entregada).toEqual(["tiene_foto_salida", "tiene_firma", "saldo_en_cero"]);
+  it("entregar solo exige el saldo en cero: sin firma y con foto de salida opcional", () => {
+    expect(REQUISITOS.entregada).toEqual(["saldo_en_cero"]);
   });
 });
 

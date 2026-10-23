@@ -39,7 +39,15 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     await encolarImpresion(supabase, {
       ...comun,
       tipo: "etiqueta_qr",
-      carga: { codigoEntrada: ejemplo.codigo, producto: ejemplo.descripcion },
+      carga: {
+        codigoEntrada: ejemplo.codigo,
+        producto: ejemplo.descripcion,
+        numeroOrden: ejemplo.numeroOrden,
+        clienteNombre: ejemplo.clienteNombre,
+        clienteTelefono: ejemplo.clienteTelefono,
+        valorServicio: ejemplo.valorServicio,
+        motivo: ejemplo.motivo,
+      },
     });
   } else if (plantilla.uso === "articulo") {
     await encolarImpresion(supabase, {

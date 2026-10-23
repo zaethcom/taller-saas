@@ -6,10 +6,10 @@
  * abono o entregarle el equipo. Antes eran dos pantallas (Abonos y
  * Entregar) que buscaban la orden y mostraban la misma cuenta.
  *
- * Entregar: cobra el saldo, captura firma y foto de salida y cierra la
- * orden -- Fase 8 del plano de construcción. La transición a
- * "entregada" la valida el servidor (/api/ordenes/[id]/transicion)
- * contra saldo_en_cero, tiene_firma y tiene_foto_salida reales; esta
+ * Entregar: cobra el saldo y cierra la orden, con una foto de salida
+ * opcional (sin firma) -- Fase 8 del plano de construcción. La
+ * transición a "entregada" la valida el servidor
+ * (/api/ordenes/[id]/transicion) contra saldo_en_cero real; esta
  * pantalla no duplica esa lógica, solo intenta la transición y muestra
  * el error si algo falta.
  *
@@ -22,8 +22,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Eraser, Lock, Printer, QrCode, ThumbsUp } from "lucide-react";
-import { FirmaCanvas, type FirmaCanvasHandle } from "@/componentes/evidencia/firma-canvas";
+import { Camera, Check, Lock, Printer, QrCode, ThumbsUp } from "lucide-react";
 import { VisorEscaner } from "@/componentes/lector-codigos/visor-escaner";
 import { PanelCobro } from "@/componentes/cobro/panel-cobro";
 import { useTurnoAbierto, AvisoTurnoCerrado } from "@/componentes/caja/aviso-turno";
@@ -83,7 +82,6 @@ function modoInicial(estado: string): Modo {
 
 export default function PaginaCobrarEntregar() {
   const router = useRouter();
-  const firmaRef = useRef<FirmaCanvasHandle>(null);
   const fotoInputRef = useRef<HTMLInputElement>(null);
   // Lo que ya quedó hecho en un intento anterior de esta misma entrega,
   // para que reintentar no cobre, imprima ni suba evidencia dos veces.
@@ -252,14 +250,6 @@ export default function PaginaCobrarEntregar() {
 
   async function entregar() {
     if (!orden || !perfil) return;
-    if (firmaRef.current?.estaVacio()) {
-      setError("Falta la firma de quien recibe.");
-      return;
-    }
-    if (!foto) {
-      setError("Falta la foto de salida.");
-      return;
-    }
 
     // Antes de cobrar nada: si la orden no se puede entregar desde su
     // estado, cobrar primero deja una venta hecha y la orden abierta.
@@ -312,18 +302,8 @@ export default function PaginaCobrarEntregar() {
         setOrden((prev) => (prev ? { ...prev, saldoPendiente: 0 } : prev));
       }
 
-      // 2. Subir firma y foto de salida.
-      if (!evidenciaSubidaRef.current) {
-        const blobFirma = await firmaRef.current!.obtenerBlob();
-        if (!blobFirma) throw new Error("No se pudo capturar la firma");
-
-        await subirEvidencia({
-          empresaId: perfil.empresaId,
-          ordenId: orden.id,
-          archivo: blobFirma,
-          extension: "png",
-          tipo: "firma",
-        });
+      // 2. Subir la foto de salida, si se tomó (es opcional).
+      if (foto && !evidenciaSubidaRef.current) {
         await subirEvidencia({
           empresaId: perfil.empresaId,
           ordenId: orden.id,
@@ -336,7 +316,7 @@ export default function PaginaCobrarEntregar() {
         evidenciaSubidaRef.current = true;
       }
 
-      // 3. Cerrar la orden. El servidor exige saldo_en_cero + firma + foto.
+      // 3. Cerrar la orden. El servidor exige saldo_en_cero.
       const resTransicion = await fetch(`/api/ordenes/${orden.id}/transicion`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -641,9 +621,52 @@ export default function PaginaCobrarEntregar() {
         )}
 
         {orden && !entregada && modo === "entregar" && (
-          <>
-            {orden.saldoPendiente > 0 && metodos.length > 0 && (
-              <Tarjeta>
+          <Tarjeta>
+            {/* La foto de salida es opcional: un botón con la cámara, nada más. */}
+            <input
+              ref={fotoInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(e) => setFoto(e.target.files?.[0] ?? null)}
+              aria-label="Foto de salida del equipo"
+              hidden
+            />
+            {(() => {
+              const acciones = (
+                <div className="fila" style={{ gap: 8, flexWrap: "nowrap" }}>
+                  <Boton
+                    variante={foto ? "primario" : "contorno"}
+                    tamano="xl"
+                    icono={foto ? <Check size={19} strokeWidth={2.4} /> : <Camera size={19} strokeWidth={2} />}
+                    onClick={() => fotoInputRef.current?.click()}
+                    aria-label={foto ? "Foto de salida tomada (tocar para cambiarla)" : "Tomar foto de salida (opcional)"}
+                    title={foto ? "Foto de salida tomada" : "Foto de salida (opcional)"}
+                    style={{ minWidth: 58, flexShrink: 0 }}
+                  />
+                  <Boton
+                    variante="primario"
+                    tamano="xl"
+                    ancho
+                    icono={<Lock size={19} strokeWidth={2} />}
+                    onClick={entregar}
+                    disabled={
+                      procesando ||
+                      turnoAbierto === false ||
+                      (orden.saldoPendiente > 0 && (!metodoPagoId || (metodo?.es_efectivo && cambio < 0)))
+                    }
+                  >
+                    <span className="cifra">
+                      {procesando
+                        ? "Procesando…"
+                        : orden.saldoPendiente > 0
+                          ? `Cobrar y entregar ${fmt(orden.saldoPendiente)}`
+                          : "Entregar"}
+                    </span>
+                  </Boton>
+                </div>
+              );
+              return orden.saldoPendiente > 0 && metodos.length > 0 ? (
                 <PanelCobro
                   total={orden.saldoPendiente}
                   metodos={metodos}
@@ -653,60 +676,13 @@ export default function PaginaCobrarEntregar() {
                   onCambiarMontoRecibido={setMontoRecibido}
                   imprimir={imprimir}
                   onCambiarImprimir={setImprimir}
+                  accion={acciones}
                 />
-              </Tarjeta>
-            )}
-
-            <Tarjeta>
-              <div className="fila" style={{ justifyContent: "space-between", marginBottom: 10 }}>
-                <span className="campo-etiqueta" style={{ margin: 0 }}>Foto de salida</span>
-                {foto && <Etiqueta tono="ok" punto>Lista</Etiqueta>}
-              </div>
-              <input
-                ref={fotoInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={(e) => setFoto(e.target.files?.[0] ?? null)}
-                aria-label="Foto de salida del equipo"
-                style={{ height: "auto", padding: 10 }}
-              />
-
-              <div className="fila" style={{ justifyContent: "space-between", margin: "16px 0 10px" }}>
-                <span className="campo-etiqueta" style={{ margin: 0 }}>Firma de quien recibe</span>
-                <Boton
-                  variante="fantasma"
-                  tamano="sm"
-                  icono={<Eraser size={15} strokeWidth={2} />}
-                  onClick={() => firmaRef.current?.limpiar()}
-                >
-                  Borrar
-                </Boton>
-              </div>
-              <FirmaCanvas ref={firmaRef} />
-            </Tarjeta>
-
-            <Boton
-              variante="primario"
-              tamano="xl"
-              ancho
-              icono={<Lock size={19} strokeWidth={2} />}
-              onClick={entregar}
-              disabled={
-                procesando ||
-                turnoAbierto === false ||
-                (orden.saldoPendiente > 0 && (!metodoPagoId || (metodo?.es_efectivo && cambio < 0)))
-              }
-            >
-              <span className="cifra">
-                {procesando
-                  ? "Procesando…"
-                  : orden.saldoPendiente > 0
-                    ? `Cobrar y entregar ${fmt(orden.saldoPendiente)}`
-                    : "Entregar"}
-              </span>
-            </Boton>
-          </>
+              ) : (
+                acciones
+              );
+            })()}
+          </Tarjeta>
         )}
 
         {aviso && <Aviso tono="ok">{aviso}</Aviso>}

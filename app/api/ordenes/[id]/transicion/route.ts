@@ -57,24 +57,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const cumplidos = new Set<Requisito>();
 
-  const [{ count: fotoSalida }, { count: firma }] =
-    await Promise.all([
-      supabase
-        .from("evidencia")
-        .select("id", { count: "exact", head: true })
-        .eq("orden_id", id)
-        .eq("tipo", "foto")
-        .eq("fase", "salida"),
-      supabase
-        .from("evidencia")
-        .select("id", { count: "exact", head: true })
-        .eq("orden_id", id)
-        .eq("tipo", "firma"),
-    ]);
-
-  if ((fotoSalida ?? 0) > 0) cumplidos.add("tiene_foto_salida");
-  if ((firma ?? 0) > 0) cumplidos.add("tiene_firma");
-
   // Quien marca el equipo terminado o parado por repuesto sin que la
   // orden tenga técnico queda como su técnico: hizo el trabajo. De ahí
   // sale la productividad por técnico de los reportes. La entrega la
@@ -168,7 +150,7 @@ async function imprimirComprobanteEntrega(
       .eq("orden_id", ordenId)
       .eq("anulada", false)
       .order("creada_en", { ascending: true }),
-    supabase.from("perfil").select("nombre, codigo").eq("id", userId).maybeSingle(),
+    supabase.from("perfil").select("nombre").eq("id", userId).maybeSingle(),
     supabase.from("orden").select("numero").eq("id", ordenId).maybeSingle(),
     obtenerCuentaOrden(supabase, ordenId),
   ]);
@@ -199,7 +181,7 @@ async function imprimirComprobanteEntrega(
           ? { numeroOrden: orden.numero, valor: cuenta.valor, abonadoAntes: cuenta.pagado, saldo: cuenta.saldo }
           : null,
       abreCajon: false,
-      cajero: perfil ? (perfil.codigo ? `${perfil.codigo} · ${perfil.nombre}` : perfil.nombre) : null,
+      cajero: perfil ? perfil.nombre : null,
       imprimir: true,
     },
   });

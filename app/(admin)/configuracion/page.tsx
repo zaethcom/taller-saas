@@ -97,8 +97,8 @@ export default function PaginaConfiguracion() {
     cargar();
   }, []);
 
-  async function guardar(cambios: Partial<Config>) {
-    if (!config) return;
+  async function guardar(cambios: Partial<Config>): Promise<boolean> {
+    if (!config) return false;
     setGuardando(true);
     setError(null);
     setMensaje(null);
@@ -109,10 +109,12 @@ export default function PaginaConfiguracion() {
         body: JSON.stringify(cambios),
       });
       if (!res.ok) throw new Error((await res.json()).error);
-      setConfig({ ...config, ...cambios });
+      setConfig((actual) => (actual ? { ...actual, ...cambios } : actual));
       setMensaje("Guardado.");
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar");
+      return false;
     } finally {
       setGuardando(false);
     }
@@ -364,46 +366,7 @@ export default function PaginaConfiguracion() {
 
           {pestana === "recibos" && (
             <>
-              <Tarjeta>
-                <h2 style={{ marginBottom: 12 }}>Recibo impreso</h2>
-                <div className="pila" style={{ gap: 12 }}>
-                  <Campo etiqueta="Dirección">
-                    <input
-                      placeholder="Calle 00 # 00-00"
-                      defaultValue={config.reciboDireccion ?? ""}
-                      onBlur={(e) => guardar({ reciboDireccion: e.target.value || null })}
-                    />
-                  </Campo>
-                  <Campo etiqueta="Teléfono">
-                    <input
-                      placeholder="300 000 0000"
-                      defaultValue={config.reciboTelefono ?? ""}
-                      onBlur={(e) => guardar({ reciboTelefono: e.target.value || null })}
-                      className="cifra"
-                    />
-                  </Campo>
-                  <Campo etiqueta="Mensaje al pie">
-                    <input
-                      placeholder="Ej. Gracias por su preferencia"
-                      defaultValue={config.reciboPie}
-                      onBlur={(e) => guardar({ reciboPie: e.target.value || "Gracias por su preferencia" })}
-                    />
-                  </Campo>
-                  <Campo
-                    etiqueta="Prefijo del código de entrada"
-                    ayuda='Va antes del número de orden en la etiqueta: "PS" da "PS000123".'
-                  >
-                    <input
-                      placeholder="OR"
-                      defaultValue={config.prefijoEtiqueta}
-                      maxLength={6}
-                      onBlur={(e) => guardar({ prefijoEtiqueta: (e.target.value.trim() || "OR").toUpperCase() })}
-                      className="cifra"
-                      style={{ maxWidth: 120, textTransform: "uppercase" }}
-                    />
-                  </Campo>
-                </div>
-              </Tarjeta>
+              <DatosRecibo config={config} guardar={guardar} />
 
               <PlantillasEtiqueta empresaId={empresaId} />
             </>
@@ -456,6 +419,116 @@ export default function PaginaConfiguracion() {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Los datos del recibo impreso, con su propio botón Guardar al pie de la
+ * tarjeta. Antes se guardaban solos al salir de cada campo y el aviso
+ * "Guardado." salía debajo de la tarjeta de etiquetas, fuera de la
+ * vista en un computador: parecía que no había cómo guardar.
+ */
+function DatosRecibo({
+  config,
+  guardar,
+}: {
+  config: Config;
+  guardar: (cambios: Partial<Config>) => Promise<boolean>;
+}) {
+  const inicial = {
+    direccion: config.reciboDireccion ?? "",
+    telefono: config.reciboTelefono ?? "",
+    pie: config.reciboPie,
+    prefijo: config.prefijoEtiqueta,
+  };
+  const [datos, setDatos] = useState(inicial);
+  const [enviando, setEnviando] = useState(false);
+  const [guardado, setGuardado] = useState(false);
+
+  const cambio =
+    datos.direccion !== inicial.direccion ||
+    datos.telefono !== inicial.telefono ||
+    datos.pie !== inicial.pie ||
+    datos.prefijo !== inicial.prefijo;
+
+  function editar(campo: keyof typeof datos, valor: string) {
+    setDatos({ ...datos, [campo]: valor });
+    setGuardado(false);
+  }
+
+  async function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    setEnviando(true);
+    const limpio = {
+      direccion: datos.direccion.trim(),
+      telefono: datos.telefono.trim(),
+      pie: datos.pie.trim() || "Gracias por su preferencia",
+      prefijo: (datos.prefijo.trim() || "OR").toUpperCase(),
+    };
+    const ok = await guardar({
+      reciboDireccion: limpio.direccion || null,
+      reciboTelefono: limpio.telefono || null,
+      reciboPie: limpio.pie,
+      prefijoEtiqueta: limpio.prefijo,
+    });
+    setEnviando(false);
+    if (ok) {
+      setDatos(limpio);
+      setGuardado(true);
+    }
+  }
+
+  return (
+    <Tarjeta>
+      <h2 style={{ marginBottom: 12 }}>Recibo impreso</h2>
+      <form className="pila" style={{ gap: 12 }} onSubmit={enviar}>
+        <Campo etiqueta="Dirección">
+          <input
+            placeholder="Calle 00 # 00-00"
+            value={datos.direccion}
+            onChange={(e) => editar("direccion", e.target.value)}
+          />
+        </Campo>
+        <Campo etiqueta="Teléfono">
+          <input
+            placeholder="300 000 0000"
+            value={datos.telefono}
+            onChange={(e) => editar("telefono", e.target.value)}
+            className="cifra"
+          />
+        </Campo>
+        <Campo etiqueta="Mensaje al pie">
+          <input
+            placeholder="Ej. Gracias por su preferencia"
+            value={datos.pie}
+            onChange={(e) => editar("pie", e.target.value)}
+          />
+        </Campo>
+        <Campo
+          etiqueta="Prefijo del código de entrada"
+          ayuda='Va antes del número de orden en la etiqueta: "PS" da "PS000123". Solo letras y números.'
+        >
+          <input
+            placeholder="OR"
+            value={datos.prefijo}
+            maxLength={6}
+            onChange={(e) => editar("prefijo", e.target.value)}
+            className="cifra"
+            style={{ maxWidth: 120, textTransform: "uppercase" }}
+          />
+        </Campo>
+        <div className="fila" style={{ gap: 12, alignItems: "center" }}>
+          <Boton type="submit" variante="primario" disabled={enviando || !cambio}>
+            {enviando ? "Guardando…" : "Guardar"}
+          </Boton>
+          {guardado && !cambio && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--ok)", fontWeight: 600, fontSize: 14 }}>
+              <Check size={17} strokeWidth={2.4} aria-hidden /> Guardado
+            </span>
+          )}
+        </div>
+      </form>
+    </Tarjeta>
   );
 }
 
