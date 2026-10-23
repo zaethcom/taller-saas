@@ -15,6 +15,11 @@
  * que una venta, y se queda mirando qué reporta la estación: así se ve
  * si el problema es la estación (no la recoge), la impresora (la estación
  * reporta error) o nada (salió).
+ *
+ * «Ajustes de la etiquetadora» (oscuridad, velocidad, avance, sensor,
+ * corrimientos, giro) viajan dentro de cada etiqueta -- ver
+ * estacion/ajustes-etiquetadora.ts. Un campo vacío no se manda: la
+ * impresora sigue con lo suyo.
  */
 import { useEffect, useRef, useState } from "react";
 import { Printer, Check, X, FlaskConical } from "lucide-react";
@@ -34,9 +39,61 @@ interface Destino {
   protocolo: Protocolo;
 }
 
+/** Lo que guarda la base (ver AjustesEtiquetadora en estacion/). */
+interface AjustesGuardados {
+  oscuridad?: number;
+  velocidad?: number;
+  avanceMm?: number;
+  sensor?: "espacio" | "marca" | "continuo";
+  metodo?: "directa" | "transferencia";
+  verticalMm?: number;
+  horizontalMm?: number;
+  girar?: boolean;
+}
+
+/** En el formulario todo es texto: "" = no mandar ese ajuste. */
+type AjustesFormulario = Record<Exclude<keyof AjustesGuardados, "girar">, string> & { girar: boolean };
+
+const AJUSTES_VACIOS: AjustesFormulario = {
+  oscuridad: "",
+  velocidad: "",
+  avanceMm: "",
+  sensor: "",
+  metodo: "",
+  verticalMm: "",
+  horizontalMm: "",
+  girar: false,
+};
+
+const AJUSTES_TEXTO = ["sensor", "metodo"];
+
+function aFormulario(a: AjustesGuardados | undefined): AjustesFormulario {
+  const f = { ...AJUSTES_VACIOS, girar: a?.girar === true };
+  for (const k of Object.keys(f) as (keyof AjustesFormulario)[]) {
+    if (k === "girar") continue;
+    const v = a?.[k];
+    if (v !== undefined && v !== null) f[k] = String(v);
+  }
+  return f;
+}
+
+function aGuardar(f: AjustesFormulario): AjustesGuardados {
+  const a: Record<string, string | number | boolean> = {};
+  for (const [k, v] of Object.entries(f)) {
+    if (k === "girar") {
+      if (v === true) a.girar = true;
+      continue;
+    }
+    const texto = String(v).trim();
+    if (texto === "") continue;
+    a[k] = AJUSTES_TEXTO.includes(k) ? texto : Number(texto.replace(",", "."));
+  }
+  return a as AjustesGuardados;
+}
+
 interface Impresoras {
   tickets: Destino & { anchoMm?: AnchoPapel };
-  etiquetas: Destino & { lenguaje?: Lenguaje };
+  etiquetas: Destino & { lenguaje?: Lenguaje; ajustes?: AjustesGuardados };
 }
 
 const DESTINO_VACIO: Destino = { host: "", puerto: 9100, protocolo: "crudo" };
@@ -110,6 +167,147 @@ function paraGuardar(d: Destino): Destino {
 
 function listo(d: Destino): boolean {
   return d.protocolo === "puente_android" || !!d.host.trim();
+}
+
+const AVANCES_RAPIDOS = [0, 2, 5, 10];
+
+function AjustesEtiquetadora({
+  valor,
+  lenguaje,
+  onCambiar,
+}: {
+  valor: AjustesFormulario;
+  lenguaje: Lenguaje;
+  onCambiar: (a: AjustesFormulario) => void;
+}) {
+  const cambiar = (k: keyof AjustesFormulario) => (e: { target: { value: string } }) =>
+    onCambiar({ ...valor, [k]: e.target.value });
+  const esZebra = lenguaje === "zpl";
+  const columnas = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 };
+  return (
+    <div className="pila" style={{ gap: 10 }}>
+      <div style={{ fontWeight: 700, fontSize: 13 }}>Ajustes de la etiquetadora</div>
+      <p style={{ margin: 0, fontSize: 12, color: "var(--ink-3)" }}>
+        Van dentro de cada etiqueta. Lo que dejes vacío no se cambia: la impresora sigue con lo que ya tiene.
+        {!esZebra && " Velocidad, avance, sensor y método solo se pueden elegir en Zebra."}
+      </p>
+      <div style={columnas}>
+        <Campo etiqueta="Oscuridad" ayuda="Si sale gris o borroso, súbela. Si sale con manchas o el QR no lee, bájala.">
+          <select value={valor.oscuridad} onChange={cambiar("oscuridad")}>
+            <option value="">La de la impresora</option>
+            {Array.from({ length: 31 }, (_, i) => (
+              <option key={i} value={i}>
+                {i}
+                {i === 0 ? " (más claro)" : i === 15 ? " (normal)" : i === 30 ? " (más oscuro)" : ""}
+              </option>
+            ))}
+          </select>
+        </Campo>
+        {esZebra && (
+          <Campo etiqueta="Velocidad" ayuda="Más lento sale más nítido, sobre todo el QR y los códigos de barras.">
+            <select value={valor.velocidad} onChange={cambiar("velocidad")}>
+              <option value="">La de la impresora</option>
+              {[2, 3, 4, 5, 6].map((v) => (
+                <option key={v} value={v}>
+                  {v} pulg/s ({Math.round(v * 25.4)} mm/s){v === 2 ? ", la más nítida" : v === 6 ? ", la más rápida" : ""}
+                </option>
+              ))}
+            </select>
+          </Campo>
+        )}
+      </div>
+      {esZebra && (
+        <Campo
+          etiqueta="Avance al terminar (mm)"
+          ayuda="Cuánto más sale el papel después de imprimir, para cortarla en el filo. Si la etiqueta queda adentro al cortar, súbelo (5 o 10 mm). Si sale de más, ponlo negativo. Máximo 15 mm."
+        >
+          <div className="fila" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            <input
+              type="number"
+              step="0.5"
+              min={-15}
+              max={15}
+              placeholder="0"
+              value={valor.avanceMm}
+              onChange={cambiar("avanceMm")}
+              className="cifra"
+              style={{ width: 90 }}
+            />
+            {AVANCES_RAPIDOS.map((mm) => (
+              <Boton
+                key={mm}
+                variante={Number(valor.avanceMm || 0) === mm ? "primario" : "contorno"}
+                tamano="sm"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onCambiar({ ...valor, avanceMm: mm === 0 ? "" : String(mm) });
+                }}
+              >
+                {mm === 0 ? "Sin avance" : `+${mm} mm`}
+              </Boton>
+            ))}
+          </div>
+        </Campo>
+      )}
+      {esZebra && (
+        <div style={columnas}>
+          <Campo etiqueta="Tipo de etiqueta (sensor)" ayuda="Cómo encuentra la impresora dónde empieza cada etiqueta.">
+            <select value={valor.sensor} onChange={cambiar("sensor")}>
+              <option value="">La de la impresora</option>
+              <option value="espacio">Con espacio entre etiquetas</option>
+              <option value="marca">Con marca negra atrás</option>
+              <option value="continuo">Papel continuo, sin separación</option>
+            </select>
+          </Campo>
+          <Campo etiqueta="Método de impresión" ayuda="Sin cinta (la ZP 500 es así) o con cinta de transferencia.">
+            <select value={valor.metodo} onChange={cambiar("metodo")}>
+              <option value="">La de la impresora</option>
+              <option value="directa">Térmica directa (sin cinta)</option>
+              <option value="transferencia">Transferencia térmica (con cinta)</option>
+            </select>
+          </Campo>
+        </div>
+      )}
+      <div style={columnas}>
+        <Campo etiqueta="Mover abajo (mm)" ayuda={esZebra ? "Negativo sube el dibujo." : "Solo hacia abajo en Argox."}>
+          <input
+            type="number"
+            step="0.5"
+            min={esZebra ? -15 : 0}
+            max={15}
+            placeholder="0"
+            value={valor.verticalMm}
+            onChange={cambiar("verticalMm")}
+            className="cifra"
+          />
+        </Campo>
+        <Campo
+          etiqueta="Mover a la derecha (mm)"
+          ayuda={esZebra ? "Negativo lo corre a la izquierda." : "Solo hacia la derecha en Argox."}
+        >
+          <input
+            type="number"
+            step="0.5"
+            min={esZebra ? -15 : 0}
+            max={15}
+            placeholder="0"
+            value={valor.horizontalMm}
+            onChange={cambiar("horizontalMm")}
+            className="cifra"
+          />
+        </Campo>
+      </div>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+        <input type="checkbox" checked={valor.girar} onChange={(e) => onCambiar({ ...valor, girar: e.target.checked })} />
+        Imprimir de cabeza (girar 180°), si la etiqueta sale al revés
+      </label>
+      <p style={{ margin: 0, fontSize: 12, color: "var(--ink-3)" }}>
+        Si cambiaste de rollo o se corre de etiqueta en etiqueta, calibra el sensor: con la impresora encendida, deja
+        presionado el botón FEED y suéltalo cuando la luz parpadee dos veces. Después guarda y usa «Probar impresora de
+        etiquetas».
+      </p>
+    </div>
+  );
 }
 
 type Destinos = "tickets" | "etiquetas";
@@ -211,6 +409,7 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
   const [etiquetas, setEtiquetas] = useState<Destino>(DESTINO_VACIO);
   const [lenguaje, setLenguaje] = useState<Lenguaje>("pplb");
   const [anchoPapel, setAnchoPapel] = useState<AnchoPapel>(80);
+  const [ajustes, setAjustes] = useState<AjustesFormulario>(AJUSTES_VACIOS);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -228,6 +427,7 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
           setEtiquetas(data.etiquetas);
           setLenguaje(data.etiquetas.lenguaje ?? "pplb");
           setAnchoPapel(data.tickets.anchoMm === 58 ? 58 : 80);
+          setAjustes(aFormulario(data.etiquetas.ajustes));
         }
       })
       .catch(() => {})
@@ -245,7 +445,11 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
         body: JSON.stringify({
           tickets: { ...paraGuardar(tickets), anchoMm: anchoPapel },
           // Sin etiquetadora, las etiquetas van a la POS: lo que diga el destino de etiquetas no se usa.
-          etiquetas: { ...paraGuardar(lenguaje === "escpos" && !listo(etiquetas) ? tickets : etiquetas), lenguaje },
+          etiquetas: {
+            ...paraGuardar(lenguaje === "escpos" && !listo(etiquetas) ? tickets : etiquetas),
+            lenguaje,
+            ajustes: aGuardar(ajustes),
+          },
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
@@ -317,6 +521,9 @@ export function ConfigImpresoras({ sedeId }: { sedeId: string }) {
               </select>
             </Campo>
           </div>
+          {lenguaje !== "escpos" && (
+            <AjustesEtiquetadora valor={ajustes} lenguaje={lenguaje} onCambiar={setAjustes} />
+          )}
         </div>
       )}
 

@@ -19,6 +19,7 @@ import {
 import { etiquetaArticuloZpl, etiquetaQrZpl, etiquetaRasterZpl, etiquetaRepuestoZpl } from "./etiqueta-zpl";
 import { etiquetaArticuloEscpos, etiquetaQrEscpos, etiquetaRepuestoEscpos } from "./etiqueta-escpos";
 import type { LenguajeEtiquetas } from "./destino";
+import { aplicarAjustes, type AjustesEtiquetadora } from "./ajustes-etiquetadora";
 import { reciboVenta, type CargaReciboVenta } from "./plantillas/recibo";
 import { comprobanteRecepcion, type CargaComprobanteRecepcion } from "./plantillas/comprobante";
 import { cierreCaja, type CargaCierreCaja } from "./plantillas/cierre";
@@ -47,11 +48,22 @@ function zpl(texto: string): Buffer {
  * Traduce un trabajo pendiente a lo que hay que enviarle a cuál impresora.
  * Las etiquetas salen en PPLB (Argox) o ZPL (Zebra) según lo que se
  * eligió para esta sede en Configurar impresoras; con "escpos" (sede sin
- * etiquetadora) salen como imagen por la impresora POS de tickets.
+ * etiquetadora) salen como imagen por la impresora POS de tickets. Los
+ * ajustes de la etiquetadora (oscuridad, velocidad, avance…) van metidos
+ * dentro de cada etiqueta.
  */
 export function resolverImpresion(
   trabajo: TrabajoPendiente,
   lenguaje: LenguajeEtiquetas = "pplb",
+  ajustes?: AjustesEtiquetadora,
+): { destino: "tickets" | "etiquetas"; contenido: Buffer | string } {
+  const r = traducir(trabajo, lenguaje);
+  return r.destino === "etiquetas" ? { ...r, contenido: aplicarAjustes(r.contenido, lenguaje, ajustes) } : r;
+}
+
+function traducir(
+  trabajo: TrabajoPendiente,
+  lenguaje: LenguajeEtiquetas,
 ): { destino: "tickets" | "etiquetas"; contenido: Buffer | string } {
   const esZpl = lenguaje === "zpl";
   if (lenguaje === "escpos") {
