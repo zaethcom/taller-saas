@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: perfil } = await supabase
     .from("perfil")
-    .select("empresa_id, nombre, codigo")
+    .select("empresa_id, nombre")
     .eq("id", user.id)
     .single();
   const sedeActivaId = await obtenerSedeActivaId(supabase);
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     numeroOrden: orden.numero,
     valorOrden: cuenta.valor,
     pagadoAntes: cuenta.pagado,
-    cajero: perfil.codigo ? `${perfil.codigo} · ${perfil.nombre}` : perfil.nombre,
+    cajero: perfil.nombre,
     imprimir: body.imprimir ?? true,
   });
   if (!r.ok) {

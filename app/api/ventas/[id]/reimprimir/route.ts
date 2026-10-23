@@ -27,7 +27,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: perfil } = await supabase
     .from("perfil")
-    .select("empresa_id, sede_id, nombre, codigo")
+    .select("empresa_id, sede_id, nombre")
     .eq("id", user.id)
     .single();
   const sedeActivaId = await obtenerSedeActivaId(supabase);
@@ -64,7 +64,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       total: Number(venta.total),
       medioPago: pago?.medio ?? "",
       abreCajon: false, // reimpresión: el cajón ya se abrió (o no) en el cobro original
-      cajero: perfil.codigo ? `${perfil.codigo} · ${perfil.nombre}` : perfil.nombre,
+      cajero: perfil.nombre,
       cliente: clienteImpreso(
         venta.cliente as unknown as { nombre: string; documento: string | null; telefono: string | null } | null,
       ),

@@ -11,6 +11,10 @@ export interface CargaCierreCaja extends CargaMarcaEmpresa {
   efectivoEsperado: number;
   efectivoContado: number;
   diferencia: number;
+  /** Quién abrió y quién cerró el turno, ya como texto: "Pepito Pérez (Cajero)".
+   *  Opcionales: los trabajos encolados antes de este cambio no los traen. */
+  abiertoPor?: string;
+  cerradoPor?: string;
 }
 
 const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CO");
@@ -26,9 +30,20 @@ export function cierreCaja(c: CargaCierreCaja): Buffer {
     texto("Cierre de caja"),
     negrita(false),
     salto(),
-    texto(`${c.aperturaEn} — ${c.cierreEn}`),
-    salto(2),
     alinear("izquierda"),
+    // Una línea por fecha: juntas no caben en 80 mm y la hora quedaba partida.
+    texto(`Apertura: ${c.aperturaEn}`),
+    salto(),
+    texto(`Cierre:   ${c.cierreEn}`),
+    salto(),
+    // Quién responde por la caja. Si abrió y cerró la misma persona, una línea.
+    ...(c.cerradoPor && (!c.abiertoPor || c.abiertoPor === c.cerradoPor)
+      ? [texto(`Responsable: ${c.cerradoPor}`), salto()]
+      : [
+          ...(c.abiertoPor ? [texto(`Abrió:  ${c.abiertoPor}`), salto()] : []),
+          ...(c.cerradoPor ? [texto(`Cerró:  ${c.cerradoPor}`), salto()] : []),
+        ]),
+    salto(),
     texto(`Base inicial:      ${fmt(c.baseInicial)}`),
     salto(),
     texto(`Ventas del turno:  ${fmt(c.totalVentas)}`),
@@ -45,6 +60,10 @@ export function cierreCaja(c: CargaCierreCaja): Buffer {
     negrita(false),
     salto(3),
     alinear("centro"),
+    texto("________________________"),
+    salto(),
+    // El nombre bajo la raya: la firma queda atada a una persona, no a "alguien".
+    ...(c.cerradoPor ? [texto(c.cerradoPor), salto()] : []),
     texto("Firma responsable"),
     salto(4),
     cortar(),

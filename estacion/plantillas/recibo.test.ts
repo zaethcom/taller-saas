@@ -42,7 +42,8 @@ describe("reciboVenta() -- compacto", () => {
   it("parte en dos renglones un ítem demasiado largo", () => {
     const largo = "Pantalla original con marco y bateria Samsung Galaxy";
     const txt = reciboVenta({ ...BASE, items: [{ descripcion: largo, cantidad: 1, precioUnit: 1000 }] }).toString("latin1");
-    expect(txt).toMatch(/1 x Pantalla original con marco y bateria\nSamsung Galaxy +\$1\.000\n/);
+    // 40 letras por renglón en 80mm (ver COLUMNAS_TICKET).
+    expect(txt).toMatch(/1 x Pantalla original con marco y\nbateria Samsung Galaxy +\$1\.000\n/);
   });
 });
 
@@ -114,5 +115,27 @@ describe("cuenta de un encargo", () => {
     expect(txt).toContain("Encargo: Vidrio");
     expect(txt).not.toContain("Orden #");
     expect(txt).not.toContain("Valor del servicio");
+  });
+});
+
+describe("reciboVenta() -- legible", () => {
+  it("ningún renglón pasa de 40 letras y el área deja margen (GS L + GS W)", () => {
+    const buf = reciboVenta({ ...BASE, items: [{ descripcion: "Silla multifuncional", cantidad: 1, precioUnit: 699900 }] });
+    expect(buf.includes(Buffer.from([0x1d, 0x4c, 16, 0, 0x1d, 0x57, 480 & 0xff, 480 >> 8]))).toBe(true);
+    // El monto queda en el mismo renglón del ítem, no partido abajo.
+    expect(buf.toString("latin1")).toMatch(/1 x Silla multifuncional +\$699\.900\n/);
+  });
+
+  it("no imprime el código de acceso del cajero, solo su nombre", () => {
+    const txt = reciboVenta({ ...BASE, cajero: "Administrador" }).toString("latin1");
+    expect(txt).toContain("Atendio: Administrador");
+  });
+});
+
+describe("reciboVenta() -- legible", () => {
+  it("deja margen (GS L + GS W) y el monto queda en el renglón del ítem", () => {
+    const buf = reciboVenta({ ...BASE, items: [{ descripcion: "Silla multifuncional", cantidad: 1, precioUnit: 699900 }] });
+    expect(buf.includes(Buffer.from([0x1d, 0x4c, 16, 0, 0x1d, 0x57, 480 & 0xff, 480 >> 8]))).toBe(true);
+    expect(buf.toString("latin1")).toMatch(/1 x Silla multifuncional +\$699\.900\n/);
   });
 });
