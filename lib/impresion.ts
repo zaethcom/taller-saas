@@ -108,6 +108,8 @@ interface CargaComprobanteRecepcion extends CargaMarcaEmpresa {
   valorServicio?: number | null;
   abono?: { monto: number; medio: string } | null;
   saldo?: number | null;
+  /** Nombre de quien recibió el equipo. */
+  recibidoPor?: string | null;
 }
 
 interface CargaCierreCaja extends CargaMarcaEmpresa {
