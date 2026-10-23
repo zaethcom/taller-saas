@@ -26,8 +26,10 @@ android {
 
     defaultConfig {
         applicationId = "com.zaethcom.puente"
-        // 26 es el mismo piso que smart-food-label. BlissOS reporta bastante más.
-        minSdk = 26
+        // 21 = Android 5.0: el terminal IDEMIA MorphoTablet2 de la sede trae 5.0.2.
+        // Lo que es de versiones nuevas va detrás de Build.VERSION.SDK_INT, y las
+        // raíces de Let's Encrypt van dentro del APK (net/Tls.kt).
+        minSdk = 21
         targetSdk = 34
         versionCode = codigoVersionPuente
         versionName = "0.1.0-$revisionPuente"
