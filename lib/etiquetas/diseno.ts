@@ -38,7 +38,7 @@ function escaparXml(s: string): string {
 /** Recorta un texto al ancho disponible, con la medida exacta de la letra de lib/etiquetas/fuente-pixel.ts. */
 export function recortar(texto: string, anchoDots: number, fuente: number): string {
   const caben = Math.max(1, Math.floor((anchoDots + escalaDe(fuente)) / anchoPorCaracter(fuente)));
-  return texto.length <= caben ? texto : `${texto.slice(0, Math.max(1, caben - 1))}.`;
+  return texto.length <= caben ? texto : `${texto.slice(0, Math.max(1, caben - 1)).trimEnd()}.`;
 }
 
 /**
@@ -67,6 +67,103 @@ function ajustar(l: Linea, anchoDots: number): Linea {
   return l.entero
     ? { ...l, fuente: fuenteQueCabe(l.texto, anchoDots, l.fuente) }
     : { ...l, texto: recortar(l.texto, anchoDots, l.fuente) };
+}
+
+/** Parte un texto en palabras para que quepa en `maxLineas` renglones; el último se recorta si sobra. */
+export function partirEnLineas(texto: string, anchoDots: number, fuente: number, maxLineas: number): string[] {
+  const caben = Math.max(1, Math.floor((anchoDots + escalaDe(fuente)) / anchoPorCaracter(fuente)));
+  const lineas: string[] = [];
+  let resto = texto.trim().replace(/\s+/g, " ");
+  while (resto && lineas.length < maxLineas) {
+    if (resto.length <= caben || lineas.length === maxLineas - 1) {
+      lineas.push(recortar(resto, anchoDots, fuente));
+      break;
+    }
+    let corte = resto.lastIndexOf(" ", caben);
+    if (corte <= 0) corte = caben;
+    lineas.push(resto.slice(0, corte).trim());
+    resto = resto.slice(corte).trim();
+  }
+  return lineas;
+}
+
+/** $120.000 -- pesos sin decimales, con punto de miles. */
+export function formatoValor(valor: number): string {
+  return `$${Math.round(valor).toLocaleString("es-CO").replace(/,/g, ".")}`;
+}
+
+interface DatoOrden {
+  texto: string;
+  negrita: boolean;
+  /** Renglones que puede ocupar (el motivo puede ir en dos). */
+  maxLineas: number;
+  /** Número, teléfono y valor no sirven recortados: se achica la letra. */
+  entero?: boolean;
+  /** Sin la palabra de adelante («Tel», «Valor»), si completo no cabe. */
+  corto?: string;
+}
+
+/** Los datos de la orden y del cliente que pide la plantilla, en el orden en que se imprimen. */
+function datosDeOrden(p: DisenoEtiqueta, datos: DatosEtiqueta): DatoOrden[] {
+  const quiere = (c: string) => p.campos.includes(c as never);
+  const lista: DatoOrden[] = [];
+  if (quiere("numero_orden") && datos.numeroOrden) lista.push({ texto: `Orden #${datos.numeroOrden}`, negrita: true, maxLineas: 1, entero: true });
+  if (quiere("cliente") && datos.clienteNombre?.trim()) lista.push({ texto: datos.clienteNombre.trim(), negrita: true, maxLineas: 1 });
+  if (quiere("telefono") && datos.clienteTelefono?.trim()) {
+    lista.push({
+      texto: `Tel ${datos.clienteTelefono.trim()}`,
+      corto: datos.clienteTelefono.trim(),
+      negrita: false,
+      maxLineas: 1,
+      entero: true,
+    });
+  }
+  if (quiere("valor") && datos.valorServicio) lista.push({
+      texto: `Valor ${formatoValor(datos.valorServicio)}`,
+      corto: formatoValor(datos.valorServicio),
+      negrita: true,
+      maxLineas: 1,
+      entero: true,
+    });
+  if (quiere("motivo") && datos.motivo?.trim()) lista.push({ texto: datos.motivo.trim(), negrita: false, maxLineas: 2 });
+  return lista;
+}
+
+function enteroQueCabe(d: DatoOrden, ancho: number, f: number): Linea {
+  const texto = d.corto && anchoTexto(d.texto, f) > ancho ? d.corto : d.texto;
+  return { texto, fuente: fuenteQueCabe(texto, ancho, f), negrita: d.negrita };
+}
+
+/**
+ * Los datos de la orden en renglones que quepan en `ancho` x `alto`: se
+ * achica la letra (sin bajar de 2 dots por punto, lo mínimo legible en
+ * térmica) y, si aun así no caben, se dejan los últimos por fuera.
+ */
+function acomodarDatos(
+  lista: DatoOrden[],
+  ancho: number,
+  alto: number,
+  fuenteInicial: number,
+): { lineas: Linea[]; faltaron: boolean } {
+  const armar = (f: number) =>
+    lista.flatMap((d) =>
+      d.entero
+        ? [enteroQueCabe(d, ancho, f)]
+        : partirEnLineas(d.texto, ancho, f, d.maxLineas).map((t) => ({ texto: t, fuente: f, negrita: d.negrita })),
+    );
+  const altoDe = (ls: Linea[]) => ls.reduce((s, l) => s + Math.round(l.fuente * 1.25), 0);
+  let f = fuenteInicial;
+  let lineas = armar(f);
+  while (altoDe(lineas) > alto && escalaDe(f - 1) >= 2) {
+    f--;
+    lineas = armar(f);
+  }
+  let faltaron = false;
+  while (lineas.length && altoDe(lineas) > alto) {
+    lineas.pop();
+    faltaron = true;
+  }
+  return { lineas, faltaron };
 }
 
 function texto(x: number, y: number, l: Linea, ancla: "start" | "middle"): string {
@@ -182,7 +279,11 @@ export function disenarEtiqueta(p: DisenoEtiqueta, datos: DatosEtiqueta, conFond
   const fuenteChica = Math.max(Math.round(1.6 * dpmm), Math.min(Math.round(corto * 0.1), Math.round(4 * dpmm)));
   const fuenteCodigo = Math.max(Math.round(2 * dpmm), Math.min(Math.round(corto * 0.13), Math.round(5.5 * dpmm)));
 
+  // Datos de la orden: más chicos, para que quepan varios junto al código.
+  const fuenteDatos = Math.max(14, Math.min(Math.round(corto * 0.05), Math.round(3 * dpmm)));
+
   const quiere = (c: string) => p.campos.includes(c as never);
+  const datosOrden = datosDeOrden(p, datos);
   const empresa = quiere("empresa") && datos.empresa ? datos.empresa : null;
   const descripcion = quiere("descripcion") && datos.descripcion ? datos.descripcion : null;
   const textoCodigo = quiere("texto_codigo") ? datos.codigo : null;
@@ -206,7 +307,8 @@ export function disenarEtiqueta(p: DisenoEtiqueta, datos: DatosEtiqueta, conFond
   if (descripcion) textosLaterales.push({ texto: descripcion, fuente: fuenteChica, negrita: false });
 
   // Con logo o eslogan es el diseño de marca, siempre apilado.
-  const apaisadoConQr = p.codigo === "qr" && !logoUrl && !eslogan && textosLaterales.length > 0 && w >= h * 1.6;
+  const apaisadoConQr =
+    p.codigo === "qr" && !logoUrl && !eslogan && textosLaterales.length + datosOrden.length > 0 && w >= h * 1.6;
   let moduloCodigo = 0;
 
   if (apaisadoConQr) {
@@ -218,7 +320,11 @@ export function disenarEtiqueta(p: DisenoEtiqueta, datos: DatosEtiqueta, conFond
     partes.push(qr.svg);
     const tx = x0 + lado + separacion * 2;
     const anchoTexto = x0 + w - tx;
-    const lineas = textosLaterales.map((l) => ajustar(l, anchoTexto));
+    const fijas = textosLaterales.map((l) => ajustar(l, anchoTexto));
+    const altoFijas = fijas.reduce((s, l) => s + l.fuente * 1.25, 0);
+    const extra = acomodarDatos(datosOrden, anchoTexto, Math.max(0, h - altoFijas), fuenteDatos);
+    if (extra.faltaron) avisos.push("No caben todos los datos de la orden: quite alguno o use un sticker más grande.");
+    const lineas = [...fijas, ...extra.lineas];
     const altoTextos = lineas.reduce((s, l) => s + l.fuente * 1.25, 0);
     let ty = y0 + Math.max(0, (h - altoTextos) / 2);
     for (const l of lineas) {
@@ -239,6 +345,11 @@ export function disenarEtiqueta(p: DisenoEtiqueta, datos: DatosEtiqueta, conFond
       abajo.push({ texto: textoCodigo, fuente: fuenteCodigo, negrita: true, entero: true, enCaja });
     }
     if (descripcion) abajo.push({ texto: descripcion, fuente: fuenteChica, negrita: false });
+    // Con QR los datos de la orden van a la derecha del código; con
+    // barras (que necesitan el ancho) van debajo de todo.
+    // Si al lado del QR no caben ni 12 letras (sticker chico), van debajo.
+    const letrasAlLado = Math.floor((w * 0.5 - separacion * 2) / anchoPorCaracter(fuenteDatos));
+    const datosAlLado = p.codigo === "qr" && datosOrden.length > 0 && letrasAlLado >= 12;
     const anchoUtil = (l: Linea) => (l.conRayas ? w - separacion * 8 : l.enCaja ? w - anchoCaja(fuenteChica) - separacion * 2 : w);
     const arribaAjustado = arriba.map((l) => ajustar(l, anchoUtil(l)));
     const abajoAjustado = abajo.map((l) => ajustar(l, anchoUtil(l)));
@@ -248,7 +359,17 @@ export function disenarEtiqueta(p: DisenoEtiqueta, datos: DatosEtiqueta, conFond
       (logoUrl ? altoLogo + separacion : 0) +
       arribaAjustado.reduce((s, l) => s + altoLinea(l), 0) +
       (arribaAjustado.length ? separacion : 0);
-    const altoAbajo = abajoAjustado.reduce((s, l) => s + altoLinea(l), 0) + (abajoAjustado.length ? separacion : 0);
+    let altoAbajo = abajoAjustado.reduce((s, l) => s + altoLinea(l), 0) + (abajoAjustado.length ? separacion : 0);
+    let datosAbajo: Linea[] = [];
+    if (datosOrden.length && !datosAlLado) {
+      // El código se queda con lo mínimo para leerse (barras 5 mm, QR 10 mm); lo demás puede ir en datos.
+      const minimoCodigo = Math.round((p.codigo === "qr" ? 10 : 5) * dpmm);
+      const disponible = Math.max(0, h - altoArriba - altoAbajo - minimoCodigo - separacion);
+      const acomodo = acomodarDatos(datosOrden, w, disponible, fuenteDatos);
+      if (acomodo.faltaron) avisos.push("No caben todos los datos de la orden: quite alguno o use un sticker más grande.");
+      datosAbajo = acomodo.lineas;
+      if (datosAbajo.length) altoAbajo += datosAbajo.reduce((s, l) => s + Math.round(l.fuente * 1.25), 0) + separacion;
+    }
     const altoCodigo = Math.max(0, h - altoArriba - altoAbajo);
 
     let ty = y0;
@@ -264,7 +385,25 @@ export function disenarEtiqueta(p: DisenoEtiqueta, datos: DatosEtiqueta, conFond
     }
     const yCodigo = y0 + altoArriba;
 
-    if (p.codigo === "qr") {
+    if (p.codigo === "qr" && datosAlLado) {
+      // QR a la izquierda (sin pasar de la mitad del ancho) y los datos a
+      // la derecha, centrados en vertical.
+      const lado = Math.min(altoCodigo, Math.floor(w * 0.5));
+      const qr = qrSvg(datos.codigo, x0, yCodigo, lado);
+      moduloCodigo = qr.modulo;
+      partes.push(qr.svg);
+      if (lado < 21 * 2) avisos.push("No queda espacio para el QR: quite textos o use un sticker más grande.");
+      const tx = x0 + lado + separacion * 2;
+      const acomodo = acomodarDatos(datosOrden, x0 + w - tx, altoCodigo, fuenteDatos);
+      if (acomodo.faltaron) avisos.push("No caben todos los datos de la orden: quite alguno o use un sticker más grande.");
+      const alto = acomodo.lineas.reduce((s, l) => s + Math.round(l.fuente * 1.25), 0);
+      let dy = yCodigo + Math.max(0, Math.floor((altoCodigo - alto) / 2));
+      for (const l of acomodo.lineas) {
+        dy += l.fuente;
+        partes.push(texto(tx, Math.round(dy), l, "start"));
+        dy += Math.round(l.fuente * 1.25) - l.fuente;
+      }
+    } else if (p.codigo === "qr") {
       const lado = Math.min(w, altoCodigo);
       const qr = qrSvg(datos.codigo, x0 + Math.floor((w - lado) / 2), yCodigo, lado);
       moduloCodigo = qr.modulo;
@@ -292,6 +431,12 @@ export function disenarEtiqueta(p: DisenoEtiqueta, datos: DatosEtiqueta, conFond
       ty += l.fuente;
       partes.push(texto(W / 2, Math.round(ty), l, "middle"));
       ty += altoLinea(l) - l.fuente;
+    }
+    if (datosAbajo.length && abajoAjustado.length) ty += separacion;
+    for (const l of datosAbajo) {
+      ty += l.fuente;
+      partes.push(texto(W / 2, Math.round(ty), l, "middle"));
+      ty += Math.round(l.fuente * 1.25) - l.fuente;
     }
   }
 

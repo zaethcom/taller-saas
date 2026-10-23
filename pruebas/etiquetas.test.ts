@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { anchosCode128, modulosCode128, PATRONES_CODE128 } from "../lib/etiquetas/code128";
-import { disenarEtiqueta, mmADots } from "../lib/etiquetas/diseno";
+import { disenarEtiqueta, formatoValor, mmADots, partirEnLineas } from "../lib/etiquetas/diseno";
 import { DATOS_EJEMPLO, MODELOS, filaAPlantilla, validarPlantilla, type DisenoEtiqueta } from "../lib/etiquetas/plantilla";
 import { rasterEtiqueta } from "../lib/etiquetas/renderizar";
 import { generarEtiquetaQrRaster } from "../lib/etiqueta-bitmap";
@@ -136,6 +136,57 @@ describe("diseño de marca (logo y eslogan)", () => {
     expect(r.logo).toBeUndefined();
     expect(r.avisos.join(" ")).toMatch(/logo/);
     expect(r.avisos.join(" ")).toMatch(/eslogan/);
+  });
+});
+
+describe("datos de la orden y del cliente", () => {
+  const diseno = (d: Partial<DisenoEtiqueta>): DisenoEtiqueta => ({
+    anchoMm: 55, altoMm: 60, dpi: 203, codigo: "qr", campos: [], fondoUrl: null, girar: false, ...d,
+  });
+  const todos = ["numero_orden", "cliente", "telefono", "valor", "motivo"] as DisenoEtiqueta["campos"];
+
+  it("solo se aceptan en la etiqueta del equipo recibido", () => {
+    const base = { nombre: "x", anchoMm: 55, altoMm: 60, codigo: "qr" };
+    const orden = validarPlantilla({ ...base, uso: "orden", campos: ["cliente", "motivo"] });
+    expect(orden.ok && orden.valor.campos).toEqual(["cliente", "motivo"]);
+    const articulo = validarPlantilla({ ...base, uso: "articulo", campos: ["texto_codigo", "cliente"] });
+    expect(articulo.ok && articulo.valor.campos).toEqual(["texto_codigo"]);
+  });
+
+  it("imprime nombre, teléfono, número, valor y motivo cuando se piden", () => {
+    const r = disenarEtiqueta(diseno({ campos: todos }), DATOS_EJEMPLO.orden);
+    expect(r.svg).toContain('aria-label="Orden #123"');
+    expect(r.svg).toContain('aria-label="Juan Pérez"');
+    expect(r.svg).toContain('aria-label="Tel 300 123 4567"');
+    expect(r.svg).toContain('aria-label="Valor $120.000"');
+    expect(r.svg).toContain("Cambio de");
+    expect(r.avisos).toEqual([]);
+  });
+
+  it("no imprime los que no se piden ni los que vienen vacíos", () => {
+    const sin = disenarEtiqueta(diseno({ campos: ["texto_codigo"] }), DATOS_EJEMPLO.orden).svg;
+    expect(sin).not.toContain("Juan");
+    const vacio = disenarEtiqueta(diseno({ campos: todos }), { codigo: "OR1", clienteNombre: "Ana" }).svg;
+    expect(vacio).toContain('aria-label="Ana"');
+    expect(vacio).not.toContain("Valor");
+    expect(vacio).not.toContain("Orden #");
+  });
+
+  it("con barras los datos van debajo y las barras conservan su alto", () => {
+    const r = disenarEtiqueta(diseno({ codigo: "barras", campos: ["texto_codigo", ...todos] }), DATOS_EJEMPLO.orden);
+    expect(r.svg).toContain('aria-label="Juan Pérez"');
+    expect(r.avisos).toEqual([]);
+  });
+
+  it("en un sticker chico avisa si no caben todos, sin salirse", () => {
+    const r = disenarEtiqueta(diseno({ anchoMm: 30, altoMm: 25, campos: ["texto_codigo", ...todos] }), DATOS_EJEMPLO.orden);
+    expect(r.avisos.join(" ")).toMatch(/No caben todos los datos/);
+  });
+
+  it("parte el motivo en dos renglones y formatea el valor en pesos", () => {
+    expect(partirEnLineas("Cambio de pantalla y revisión de batería", 12 * 12, 18, 2)).toEqual(["Cambio de", "pantalla y."]);
+    expect(formatoValor(120000)).toBe("$120.000");
+    expect(formatoValor(1500)).toBe("$1.500");
   });
 });
 
