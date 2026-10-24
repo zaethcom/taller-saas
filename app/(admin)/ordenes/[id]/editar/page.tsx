@@ -20,6 +20,7 @@ import { PatronGrid } from "@/componentes/patron-android/patron-grid";
 import { reimprimirComprobante } from "@/componentes/recepcion/ultimas-recepciones";
 import { validarDatos, type DatosEdicion } from "@/lib/orden-edicion";
 import type { MarcaConModelos } from "@/lib/modelos-equipo";
+import { TIPOS_EQUIPO_POR_DEFECTO, opcionesTipoEquipo, type TipoEquipo } from "@/lib/tipos-equipo";
 
 interface Respuesta extends DatosEdicion {
   numero: number;
@@ -64,6 +65,7 @@ export default function PaginaEditarOrden() {
   const [error, setError] = useState<string | string[] | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [marcas, setMarcas] = useState<MarcaConModelos[]>([]);
+  const [tiposEquipo, setTiposEquipo] = useState<TipoEquipo[]>(TIPOS_EQUIPO_POR_DEFECTO);
   // A dónde volver: la pantalla de la orden si se llegó desde ahí.
   const [volver, setVolver] = useState("/ordenes");
   // Desde Recibir (?reimprimir=1) lo normal es corregir y sacar el recibo de nuevo.
@@ -90,6 +92,12 @@ export default function PaginaEditarOrden() {
     fetch("/api/productos/modelos")
       .then((r) => r.json())
       .then((j) => setMarcas(Array.isArray(j.marcas) ? j.marcas : []))
+      .catch(() => {});
+    fetch("/api/configuracion")
+      .then((r) => r.json())
+      .then((c: { tiposEquipo?: TipoEquipo[] }) => {
+        if (c.tiposEquipo?.length) setTiposEquipo(c.tiposEquipo);
+      })
       .catch(() => {});
   }, [id]);
 
@@ -220,13 +228,12 @@ export default function PaginaEditarOrden() {
             <div style={rejilla}>
               <Campo etiqueta="Tipo">
                 <select value={datos.equipo.tipo} onChange={(e) => cambiar("equipo", "tipo", e.target.value)}>
-                  {/* Un tipo viejo que no está en la lista se conserva. */}
-                  {!["patineta", "celular", "computador"].includes(datos.equipo.tipo) && (
-                    <option value={datos.equipo.tipo}>{datos.equipo.tipo}</option>
-                  )}
-                  <option value="patineta">Patineta</option>
-                  <option value="celular">Celular</option>
-                  <option value="computador">Computador</option>
+                  {/* Un tipo viejo o quitado de la lista se conserva. */}
+                  {opcionesTipoEquipo(tiposEquipo, datos.equipo.tipo).map((t) => (
+                    <option key={t.valor} value={t.valor}>
+                      {t.etiqueta}
+                    </option>
+                  ))}
                 </select>
               </Campo>
               <Campo etiqueta="Serial">
