@@ -19,7 +19,7 @@ Ocho fases: catálogos → diagnóstico propio → cotización desde catálogo �
 navegación compartida → consumo real conectado al costo → cierre del
 ciclo de faltantes → POS por QR con cobro itemizado → historial visible.
 
-**Completadas (Fases 1-7):**
+**Completado (Fases 1-8):**
 
 | Fase | Qué entrega | PR |
 |---|---|---|
@@ -30,17 +30,14 @@ ciclo de faltantes → POS por QR con cobro itemizado → historial visible.
 | 5 | `orden_item` + `recalcularTotalOrden`: consumir un repuesto o registrar servicio/mano de obra afecta de verdad `orden.total` | #27 |
 | 6 | Cierra el ciclo `faltante → solicitado → recibido → consumido` de `repuesto_solicitud` | #27 |
 | 7 | POS (`/entregar`) busca por QR/token y cobra `orden_item` itemizado, no un cargo único "Saldo orden #N" | #27 |
+| 8 | Historial de `orden_evento` visible para técnico/admin en el hub de la orden (`GET /api/ordenes/[id]/eventos`) | #36 |
 
 Las Fases 5-7 se ejecutaron tal cual estaban diseñadas en el plan fuente,
 como la Fase B del Plan 3 (ver abajo) — se agruparon en un solo PR porque
 comparten el mismo diseño de datos (`orden_item`) y no tenía sentido
 partirlas.
 
-**Pendiente (Fase 8):**
-
-| Fase | Qué falta |
-|---|---|
-| 8 | Historial de `orden_evento` visible para técnico/admin en el hub de la orden — no depende de nada de las Fases 5-7, se puede mergear cuando convenga |
+Pendiente: la prueba integral a mano de punta a punta (ver `PLAN.md`).
 
 Fuera de alcance de este plan (deliberado, no olvidado): los estados
 "Control de calidad" y "Terminado" — cambiarían `lib/estados.ts` y todo lo
@@ -52,8 +49,7 @@ resto con el cliente.
 Completado. Código de entrada (`${prefijo}${numero}`) en la etiqueta QR,
 etiqueta de código de barras por repuesto, e `impresora_sede` configurable
 desde `/sedes` en vez de solo `estacion/config.json`. Extendido después
-(fuera de este plan original) con logo real impreso — commits
-`a71f97d`/`698cbad` — y etiquetas en PPLB para la impresora Argox real de
+(fuera de este plan original) con logo real impreso (#23) — y etiquetas en PPLB para la impresora Argox real de
 Polaco Scooter en vez de ZPL, que era la que el plan original asumía.
 
 ### Plan 3 — Mejoras POS y taller (documento de 9 puntos del cliente)
