@@ -67,19 +67,43 @@ export class DestinoRed implements Destino {
  * que el payload que le llega debe ser exactamente el que ya generó
  * la plantilla correspondiente, igual que con DestinoRed.
  */
+/** Lo máximo que acepta el puente (Tramas.MAX_PAYLOAD en zaethcom/puente). */
+export const MAX_PAYLOAD_PUENTE = 512 * 1024;
+
+function trama(datos: Buffer): Buffer {
+  const cabecera = Buffer.alloc(4);
+  cabecera.writeInt32BE(datos.length, 0);
+  return Buffer.concat([cabecera, datos]);
+}
+
+/**
+ * Con `token` (el que muestra la app del puente en «Acceso por red»), la
+ * conexión empieza con una trama extra con el token y después va la del
+ * payload. Sin token, una sola trama, como siempre. El puente con token
+ * rechaza a quien no lo mande; uno sin token imprimiría el token como si
+ * fuera el ticket, así que poner `tokenPuente` en config.json solo
+ * después de configurarlo en la app.
+ */
 export class DestinoPuenteAndroid implements Destino {
   constructor(
     private readonly host: string,
     private readonly puerto = 9100,
     private readonly timeoutMs = 15000,
+    private readonly token?: string,
   ) {}
 
   enviar(datos: Buffer | string): Promise<void> {
     return new Promise((resolve, reject) => {
-      const socket = new Socket();
       const payload = typeof datos === "string" ? Buffer.from(datos, "ascii") : datos;
-      const cabecera = Buffer.alloc(4);
-      cabecera.writeInt32BE(payload.length, 0);
+      if (payload.length > MAX_PAYLOAD_PUENTE) {
+        reject(
+          new Error(
+            `el trabajo pesa ${Math.round(payload.length / 1024)} KB y el puente acepta hasta ${MAX_PAYLOAD_PUENTE / 1024} KB`,
+          ),
+        );
+        return;
+      }
+      const socket = new Socket();
 
       let respuesta = "";
 
@@ -99,7 +123,8 @@ export class DestinoPuenteAndroid implements Destino {
       });
 
       socket.connect(this.puerto, this.host, () => {
-        socket.write(Buffer.concat([cabecera, payload]));
+        const tramas = this.token ? [trama(Buffer.from(this.token, "utf-8")), trama(payload)] : [trama(payload)];
+        socket.write(Buffer.concat(tramas));
       });
 
       socket.once("close", () => {
@@ -146,18 +171,22 @@ export interface ConfigImpresoras {
   etiquetas: ConfigImpresora;
 }
 
-function crearDestino(config: ConfigImpresora): Destino {
+function crearDestino(config: ConfigImpresora, tokenPuente?: string): Destino {
   return config.protocolo === "puente_android"
-    ? new DestinoPuenteAndroid(config.host, config.puerto)
+    ? new DestinoPuenteAndroid(config.host, config.puerto, undefined, tokenPuente)
     : new DestinoRed(config.host, config.puerto);
 }
 
-export function crearDestinos(config: ConfigImpresoras): {
+/** `tokenPuente` sale de config.json, nunca de la web: no viaja por /api/estacion/impresoras. */
+export function crearDestinos(
+  config: ConfigImpresoras,
+  tokenPuente?: string,
+): {
   tickets: Destino;
   etiquetas: Destino;
 } {
   return {
-    tickets: crearDestino(config.tickets),
-    etiquetas: crearDestino(config.etiquetas),
+    tickets: crearDestino(config.tickets, tokenPuente),
+    etiquetas: crearDestino(config.etiquetas, tokenPuente),
   };
 }
