@@ -79,6 +79,24 @@ por USB en el mismo dispositivo, hoy hace falta una segunda instancia
 en otro puerto, o resolver la impresora predeterminada distinto según
 qué app la abra.
 
+### Token del puente (zaethcom/puente)
+
+La app `com.zaethcom.puente` puede exigir un token en cada conexión
+(«Acceso por red» en la app) y aceptar solo ciertas IPs. Con token, la
+estación tiene que mandarlo: va en la raíz de `config.json`, no por
+impresora, y nunca sale de este archivo:
+
+```json
+"tokenPuente": "el-token-que-muestra-la-app"
+```
+
+Orden para activarlo sin imprimir basura: 1) instalar la app nueva y
+generar el token ahí; 2) recién entonces poner `tokenPuente` aquí y
+reiniciar la estación. Al revés, una app sin token imprimiría el token
+como si fuera un ticket. Mientras tanto la app responde
+`ERR:Falta el token` y la web reintenta el trabajo (hasta 5 veces).
+Trabajos de más de 512 KB se rechazan antes de mandarlos.
+
 ## Cómo saber si está viva
 
 En **/sedes**, debajo de las impresoras de cada sede:
