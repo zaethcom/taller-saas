@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sin filtro de clase: cualquier dispositivo USB. Antes solo clase 7
+         (impresora), y no todas las impresoras se presentan así: con esas Android
+         nunca ofrecía abrir el puente al conectarlas. Con este aviso Android muestra "Usar de
+         forma predeterminada": marcarlo deja el permiso USB guardado para esa
+         impresora, también después de desconectarla o reiniciar el equipo. -->
+    <usb-device />
+</resources>

@@ -8,6 +8,14 @@ dist/
 .DS_Store
 coverage/
 .supabase/
+
+# Android (puente/)
+puente/.gradle/
+puente/build/
+puente/app/build/
+puente/local.properties
+puente/.idea/
+*.apk
 tsconfig.tsbuildinfo
 estacion/config.json
 estacion/salida-*.raw

@@ -1,0 +1,21 @@
+<!--
+  Icono pequeño de la notificación. Android descarta el color y usa SOLO el canal
+  alfa: un vector opaco relleno (como ic_puente, que es el del lanzador) sale como
+  un cuadrado blanco. Este es la silueta de la impresora sobre transparente.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M7,3h10v4h-10z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M5,9h14a1,1 0 0 1 1,1v6a1,1 0 0 1 -1,1h-2v-4h-10v4h-2a1,1 0 0 1 -1,-1v-6a1,1 0 0 1 1,-1z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M8,15h8v6h-8z" />
+</vector>
