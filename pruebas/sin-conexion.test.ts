@@ -76,3 +76,26 @@ describe("instalar app", () => {
     expect(await instalarApp()).toBe(false);
   });
 });
+
+describe("pantallas sin internet", () => {
+  it("guarda solo las pantallas de mostrador y taller", async () => {
+    const { debeGuardarPagina } = await import("../lib/sin-conexion/paginas");
+    expect(debeGuardarPagina("/vender")).toBe(true);
+    expect(debeGuardarPagina("/orden/abc/cotizacion")).toBe(true);
+    expect(debeGuardarPagina("/vendedores")).toBe(false);
+    expect(debeGuardarPagina("/configuracion")).toBe(false);
+    expect(debeGuardarPagina("/login")).toBe(false);
+    expect(debeGuardarPagina("/seguimiento/x")).toBe(false);
+  });
+
+  it("public/sw.js usa la misma lista y el mismo nombre de caché", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { PAGINAS_SIN_CONEXION } = await import("../lib/sin-conexion/paginas");
+    const { CACHE_PAGINAS } = await import("../lib/sin-conexion/borrar-copia");
+    const sw = readFileSync(new URL("../public/sw.js", import.meta.url), "utf8");
+    const lista = sw.match(/const PAGINAS_SIN_CONEXION = (\[[^\]]*\]);/);
+    expect(lista).not.toBeNull();
+    expect(JSON.parse(lista![1]!)).toEqual([...PAGINAS_SIN_CONEXION]);
+    expect(sw).toContain(`const CACHE_PAGINAS = "${CACHE_PAGINAS}";`);
+  });
+});

@@ -31,6 +31,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogIn, Check } from "lucide-react";
 import { clienteNavegador } from "@/lib/supabase/cliente";
+import { borrarCopiaLocal } from "@/lib/sin-conexion/borrar-copia";
 import { Boton } from "@/componentes/ui/boton";
 import { Campo } from "@/componentes/ui/campo";
 import { VentanaError } from "@/componentes/ui/ventana-error";
@@ -162,6 +163,8 @@ export default function PaginaLogin() {
       setEnviando(false);
       return;
     }
+    // Pantallas guardadas de quien usó el equipo antes (plan sin internet).
+    await borrarCopiaLocal();
 
     const res = await fetch("/api/perfil");
     if (!res.ok) {

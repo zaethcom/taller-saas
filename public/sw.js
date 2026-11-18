@@ -1,30 +1,87 @@
 /**
- * Service Worker mínimo, escrito a mano (sin Workbox/next-pwa): solo
- * cachea el shell estático de Next.js -- JS/CSS bajo /_next/static/,
- * que ya lleva el hash del contenido en el nombre del archivo, así que
- * cachearlo agresivo (cache-first) es siempre seguro, nunca sirve una
- * versión vieja por error. Todo lo demás (HTML, /api/*, el manifest)
- * NO se intercepta -- va siempre a la red, sin excepción: esto es un
- * POS con inventario y precios reales, y una respuesta vieja de la API
- * cacheada por error podría mostrar stock o un precio que ya cambió.
+ * Service Worker escrito a mano (sin Workbox/next-pwa).
+ *
+ * 1. Shell estático: JS/CSS bajo /_next/static/ lleva el hash del
+ *    contenido en el nombre, así que va cache-first sin riesgo.
+ * 2. Pantallas sin internet (plan sin internet, fase 1): las pantallas
+ *    de mostrador y taller (PAGINAS_SIN_CONEXION, igual a
+ *    lib/sin-conexion/paginas.ts) van SIEMPRE primero a la red, como
+ *    antes; la copia guardada solo se usa cuando no hay red. Así nunca
+ *    se muestra un precio viejo teniendo internet.
+ * 3. Cualquier otra pantalla sin red ni copia: /sin-conexion.html.
+ *
+ * /api/* nunca se intercepta: un dato de la API cacheado por error
+ * podría mostrar stock o un precio que ya cambió. La copia de datos
+ * para trabajar sin internet llega en la fase 2, en IndexedDB.
+ *
+ * Al cerrar sesión la app borra CACHE_PAGINAS (componentes/ui/
+ * menu-usuario.tsx): ahí hay nombres y teléfonos de clientes.
  */
 const CACHE = "taller-shell-v1";
+const CACHE_PAGINAS = "taller-paginas-v1"; // igual a lib/sin-conexion/borrar-copia.ts
+const PAGINA_SIN_CONEXION = "/sin-conexion.html";
+const PAGINAS_SIN_CONEXION = ["/vender", "/recibir", "/entregar", "/abonos", "/turno", "/recibos", "/orden", "/escanear"];
+const CACHES_VIGENTES = [CACHE, CACHE_PAGINAS];
 
-self.addEventListener("install", () => {
-  self.skipWaiting();
+function debeGuardarPagina(ruta) {
+  return PAGINAS_SIN_CONEXION.some((p) => ruta === p || ruta.startsWith(p + "/"));
+}
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches
+      .open(CACHE)
+      .then((cache) => cache.add(new Request(PAGINA_SIN_CONEXION, { cache: "reload" })))
+      .catch(() => {})
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((claves) => Promise.all(claves.filter((k) => k !== CACHE).map((k) => caches.delete(k)))),
+    caches
+      .keys()
+      .then((claves) => Promise.all(claves.filter((k) => !CACHES_VIGENTES.includes(k)).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim()),
   );
 });
 
+async function navegar(request, url) {
+  const guardable = debeGuardarPagina(url.pathname);
+  try {
+    const respuesta = await fetch(request);
+    // Solo se guarda una pantalla de verdad: no una redirección al login
+    // (sesión vencida) ni un error.
+    if (guardable && respuesta.ok && !respuesta.redirected && respuesta.type === "basic") {
+      const cache = await caches.open(CACHE_PAGINAS);
+      // La clave es la ruta sin la búsqueda: /vender?x=1 y /vender son
+      // la misma pantalla para abrir sin internet.
+      await cache.put(url.origin + url.pathname, respuesta.clone());
+    }
+    return respuesta;
+  } catch (error) {
+    if (guardable) {
+      const cache = await caches.open(CACHE_PAGINAS);
+      const guardada = await cache.match(url.origin + url.pathname);
+      if (guardada) return guardada;
+    }
+    const sinConexion = await caches.match(PAGINA_SIN_CONEXION);
+    if (sinConexion) return sinConexion;
+    throw error;
+  }
+}
+
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-  const esShellEstatico = url.pathname.startsWith("/_next/static/") || url.pathname === "/icon.svg";
+  if (event.request.method !== "GET" || url.origin !== self.location.origin) return;
 
-  if (event.request.method !== "GET" || !esShellEstatico) return;
+  if (event.request.mode === "navigate" && !url.pathname.startsWith("/api/")) {
+    event.respondWith(navegar(event.request, url));
+    return;
+  }
+
+  const esShellEstatico = url.pathname.startsWith("/_next/static/") || url.pathname === "/icon.svg";
+  if (!esShellEstatico) return;
 
   event.respondWith(
     caches.open(CACHE).then(async (cache) => {
