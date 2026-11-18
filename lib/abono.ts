@@ -11,6 +11,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { encolarImpresion } from "@/lib/impresion";
+import { esColumnaFaltante, horaSinConexion } from "@/lib/sin-conexion/clave-local";
+import { ventaPorClave } from "@/lib/sin-conexion/venta-por-clave";
 
 export interface DatosAbono {
   monto: number;
@@ -88,24 +90,36 @@ export async function registrarAbono(
     cajero: string | null;
     /** false: solo abre el cajón si es efectivo, sin ticket (al recibir, el abono ya sale en el comprobante). */
     imprimir: boolean;
+    /** Abono hecho sin internet (fase 3b): clave que evita duplicarlo (0070) y hora real en que se hizo. */
+    claveLocal?: string | null;
+    hechaEn?: string;
+    /** Se está subiendo un abono hecho sin internet: ya se recibió, no se imprime ni abre el cajón. */
+    subidaSinConexion?: boolean;
   },
-): Promise<{ ok: true; ventaId: string; numero: number } | { ok: false; error: string }> {
+): Promise<{ ok: true; ventaId: string; numero: number; repetida?: boolean } | { ok: false; error: string }> {
   const { abono } = p;
   const descripcion = `Abono orden #${p.numeroOrden}`;
 
-  const { data: venta, error } = await supabase
-    .from("venta")
-    .insert({
-      empresa_id: p.empresaId,
-      sede_id: p.sedeId,
-      turno_id: abono.turnoId,
-      orden_id: p.ordenId,
-      tipo: "anticipo",
-      total: abono.monto,
-      creada_por: p.userId,
-    })
-    .select("id, numero")
-    .single();
+  const fila = {
+    empresa_id: p.empresaId,
+    sede_id: p.sedeId,
+    turno_id: abono.turnoId,
+    orden_id: p.ordenId,
+    tipo: "anticipo",
+    total: abono.monto,
+    creada_por: p.userId,
+  };
+  const conClave = p.claveLocal ? { ...fila, clave_local: p.claveLocal, hecha_en: horaSinConexion(p.hechaEn) } : fila;
+  let { data: venta, error } = await supabase.from("venta").insert(conClave).select("id, numero").single();
+  if (error?.code === "23505" && p.claveLocal) {
+    // Dos envíos del mismo abono al mismo tiempo: ganó el otro.
+    const previa = await ventaPorClave(supabase, p.empresaId, p.claveLocal);
+    if (previa && previa !== "sin_columna") return { ok: true, ventaId: previa.id, numero: previa.numero, repetida: true };
+  }
+  if (esColumnaFaltante(error) && p.claveLocal) {
+    // Base sin la migración 0070: se registra como siempre.
+    ({ data: venta, error } = await supabase.from("venta").insert(fila).select("id, numero").single());
+  }
   if (error || !venta) return { ok: false, error: error?.message ?? "no se pudo registrar el abono" };
 
   await supabase.from("venta_item").insert({
@@ -122,31 +136,35 @@ export async function registrarAbono(
     metodo_pago_id: abono.metodoPagoId,
   });
 
-  await encolarImpresion(supabase, {
-    empresaId: p.empresaId,
-    sedeId: p.sedeId,
-    tipo: "recibo_venta",
-    creadoPor: p.userId,
-    carga: {
-      numeroVenta: venta.numero,
-      items: [{ descripcion, cantidad: 1, precioUnit: abono.monto }],
-      total: abono.monto,
-      etiquetaTotal: "ABONO",
-      medioPago: abono.metodo.nombre,
-      abreCajon: abono.metodo.es_efectivo,
-      cajero: p.cajero,
-      montoRecibido: abono.montoRecibido,
-      cambio: abono.montoRecibido != null ? abono.montoRecibido - abono.monto : null,
-      cuentaOrden: {
-        numeroOrden: p.numeroOrden,
-        valor: p.valorOrden,
-        abonadoAntes: p.pagadoAntes,
-        estePago: abono.monto,
-        saldo: Math.max(0, p.valorOrden - p.pagadoAntes - abono.monto),
+  // Un abono hecho sin internet ya se recibió en el mostrador: al subirlo
+  // no se imprime ni se abre el cajón (fase 3b).
+  if (!p.subidaSinConexion) {
+    await encolarImpresion(supabase, {
+      empresaId: p.empresaId,
+      sedeId: p.sedeId,
+      tipo: "recibo_venta",
+      creadoPor: p.userId,
+      carga: {
+        numeroVenta: venta.numero,
+        items: [{ descripcion, cantidad: 1, precioUnit: abono.monto }],
+        total: abono.monto,
+        etiquetaTotal: "ABONO",
+        medioPago: abono.metodo.nombre,
+        abreCajon: abono.metodo.es_efectivo,
+        cajero: p.cajero,
+        montoRecibido: abono.montoRecibido,
+        cambio: abono.montoRecibido != null ? abono.montoRecibido - abono.monto : null,
+        cuentaOrden: {
+          numeroOrden: p.numeroOrden,
+          valor: p.valorOrden,
+          abonadoAntes: p.pagadoAntes,
+          estePago: abono.monto,
+          saldo: Math.max(0, p.valorOrden - p.pagadoAntes - abono.monto),
+        },
+        imprimir: p.imprimir,
       },
-      imprimir: p.imprimir,
-    },
-  });
+    });
+  }
 
   return { ok: true, ventaId: venta.id, numero: venta.numero };
 }

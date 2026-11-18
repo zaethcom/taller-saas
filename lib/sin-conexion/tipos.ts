@@ -54,6 +54,39 @@ export interface OrdenLocal {
   tipo: string | null;
   marca: string | null;
   modelo: string | null;
+  /**
+   * Lo que pide Cobrar y entregar sin conexión (fase 3b), en la misma
+   * forma que /api/ordenes/buscar. Opcional: una copia bajada antes de
+   * esta fase no lo trae y la orden no se puede abrir sin conexión.
+   */
+  cuenta?: CuentaOrdenLocal;
+}
+
+export interface PagoOrdenLocal {
+  numero: number;
+  tipo: string;
+  monto: number;
+  medio: string | null;
+  fecha: string;
+}
+
+export interface ItemOrdenLocal {
+  descripcion: string;
+  cantidad: number;
+  precioUnit: number;
+  repuestoId: string | null;
+}
+
+export interface CuentaOrdenLocal {
+  motivo: string | null;
+  tokenPublico: string;
+  clienteNombre: string | null;
+  clienteTelefono: string | null;
+  valor: number;
+  pagado: number;
+  saldo: number;
+  pagos: PagoOrdenLocal[];
+  items: ItemOrdenLocal[];
 }
 
 export interface CopiaLocal {
@@ -66,6 +99,8 @@ export interface CopiaLocal {
   articulos: ArticuloLocal[];
   clientes: ClienteLocal[];
   ordenesAbiertas: OrdenLocal[];
+  /** Prefijo del código de entrada de la etiqueta ("OR000014"), para buscar la orden por lo que lee el escáner. */
+  prefijoEtiqueta?: string | null;
   categorias: { id: string; nombre: string }[];
   metodosPago: { id: string; nombre: string; es_efectivo: boolean; activo?: boolean; orden?: number }[];
   /** La última respuesta de /api/turno/actual. */

@@ -1,6 +1,10 @@
 /**
  * POST /api/ordenes/<id>/transicion
- * Body: { aEstado: Estado, nota?: string, imprimirComprobante?: boolean }
+ * Body: { aEstado: Estado, nota?: string, imprimirComprobante?: boolean, claveLocal?: string }
+ *
+ * claveLocal: la entrega se hizo sin internet y se sube después (plan
+ * sin internet, fase 3b). Si la orden ya está en ese estado (el envío
+ * llegó antes y se repite), responde bien sin cambiar ni imprimir nada.
  *
  * `nota` queda en el historial con el cambio. Al marcar "Terminado"
  * (listo_entrega) es opcional: qué se hizo, si el técnico quiere dejarlo.
@@ -24,6 +28,7 @@ import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
 import { encolarImpresion } from "@/lib/impresion";
 import { liberarReservas } from "@/lib/reservas-servidor";
+import { claveLocalValida } from "@/lib/sin-conexion/clave-local";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -31,6 +36,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     aEstado?: Estado;
     imprimirComprobante?: boolean;
     nota?: string;
+    claveLocal?: string;
   };
   if (!body.aEstado) {
     return NextResponse.json({ error: "falta aEstado" }, { status: 400 });
@@ -53,6 +59,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (errOrden || !orden) {
     return NextResponse.json({ error: "orden no encontrada" }, { status: 404 });
+  }
+
+  if (orden.estado === body.aEstado && claveLocalValida(body.claveLocal)) {
+    return NextResponse.json({ ok: true, estado: orden.estado, repetida: true });
   }
 
   const cumplidos = new Set<Requisito>();

@@ -33,7 +33,8 @@ import { obtenerSedeActivaId } from "@/lib/perfil";
 import { encolarImpresion } from "@/lib/impresion";
 import { obtenerCuentaOrden } from "@/lib/cuenta-orden";
 import { clienteImpreso } from "@/lib/cliente-venta";
-import { claveLocalValida, esColumnaFaltante, horaSinConexion } from "@/lib/sin-conexion/clave-local";
+import { claveLocalValida, esColumnaFaltante, esSubidaSinConexion, horaSinConexion } from "@/lib/sin-conexion/clave-local";
+import { ventaPorClave } from "@/lib/sin-conexion/venta-por-clave";
 
 export async function GET(req: NextRequest) {
   const supabase = await clienteServidor();
@@ -372,46 +373,34 @@ export async function POST(req: NextRequest) {
     // si no tiene ninguno de los dos, es un ítem suelto sin ficha de inventario
   }
 
-  await encolarImpresion(supabase, {
-    empresaId: perfil.empresa_id,
-    sedeId: sedeActivaId,
-    tipo: "recibo_venta",
-    creadoPor: user.id,
-    carga: {
-      numeroVenta: venta.numero,
-      items: body.items.map((i) => ({
-        descripcion: i.descripcion,
-        cantidad: i.cantidad,
-        precioUnit: i.precioUnit,
-      })),
-      total,
-      medioPago: metodo.nombre,
-      abreCajon: metodo.es_efectivo,
-      cajero: perfil.nombre,
-      cliente: clienteImpreso(cliente),
-      montoRecibido: metodo.es_efectivo ? body.montoRecibido ?? null : null,
-      cambio: metodo.es_efectivo && body.montoRecibido ? body.montoRecibido - total : null,
-      // Solo si hubo abonos antes: un cobro de una sola vez ya se lee completo en los ítems.
-      cuentaOrden: cuentaOrden && cuentaOrden.abonadoAntes > 0 ? cuentaOrden : null,
-      imprimir: body.imprimir ?? true,
-    },
-  });
+  // Una venta hecha sin internet ya se cobró en el mostrador: al subirla
+  // no se imprime ni se abre el cajón horas después.
+  if (!esSubidaSinConexion(body)) {
+    await encolarImpresion(supabase, {
+      empresaId: perfil.empresa_id,
+      sedeId: sedeActivaId,
+      tipo: "recibo_venta",
+      creadoPor: user.id,
+      carga: {
+        numeroVenta: venta.numero,
+        items: body.items.map((i) => ({
+          descripcion: i.descripcion,
+          cantidad: i.cantidad,
+          precioUnit: i.precioUnit,
+        })),
+        total,
+        medioPago: metodo.nombre,
+        abreCajon: metodo.es_efectivo,
+        cajero: perfil.nombre,
+        cliente: clienteImpreso(cliente),
+        montoRecibido: metodo.es_efectivo ? body.montoRecibido ?? null : null,
+        cambio: metodo.es_efectivo && body.montoRecibido ? body.montoRecibido - total : null,
+        // Solo si hubo abonos antes: un cobro de una sola vez ya se lee completo en los ítems.
+        cuentaOrden: cuentaOrden && cuentaOrden.abonadoAntes > 0 ? cuentaOrden : null,
+        imprimir: body.imprimir ?? true,
+      },
+    });
+  }
 
   return NextResponse.json({ ok: true, ventaId: venta.id, numero: venta.numero, ...(avisos.length && { avisos }) });
-}
-
-/** La venta ya creada con esa clave local, "sin_columna" si falta la migración 0070. */
-async function ventaPorClave(
-  supabase: Awaited<ReturnType<typeof clienteServidor>>,
-  empresaId: string,
-  claveLocal: string,
-): Promise<{ id: string; numero: number } | null | "sin_columna"> {
-  const { data, error } = await supabase
-    .from("venta")
-    .select("id, numero")
-    .eq("empresa_id", empresaId)
-    .eq("clave_local", claveLocal)
-    .maybeSingle();
-  if (esColumnaFaltante(error)) return "sin_columna";
-  return data ?? null;
 }

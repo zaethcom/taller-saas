@@ -1,5 +1,6 @@
 /**
- * Lo hecho sin internet que falta subir (plan sin internet, fase 3).
+ * Lo hecho sin internet que falta subir (plan sin internet, fases 3 y
+ * 3b): ventas, abonos y entregas de órdenes.
  *
  * Cada elemento es una petición POST guardada tal cual se habría
  * enviado, con una clave local (0070) que el servidor usa para no
@@ -29,7 +30,8 @@ export type EstadoElemento = "pendiente" | "error" | "aviso";
 export interface ElementoCola {
   /** La clave local (uuid): también va en el cuerpo como claveLocal. */
   id: string;
-  tipo: "venta";
+  /** venta (fase 3); abono, cobro de saldo y entrega de una orden (fase 3b). */
+  tipo: "venta" | "abono" | "cobro_orden" | "entrega";
   creadoEn: string;
   empresaId: string;
   sedeId: string;
