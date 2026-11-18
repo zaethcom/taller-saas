@@ -8,7 +8,18 @@
  *   valorServicio?: number,
  *   abono?: {monto, metodoPagoId, montoRecibido?},
  *   repuestos?: {repuestoId?, descripcion, cantidad}[],
+ *   claveLocal?: uuid, numero?: number, hechaEn?: string,
  * }
+ *
+ * claveLocal/numero/hechaEn: recepción hecha sin internet que se sube
+ * después (plan sin internet, fase 4; migración 0071). claveLocal es el
+ * id de la orden (si ya llegó, se devuelve la misma sin crear nada),
+ * numero el que el equipo tomó de su bloque apartado y hechaEn cuándo se
+ * recibió de verdad. Al subirla no se imprime el comprobante (el cliente
+ * ya se fue) ni se abre el cajón por el abono; la etiqueta del equipo sí
+ * se imprime. Si algo no cuadra (el número ya no sirve, el abono no
+ * entra porque no hay turno), la orden se crea igual y se responde con
+ * `avisos`.
  *
  * `valorServicio` queda como un orden_item tipo servicio con el motivo
  * como descripción (el servicio que se va a realizar), así entra a
@@ -41,6 +52,7 @@ import { registrarAbono, validarAbono, type AbonoValidado, type DatosAbono } fro
 import { clasificarRepuestos, normalizarRepuestos, notaRepuestosRecepcion } from "@/lib/repuestos-recepcion";
 import { reservadoEnSede } from "@/lib/reservas-servidor";
 import { disponible } from "@/lib/reservas";
+import { claveLocalValida, esSubidaSinConexion, horaSinConexion } from "@/lib/sin-conexion/clave-local";
 
 interface ClienteNuevo {
   nombre: string;
@@ -75,6 +87,9 @@ interface CuerpoOrden {
   valorServicio?: number;
   abono?: DatosAbono;
   repuestos?: unknown;
+  claveLocal?: string;
+  numero?: number;
+  hechaEn?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -109,6 +124,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "elige la sede en la que estás trabajando" }, { status: 400 });
   }
 
+  // Sin internet el equipo le pone a la orden su propio id (claveLocal):
+  // si el envío se repite, se devuelve la orden que ya llegó.
+  const idLocal = claveLocalValida(body.claveLocal) ? body.claveLocal : null;
+  const subida = esSubidaSinConexion(body);
+  if (idLocal) {
+    const { data: previa } = await supabase
+      .from("orden")
+      .select("id, numero, token_publico")
+      .eq("id", idLocal)
+      .maybeSingle();
+    if (previa) {
+      return NextResponse.json({
+        ok: true,
+        ordenId: previa.id,
+        numero: previa.numero,
+        tokenPublico: previa.token_publico,
+        repetida: true,
+      });
+    }
+  }
+  const avisos: string[] = [];
+  const numeroPedido = Number.isInteger(body.numero) && Number(body.numero) > 0 ? Number(body.numero) : null;
+
   const valorServicio = Math.max(0, Math.round(Number(body.valorServicio) || 0));
   // El abono se valida antes de crear cliente, equipo u orden: sin turno
   // abierto o con un monto mayor al valor, no se crea nada a medias.
@@ -118,10 +156,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "para recibir un abono, pon el valor del servicio" }, { status: 400 });
     }
     const validacion = await validarAbono(supabase, sedeActivaId, body.abono, valorServicio);
-    if (!validacion.ok) {
+    if (validacion.ok) {
+      abono = validacion.abono;
+    } else if (subida) {
+      // El equipo ya está en el taller: la orden se crea igual.
+      avisos.push(`El abono de la recepción no se registró: ${validacion.error}. Regístralo desde Cobrar y entregar.`);
+    } else {
       return NextResponse.json({ error: validacion.error }, { status: validacion.status });
     }
-    abono = validacion.abono;
   }
 
   let clienteId = body.clienteId;
@@ -156,6 +198,17 @@ export async function POST(req: NextRequest) {
       serial = generarSerialEquipo();
       ({ data: producto, error: errProducto } = await insertarProducto(serial));
     }
+    // Sin internet no se pudo buscar el serial: si el equipo ya estaba
+    // registrado, se usa ese.
+    if (subida && serialEscrito && errProducto?.code === "23505") {
+      const { data: existente } = await supabase
+        .from("producto")
+        .select("id")
+        .eq("empresa_id", perfil.empresa_id)
+        .eq("serial", serialEscrito)
+        .maybeSingle();
+      if (existente) ({ data: producto, error: errProducto } = { data: existente, error: null });
+    }
     if (!serialEscrito && producto) serialGenerado = serial;
     if (errProducto || !producto) {
       // El error más probable: el serial ya existe en esta empresa
@@ -170,19 +223,53 @@ export async function POST(req: NextRequest) {
     productoId = producto.id;
   }
 
-  const { data: orden, error: errOrden } = await supabase
+  const filaOrden = {
+    empresa_id: perfil.empresa_id,
+    sede_id: sedeActivaId,
+    producto_id: productoId,
+    motivo: body.motivo.trim(),
+    info_adicional: body.infoAdicional?.trim() || null,
+    telefono_alterno: body.telefonoAlterno?.trim() || null,
+    estado: ESTADO_INICIAL,
+    ...(idLocal && { id: idLocal }),
+    ...(subida && numeroPedido && { numero: numeroPedido }),
+    ...(subida && horaSinConexion(body.hechaEn) && { abierta_en: horaSinConexion(body.hechaEn) }),
+  };
+  let { data: orden, error: errOrden } = await supabase
     .from("orden")
-    .insert({
-      empresa_id: perfil.empresa_id,
-      sede_id: sedeActivaId,
-      producto_id: productoId,
-      motivo: body.motivo.trim(),
-      info_adicional: body.infoAdicional?.trim() || null,
-      telefono_alterno: body.telefonoAlterno?.trim() || null,
-      estado: ESTADO_INICIAL,
-    })
+    .insert(filaOrden)
     .select("id, numero, token_publico")
     .single();
+  if (errOrden?.code === "23505") {
+    // ¿Llegó la misma orden por otro envío al mismo tiempo?
+    const { data: previa } = idLocal
+      ? await supabase.from("orden").select("id, numero, token_publico").eq("id", idLocal).maybeSingle()
+      : { data: null };
+    if (previa) {
+      return NextResponse.json({
+        ok: true,
+        ordenId: previa.id,
+        numero: previa.numero,
+        tokenPublico: previa.token_publico,
+        repetida: true,
+      });
+    }
+    if ("numero" in filaOrden) {
+      // El número ya lo tiene otra orden: se crea con el siguiente libre.
+      const { numero: _n, ...sinNumero } = filaOrden;
+      void _n;
+      ({ data: orden, error: errOrden } = await supabase
+        .from("orden")
+        .insert(sinNumero)
+        .select("id, numero, token_publico")
+        .single());
+    }
+  }
+  if (orden && subida && numeroPedido && orden.numero !== numeroPedido) {
+    avisos.push(
+      `La orden se recibió sin conexión como #${numeroPedido}, pero quedó registrada como #${orden.numero}: corrige el número escrito en el equipo.`,
+    );
+  }
 
   if (errOrden || !orden) {
     return NextResponse.json({ error: errOrden?.message ?? "no se pudo crear la orden" }, { status: 500 });
@@ -272,8 +359,12 @@ export async function POST(req: NextRequest) {
       pagadoAntes: 0,
       cajero: perfil.nombre,
       imprimir: false,
+      claveLocal: idLocal,
+      hechaEn: body.hechaEn,
+      subidaSinConexion: subida,
     });
     abonoRegistrado = r.ok;
+    if (!r.ok && subida) avisos.push(`El abono de la recepción no se registró: ${r.error}.`);
   }
 
   if (body.acceso?.valor?.trim()) {
@@ -318,28 +409,32 @@ export async function POST(req: NextRequest) {
     | { nombre: string; telefono: string | null; correo: string | null }
     | undefined;
 
-  await encolarImpresion(supabase, {
-    empresaId: perfil.empresa_id,
-    sedeId: sedeActivaId,
-    tipo: "comprobante_recepcion",
-    creadoPor: user.id,
-    carga: {
-      numeroOrden: orden.numero,
-      codigoEntrada,
-      clienteNombre: cliente?.nombre ?? "",
-      clienteTelefono: cliente?.telefono ?? null,
-      producto: nombreProducto,
-      serial: producto?.serial ?? "",
-      motivo: body.motivo.trim(),
-      // Hora de Colombia: el servidor está en UTC y de noche ponía el día siguiente.
-      fecha: fechaHoraRecibo(new Date()),
-      recibidoPor: perfil.nombre,
-      urlSeguimiento,
-      valorServicio: valorServicio || null,
-      abono: abono && abonoRegistrado ? { monto: abono.monto, medio: abono.metodo.nombre } : null,
-      saldo: valorServicio ? valorServicio - (abono && abonoRegistrado ? abono.monto : 0) : null,
-    },
-  });
+  // Subida de una recepción sin internet: el cliente ya se fue con su
+  // comprobante (o sin él); solo se imprime la etiqueta del equipo.
+  if (!subida) {
+    await encolarImpresion(supabase, {
+      empresaId: perfil.empresa_id,
+      sedeId: sedeActivaId,
+      tipo: "comprobante_recepcion",
+      creadoPor: user.id,
+      carga: {
+        numeroOrden: orden.numero,
+        codigoEntrada,
+        clienteNombre: cliente?.nombre ?? "",
+        clienteTelefono: cliente?.telefono ?? null,
+        producto: nombreProducto,
+        serial: producto?.serial ?? "",
+        motivo: body.motivo.trim(),
+        // Hora de Colombia: el servidor está en UTC y de noche ponía el día siguiente.
+        fecha: fechaHoraRecibo(new Date()),
+        recibidoPor: perfil.nombre,
+        urlSeguimiento,
+        valorServicio: valorServicio || null,
+        abono: abono && abonoRegistrado ? { monto: abono.monto, medio: abono.metodo.nombre } : null,
+        saldo: valorServicio ? valorServicio - (abono && abonoRegistrado ? abono.monto : 0) : null,
+      },
+    });
+  }
 
   await encolarImpresion(supabase, {
     empresaId: perfil.empresa_id,
@@ -387,5 +482,6 @@ export async function POST(req: NextRequest) {
     abonoFallido: Boolean(abono && !abonoRegistrado),
     faltantesCompras,
     faltantesFallidos,
+    ...(avisos.length && { avisos }),
   });
 }

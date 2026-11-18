@@ -105,4 +105,6 @@ export interface CopiaLocal {
   metodosPago: { id: string; nombre: string; es_efectivo: boolean; activo?: boolean; orden?: number }[];
   /** La última respuesta de /api/turno/actual. */
   turno: Record<string, unknown> | null;
+  /** La última respuesta de /api/configuracion (tipo de negocio para Recibir, fase 4). */
+  configuracion?: Record<string, unknown> | null;
 }
