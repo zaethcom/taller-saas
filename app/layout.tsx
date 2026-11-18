@@ -5,6 +5,7 @@ import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { obtenerConfiguracion, CONFIG_POR_DEFECTO } from "@/lib/configuracion";
 import { RegistroServiceWorker } from "@/componentes/registro-service-worker";
+import { AvisoConexion } from "@/componentes/ui/aviso-conexion";
 import { cookies } from "next/headers";
 import { COOKIE_CODIGO_EMPRESA, parametrosEmpresa } from "@/lib/icono-app";
 
@@ -89,6 +90,7 @@ export default async function RootLayout({
       <body>
         <RegistroServiceWorker />
         {children}
+        <AvisoConexion />
       </body>
     </html>
   );

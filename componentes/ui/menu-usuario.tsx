@@ -10,9 +10,10 @@
  */
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { LogOut, MapPin, ChevronDown } from "lucide-react";
+import { LogOut, MapPin, ChevronDown, Download } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { clienteNavegador } from "@/lib/supabase/cliente";
+import { instalarApp, sePuedeInstalar, suscribirInstalar } from "@/lib/sin-conexion/instalar";
 
 export function MenuUsuario({
   nombre,
@@ -28,6 +29,13 @@ export function MenuUsuario({
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
   const caja = useRef<HTMLDivElement>(null);
+  // «Instalar app» solo aparece cuando el navegador dice que se puede
+  // (Chrome/Edge en PC y Android, y la app aún no está instalada).
+  const [instalable, setInstalable] = useState(false);
+  useEffect(() => {
+    setInstalable(sePuedeInstalar());
+    return suscribirInstalar(setInstalable);
+  }, []);
 
   // Un toque afuera o Escape lo cierran, como cualquier menú.
   useEffect(() => {
@@ -152,6 +160,25 @@ export function MenuUsuario({
                 {sedeNombre}
               </div>
             ))}
+          {instalable && (
+            <button
+              type="button"
+              role="menuitem"
+              style={opcion}
+              onClick={() => {
+                setAbierto(false);
+                void instalarApp();
+              }}
+            >
+              <Download size={16} strokeWidth={2} aria-hidden />
+              <span style={{ minWidth: 0 }}>
+                Instalar app
+                <span style={{ display: "block", fontSize: 12, fontWeight: 500, color: "var(--ink-3)" }}>
+                  Queda como un programa en este equipo
+                </span>
+              </span>
+            </button>
+          )}
           <button type="button" role="menuitem" style={opcion} onClick={salir}>
             <LogOut size={16} strokeWidth={2} aria-hidden />
             Cerrar sesión
