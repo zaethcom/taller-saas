@@ -6,6 +6,7 @@ import com.zaethcom.puente.core.Servidores
 import com.zaethcom.puente.net.AlmacenVinculoPrefs
 import com.zaethcom.puente.net.ClienteWeb
 import com.zaethcom.puente.net.HttpUrlConnection
+import com.zaethcom.puente.net.RedLocal
 import com.zaethcom.puente.net.fabricaTls
 
 /**
@@ -20,6 +21,9 @@ class PuenteApp : Application() {
         private set
     lateinit var web: ClienteWeb
         private set
+    /** La IP del equipo en la red del local, siempre al día. */
+    lateinit var red: RedLocal
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -28,5 +32,6 @@ class PuenteApp : Application() {
         val tls = fabricaTls(listOf(R.raw.isrg_root_x1, R.raw.isrg_root_x2).map { resources.openRawResource(it) })
         web = ClienteWeb(puente, AlmacenVinculoPrefs(this), HttpUrlConnection(tls))
         servidores = Servidores(puente, web)
+        red = RedLocal(this).also { it.vigilar() }
     }
 }
