@@ -41,7 +41,8 @@ class RedLocal(context: Context) {
 
     /** Empieza a seguir los cambios de red. Se llama una vez, al crear la app. */
     fun vigilar() {
-        if (vigilando || cm == null) return
+        val cm = cm ?: return
+        if (vigilando) return
         vigilando = true
         val pedido = NetworkRequest.Builder()
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
