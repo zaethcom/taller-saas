@@ -18,6 +18,14 @@
  * esperando aprobación, desde aquí se deja autorizada la cotización.
  *
  * /abonos redirige aquí con ?modo=abonar.
+ *
+ * Sin internet (plan sin internet, fase 3b): la orden se busca en la
+ * copia local (solo las abiertas de la sede, lib/sin-conexion/
+ * orden-local.ts), y el abono, el cobro del saldo y la entrega quedan en
+ * la cola del equipo con su clave local, para subirse solos y en orden
+ * cuando vuelva la conexión (lib/sin-conexion/cola.ts). La foto de
+ * salida no se guarda sin conexión, y autorizar la cotización necesita
+ * internet.
  */
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -36,6 +44,17 @@ import { Campo, Aviso } from "@/componentes/ui/campo";
 import { EstadoOrden } from "@/componentes/ui/estado-orden";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { VentanaError } from "@/componentes/ui/ventana-error";
+import { leerApi } from "@/lib/sin-conexion/leer-api";
+import { agregarACola, nuevaClaveLocal, type ElementoCola } from "@/lib/sin-conexion/cola";
+import { guardarCopia, leerCopia } from "@/lib/sin-conexion/copia-local";
+import { esFalloDeRed, ESPERA_VENTA_MS } from "@/lib/sin-conexion/venta-local";
+import {
+  aplicarAbonoEnCopia,
+  aplicarEntregaEnCopia,
+  descripcionAbono,
+  descripcionCobroOrden,
+  descripcionEntrega,
+} from "@/lib/sin-conexion/orden-local";
 
 interface ItemOrden {
   descripcion: string;
@@ -80,6 +99,42 @@ function modoInicial(estado: string): Modo {
   return estado === "listo_entrega" ? "entregar" : "abonar";
 }
 
+/** POST con tiempo máximo: si el servidor no responde, se trata como sin conexión. */
+async function enviar(url: string, cuerpo: unknown): Promise<Response> {
+  const control = new AbortController();
+  const reloj = setTimeout(() => control.abort(), ESPERA_VENTA_MS);
+  try {
+    return await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cuerpo),
+      signal: control.signal,
+    });
+  } finally {
+    clearTimeout(reloj);
+  }
+}
+
+/**
+ * Guarda en la cola del equipo algo hecho sin conexión. Empresa, sede y
+ * usuario salen de la copia local; sin copia no se puede guardar.
+ */
+async function encolar(
+  e: Pick<ElementoCola, "id" | "tipo" | "descripcion" | "url" | "cuerpo"> & { creadoEn?: string },
+): Promise<boolean> {
+  const copia = await leerCopia();
+  if (!copia) return false;
+  return agregarACola({
+    ...e,
+    creadoEn: e.creadoEn ?? new Date().toISOString(),
+    empresaId: copia.empresaId,
+    sedeId: copia.sedeId,
+    usuarioId: copia.usuarioId,
+  });
+}
+
+const SIN_COPIA = "No hay conexión y este equipo no tiene la copia de datos para guardarlo. Inténtalo cuando vuelva internet.";
+
 export default function PaginaCobrarEntregar() {
   const router = useRouter();
   const fotoInputRef = useRef<HTMLInputElement>(null);
@@ -87,6 +142,9 @@ export default function PaginaCobrarEntregar() {
   // para que reintentar no cobre, imprima ni suba evidencia dos veces.
   const cobradaRef = useRef(false);
   const evidenciaSubidaRef = useRef(false);
+  // Claves locales de esta entrega (cobro y cierre): las mismas en cada
+  // reintento, para que el servidor no los haga dos veces.
+  const clavesEntregaRef = useRef<{ cobro: string; entrega: string } | null>(null);
   // ?modo=abonar (lo que llega desde /abonos) manda sobre el modo inicial.
   const modoPedido = useRef<Modo | null>(null);
 
@@ -108,13 +166,16 @@ export default function PaginaCobrarEntregar() {
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
+  // La entrega quedó guardada en el equipo (sin conexión); fotoSinGuardar:
+  // se había tomado foto de salida y no se pudo subir.
+  const [entregaSinConexion, setEntregaSinConexion] = useState<{ fotoSinGuardar: boolean } | null>(null);
   const [perfil, setPerfil] = useState<{ empresaId: string } | null>(null);
   const turnoAbierto = useTurnoAbierto();
   const metodo = metodos.find((m) => m.id === metodoPagoId);
   const cambio = montoRecibido - (orden?.saldoPendiente ?? 0);
 
   useEffect(() => {
-    fetch("/api/metodos-pago")
+    leerApi("/api/metodos-pago")
       .then((r) => r.json())
       .then((data) => {
         if (!Array.isArray(data)) return;
@@ -130,14 +191,15 @@ export default function PaginaCobrarEntregar() {
     setOrden(null);
     cobradaRef.current = false;
     evidenciaSubidaRef.current = false;
+    clavesEntregaRef.current = null;
     const parametro = query?.token
       ? `token=${encodeURIComponent(query.token)}`
       : `numero=${encodeURIComponent((query?.numero ?? numero).trim())}`;
     setBuscando(true);
     try {
       const [resOrden, resPerfil] = await Promise.all([
-        fetch(`/api/ordenes/buscar?${parametro}`),
-        fetch("/api/perfil"),
+        leerApi(`/api/ordenes/buscar?${parametro}`),
+        leerApi("/api/perfil"),
       ]);
       if (!resOrden.ok) throw new Error((await resOrden.json()).error);
       const encontrada = (await resOrden.json()) as OrdenEncontrada;
@@ -152,7 +214,13 @@ export default function PaginaCobrarEntregar() {
         setPerfil({ empresaId: p.empresaId });
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo buscar la orden");
+      setError(
+        esFalloDeRed(e)
+          ? "Sin conexión y sin copia de datos en este equipo: no se puede buscar la orden."
+          : e instanceof Error
+            ? e.message
+            : "No se pudo buscar la orden",
+      );
       setIntentoCamara((n) => n + 1);
     } finally {
       setBuscando(false);
@@ -161,8 +229,8 @@ export default function PaginaCobrarEntregar() {
 
   async function recargar() {
     if (!orden) return;
-    const res = await fetch(`/api/ordenes/buscar?numero=${orden.numero}`);
-    if (res.ok) {
+    const res = await leerApi(`/api/ordenes/buscar?numero=${orden.numero}`).catch(() => null);
+    if (res?.ok) {
       const data = (await res.json()) as OrdenEncontrada;
       if (data.id === orden.id) setOrden(data);
     }
@@ -198,17 +266,24 @@ export default function PaginaCobrarEntregar() {
     setProcesando(true);
     setError(null);
     setAviso(null);
+    const url = `/api/ordenes/${orden.id}/abonos`;
+    // La clave local va siempre: un abono que se envía dos veces no queda doble.
+    const cuerpo = {
+      monto,
+      metodoPagoId,
+      montoRecibido: metodo?.es_efectivo ? montoRecibido : undefined,
+      imprimir,
+      claveLocal: nuevaClaveLocal(),
+    };
     try {
-      const res = await fetch(`/api/ordenes/${orden.id}/abonos`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          monto,
-          metodoPagoId,
-          montoRecibido: metodo?.es_efectivo ? montoRecibido : undefined,
-          imprimir,
-        }),
-      });
+      let res: Response;
+      try {
+        res = await enviar(url, cuerpo);
+      } catch (e) {
+        if (!esFalloDeRed(e)) throw e;
+        await abonarSinConexion(url, cuerpo);
+        return;
+      }
       if (!res.ok) throw new Error((await res.json()).error);
       const data = (await res.json()) as { saldo: number };
       setAviso(`Abono de ${fmt(monto)} registrado. Saldo: ${fmt(data.saldo)}.`);
@@ -220,6 +295,40 @@ export default function PaginaCobrarEntregar() {
     } finally {
       setProcesando(false);
     }
+  }
+
+  /** Sin internet el abono queda en la cola y la copia ya muestra el saldo nuevo. */
+  async function abonarSinConexion(url: string, cuerpo: { monto: number; claveLocal: string } & Record<string, unknown>) {
+    if (!orden) return;
+    const hechaEn = new Date().toISOString();
+    const guardado = await encolar({
+      id: cuerpo.claveLocal,
+      tipo: "abono",
+      descripcion: descripcionAbono(orden.numero, cuerpo.monto),
+      url,
+      // El recibo no se imprime al subirlo: el cliente ya se fue (la
+      // impresión local llega en la fase 5).
+      cuerpo: { ...cuerpo, imprimir: false, hechaEn },
+    });
+    if (!guardado) throw new Error(SIN_COPIA);
+    const copia = await leerCopia();
+    if (copia) await guardarCopia(aplicarAbonoEnCopia(copia, orden.id, { monto: cuerpo.monto, medio: metodo?.nombre ?? null, fecha: hechaEn }));
+    setAviso(
+      `Abono de ${fmt(cuerpo.monto)} guardado sin conexión: se sube solo cuando vuelva internet. Saldo: ${fmt(Math.max(0, orden.saldoPendiente - cuerpo.monto))}.`,
+    );
+    setMonto(0);
+    setMontoRecibido(0);
+    // La orden en pantalla queda con el saldo nuevo aunque no esté en la copia.
+    setOrden((prev) =>
+      prev
+        ? {
+            ...prev,
+            pagado: prev.pagado + cuerpo.monto,
+            saldoPendiente: Math.max(0, prev.saldoPendiente - cuerpo.monto),
+            pagos: [...prev.pagos, { numero: 0, tipo: "anticipo", monto: cuerpo.monto, medio: metodo?.nombre ?? null, fecha: hechaEn }],
+          }
+        : prev,
+    );
   }
 
   async function autorizar() {
@@ -242,7 +351,13 @@ export default function PaginaCobrarEntregar() {
       );
       await recargar();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo autorizar el servicio");
+      setError(
+        esFalloDeRed(e)
+          ? "Sin conexión: autorizar el servicio necesita internet."
+          : e instanceof Error
+            ? e.message
+            : "No se pudo autorizar el servicio",
+      );
     } finally {
       setProcesando(false);
     }
@@ -262,6 +377,12 @@ export default function PaginaCobrarEntregar() {
     setProcesando(true);
     setError(null);
     const cobraAhora = orden.saldoPendiente > 0;
+    const claves = (clavesEntregaRef.current ??= { cobro: nuevaClaveLocal(), entrega: nuevaClaveLocal() });
+    // Se vuelve true en cuanto un paso no llega al servidor por red: desde
+    // ahí todo lo que falta se guarda en la cola del equipo, en orden.
+    let sinConexion = false;
+    let fotoSinGuardar = false;
+    const momento = Date.now();
     try {
       // 1. Cobrar el saldo pendiente, si lo hay -- un venta_item por
       // cada orden_item real (Fase 7 del Plan 1), no un único cargo
@@ -269,7 +390,7 @@ export default function PaginaCobrarEntregar() {
       // lo que se usó. /api/ventas no vuelve a descontar inventario
       // para estos items porque manda ordenId -- ya se descontó al
       // consumirlos durante la reparación.
-      if (cobraAhora) {
+      if (cobraAhora && !cobradaRef.current) {
         // Se cobra ítem por ítem solo si los ítems suman justo el saldo.
         // Con abonos antes (o una cotización mayor que lo registrado), se
         // cobra una sola línea por el saldo: /api/ventas no deja cobrar
@@ -284,47 +405,90 @@ export default function PaginaCobrarEntregar() {
                 repuestoId: it.repuestoId ?? undefined,
               }))
             : [{ descripcion: `Saldo orden #${orden.numero}`, cantidad: 1, precioUnit: orden.saldoPendiente }];
-        const resVenta = await fetch("/api/ventas", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ordenId: orden.id,
-            metodoPagoId,
-            montoRecibido: metodo?.es_efectivo ? montoRecibido : undefined,
-            imprimir,
-            items: itemsCobro,
-          }),
-        });
-        if (!resVenta.ok) throw new Error((await resVenta.json()).error);
-        // Ya quedó cobrada: si algo de abajo falla y se reintenta, no se
-        // vuelve a cobrar.
+        const cuerpoCobro = {
+          ordenId: orden.id,
+          metodoPagoId,
+          montoRecibido: metodo?.es_efectivo ? montoRecibido : undefined,
+          imprimir,
+          items: itemsCobro,
+          claveLocal: claves.cobro,
+        };
+        try {
+          const resVenta = await enviar("/api/ventas", cuerpoCobro);
+          if (!resVenta.ok) throw new Error((await resVenta.json()).error);
+        } catch (e) {
+          if (!esFalloDeRed(e)) throw e;
+          sinConexion = true;
+          const guardado = await encolar({
+            id: claves.cobro,
+            tipo: "cobro_orden",
+            creadoEn: new Date(momento).toISOString(),
+            descripcion: descripcionCobroOrden(orden.numero, orden.saldoPendiente),
+            url: "/api/ventas",
+            cuerpo: { ...cuerpoCobro, imprimir: false, hechaEn: new Date(momento).toISOString() },
+          });
+          if (!guardado) throw new Error(SIN_COPIA);
+        }
+        // Ya quedó cobrada (o guardada para cobrarse): si algo de abajo
+        // falla y se reintenta, no se vuelve a cobrar.
         cobradaRef.current = true;
         setOrden((prev) => (prev ? { ...prev, saldoPendiente: 0 } : prev));
       }
 
-      // 2. Subir la foto de salida, si se tomó (es opcional).
+      // 2. Subir la foto de salida, si se tomó (es opcional). Sin
+      // conexión no se guarda: la entrega no se detiene por eso.
       if (foto && !evidenciaSubidaRef.current) {
-        await subirEvidencia({
-          empresaId: perfil.empresaId,
-          ordenId: orden.id,
-          archivo: foto,
-          extension: foto.name.split(".").pop() ?? "jpg",
-          tipo: "foto",
-          fase: "salida",
-          visibleCliente: true,
-        });
-        evidenciaSubidaRef.current = true;
+        if (sinConexion) {
+          fotoSinGuardar = true;
+        } else {
+          try {
+            await subirEvidencia({
+              empresaId: perfil.empresaId,
+              ordenId: orden.id,
+              archivo: foto,
+              extension: foto.name.split(".").pop() ?? "jpg",
+              tipo: "foto",
+              fase: "salida",
+              visibleCliente: true,
+            });
+            evidenciaSubidaRef.current = true;
+          } catch (e) {
+            if (!esFalloDeRed(e)) throw e;
+            sinConexion = true;
+            fotoSinGuardar = true;
+          }
+        }
       }
 
       // 3. Cerrar la orden. El servidor exige saldo_en_cero.
-      const resTransicion = await fetch(`/api/ordenes/${orden.id}/transicion`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // Si no se cobró nada ahora (ya estaba pagada), el servidor
-        // reimprime el recibo de lo pagado para entregárselo al cliente.
-        body: JSON.stringify({ aEstado: "entregada", imprimirComprobante: !cobradaRef.current }),
-      });
-      if (!resTransicion.ok) throw new Error((await resTransicion.json()).error);
+      // Si no se cobró nada ahora (ya estaba pagada), el servidor
+      // reimprime el recibo de lo pagado para entregárselo al cliente.
+      const cuerpoEntrega = { aEstado: "entregada", imprimirComprobante: !cobradaRef.current, claveLocal: claves.entrega };
+      const urlEntrega = `/api/ordenes/${orden.id}/transicion`;
+      if (!sinConexion) {
+        try {
+          const resTransicion = await enviar(urlEntrega, cuerpoEntrega);
+          if (!resTransicion.ok) throw new Error((await resTransicion.json()).error);
+        } catch (e) {
+          if (!esFalloDeRed(e)) throw e;
+          sinConexion = true;
+        }
+      }
+      if (sinConexion) {
+        const guardado = await encolar({
+          id: claves.entrega,
+          tipo: "entrega",
+          // Justo después del cobro: la cola sube en orden de creación.
+          creadoEn: new Date(momento + 1).toISOString(),
+          descripcion: descripcionEntrega(orden.numero),
+          url: urlEntrega,
+          cuerpo: { ...cuerpoEntrega, imprimirComprobante: false },
+        });
+        if (!guardado) throw new Error(SIN_COPIA);
+        const copia = await leerCopia();
+        if (copia) await guardarCopia(aplicarEntregaEnCopia(copia, orden.id));
+        setEntregaSinConexion({ fotoSinGuardar });
+      }
 
       setListo(true);
     } catch (e) {
@@ -355,10 +519,18 @@ export default function PaginaCobrarEntregar() {
         <h1>
           Orden <span className="cifra">#{orden!.numero}</span> entregada
         </h1>
-        <p style={{ margin: "8px 0 20px", color: "var(--ink-2)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-          <Printer size={17} strokeWidth={2} aria-hidden />
-          El comprobante se está imprimiendo en la estación de esta sede.
-        </p>
+        {entregaSinConexion ? (
+          <p style={{ margin: "8px 0 20px", color: "var(--ink-2)" }}>
+            Guardada sin conexión: el cobro y la entrega se suben solos cuando vuelva internet (revísalos en{" "}
+            <Link href="/sincronizacion">Sincronización</Link>). Sin conexión no se imprime el comprobante
+            {entregaSinConexion.fotoSinGuardar ? " y la foto de salida no quedó guardada" : ""}.
+          </p>
+        ) : (
+          <p style={{ margin: "8px 0 20px", color: "var(--ink-2)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <Printer size={17} strokeWidth={2} aria-hidden />
+            El comprobante se está imprimiendo en la estación de esta sede.
+          </p>
+        )}
         <Boton variante="primario" onClick={() => router.push("/vender")}>
           Volver a caja
         </Boton>
@@ -499,15 +671,16 @@ export default function PaginaCobrarEntregar() {
                 {orden.items.length === 0 && orden.valor > 0 && (
                   <div style={{ fontSize: 13, color: "var(--ink-3)", padding: "3px 0" }}>Según la cotización enviada.</div>
                 )}
-                {orden.pagos.map((p) => (
+                {orden.pagos.map((p, i) => (
                   <div
-                    key={p.numero}
+                    key={`${p.numero}-${i}`}
                     className="fila"
                     style={{ justifyContent: "space-between", fontSize: 13, padding: "3px 0", color: "var(--ink-2)" }}
                   >
                     <span>
                       {p.tipo === "anticipo" ? "Abono" : "Pago"} · {new Date(p.fecha).toLocaleDateString("es-CO")}
                       {p.medio ? ` · ${p.medio}` : ""}
+                      {p.numero === 0 ? " · sin subir" : ""}
                     </span>
                     <span className="cifra">−{fmt(p.monto)}</span>
                   </div>

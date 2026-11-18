@@ -1,21 +1,27 @@
 /**
  * POST /api/ordenes/<id>/abonos
- * Body: { monto, metodoPagoId, montoRecibido?, imprimir? }
+ * Body: { monto, metodoPagoId, montoRecibido?, imprimir?, claveLocal?, hechaEn? }
  *
  * Un abono a una orden ya recibida -- el cliente vuelve, se busca la
  * orden por número y deja plata a cuenta (ver (pos)/abonos). Nunca pasa
  * del saldo de la orden (lib/cuenta-orden.ts). Imprime su recibo con el
  * valor de la orden, lo abonado antes y el saldo que queda.
+ *
+ * claveLocal/hechaEn: abono hecho sin internet que se sube después
+ * (plan sin internet, fase 3b). Si ya llegó uno con esa clave se
+ * devuelve el mismo, sin registrar ni imprimir otra vez.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerSedeActivaId } from "@/lib/perfil";
 import { obtenerCuentaOrden } from "@/lib/cuenta-orden";
 import { registrarAbono, validarAbono, type DatosAbono } from "@/lib/abono";
+import { claveLocalValida, esSubidaSinConexion } from "@/lib/sin-conexion/clave-local";
+import { ventaPorClave } from "@/lib/sin-conexion/venta-por-clave";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const body = (await req.json()) as DatosAbono & { imprimir?: boolean };
+  const body = (await req.json()) as DatosAbono & { imprimir?: boolean; claveLocal?: string; hechaEn?: string };
 
   const supabase = await clienteServidor();
   const {
@@ -33,6 +39,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const sedeActivaId = await obtenerSedeActivaId(supabase);
   if (!perfil || !sedeActivaId) {
     return NextResponse.json({ error: "elige la sede en la que estás trabajando" }, { status: 400 });
+  }
+
+  let claveLocal = claveLocalValida(body.claveLocal) ? body.claveLocal : null;
+  if (claveLocal) {
+    const previa = await ventaPorClave(supabase, perfil.empresa_id, claveLocal);
+    if (previa === "sin_columna") claveLocal = null;
+    else if (previa) return NextResponse.json({ ok: true, ventaId: previa.id, numero: previa.numero, repetida: true });
   }
 
   const { data: orden } = await supabase.from("orden").select("id, numero, estado").eq("id", id).maybeSingle();
@@ -70,10 +83,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     pagadoAntes: cuenta.pagado,
     cajero: perfil.nombre,
     imprimir: body.imprimir ?? true,
+    claveLocal,
+    hechaEn: body.hechaEn,
+    subidaSinConexion: esSubidaSinConexion(body),
   });
   if (!r.ok) {
     return NextResponse.json({ error: r.error }, { status: 500 });
   }
+
+  if (r.repetida) return NextResponse.json({ ok: true, ventaId: r.ventaId, numero: r.numero, repetida: true });
 
   return NextResponse.json({
     ok: true,

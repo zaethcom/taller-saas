@@ -33,3 +33,12 @@ export function horaSinConexion(valor: unknown, ahora = Date.now()): string | nu
 export function esColumnaFaltante(error: { code?: string } | null | undefined): boolean {
   return error?.code === "42703" || error?.code === "PGRST204";
 }
+
+/**
+ * Lo que llega es algo hecho sin internet que se está subiendo ahora (la
+ * cola manda siempre hechaEn; un envío normal no). Eso ya se cobró
+ * en el mostrador: al subirlo no se imprime recibo ni se abre el cajón.
+ */
+export function esSubidaSinConexion(body: { claveLocal?: unknown; hechaEn?: unknown }): boolean {
+  return claveLocalValida(body.claveLocal) && typeof body.hechaEn === "string";
+}
