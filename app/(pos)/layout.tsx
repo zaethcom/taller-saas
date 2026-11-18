@@ -10,6 +10,7 @@ import { redirect } from "next/navigation";
 import { ShoppingCart, Inbox, PackageCheck, Clock } from "lucide-react";
 import { CerrarSesion } from "@/componentes/ui/cerrar-sesion";
 import { BarraSuperior } from "@/componentes/ui/barra-superior";
+import { SincronizarCopia } from "@/componentes/sin-conexion/sincronizar-copia";
 import { BarraLateral, type ItemNavLateral } from "@/componentes/ui/barra-lateral";
 import { BloqueMarca } from "@/componentes/ui/bloque-marca";
 import { puedeEntrarA } from "@/lib/permisos";
@@ -49,6 +50,8 @@ export default async function LayoutPos({ children }: { children: React.ReactNod
 
   return (
     <div style={{ minHeight: "100vh", display: "flex" }}>
+      {/* Copia de datos de la sede para vender sin internet (lib/sin-conexion). */}
+      <SincronizarCopia empresaId={perfil.empresaId} sedeId={perfil.sedeId} usuarioId={perfil.id} />
       <BarraLateral
         items={items}
         logoUrl={config.logoUrl}
