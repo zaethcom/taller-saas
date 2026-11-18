@@ -27,6 +27,8 @@ import { PlantillasEtiqueta } from "@/componentes/etiquetas/plantillas-etiqueta"
 import { ImpresorasUsbEsteEquipo } from "@/componentes/estacion/impresoras-usb";
 import { DescargaPuente } from "@/componentes/estacion/descarga-puente";
 import { VentanaError } from "@/componentes/ui/ventana-error";
+import { TiposEquipo } from "@/componentes/taller/tipos-equipo";
+import type { TipoEquipo } from "@/lib/tipos-equipo";
 
 interface Config {
   logoUrl: string | null;
@@ -42,6 +44,7 @@ interface Config {
   fondoLoginUrl: string | null;
   codigo: string | null;
   tipoNegocio: "celular" | "computador" | "patineta" | "otro" | null;
+  tiposEquipo: TipoEquipo[];
 }
 
 const TEMAS: { valor: Config["tema"]; etiqueta: string }[] = [
@@ -388,6 +391,15 @@ export default function PaginaConfiguracion() {
                 </div>
                 <p className="campo-ayuda">El tipo de equipo que Recibir equipo propone por defecto.</p>
               </Tarjeta>
+
+              <TiposEquipo
+                tipos={config.tiposEquipo}
+                onGuardado={(tiposEquipo) => {
+                  setConfig({ ...config, tiposEquipo });
+                  setMensaje("Guardado.");
+                }}
+                onError={setError}
+              />
             </>
           )}
 
