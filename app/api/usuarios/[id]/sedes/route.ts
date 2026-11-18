@@ -12,7 +12,7 @@
  * como estaba haría que quitarla no tuviera efecto.
  */
 import { NextResponse } from "next/server";
-import { clienteServidor } from "@/lib/supabase/servidor";
+import { clienteAdmin, clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { puede } from "@/lib/permisos";
 
@@ -48,13 +48,21 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({ error: "alguna sede no existe" }, { status: 400 });
   }
 
-  const { error: errBorrar } = await supabase.from("perfil_sede").delete().eq("perfil_id", id);
+  // perfil y perfil_sede son de solo lectura para los usuarios (0069):
+  // usuario y sedes ya se validaron arriba contra la empresa de quien
+  // llama, y cada escritura vuelve a filtrar por esa empresa.
+  const admin = clienteAdmin();
+  const { error: errBorrar } = await admin
+    .from("perfil_sede")
+    .delete()
+    .eq("perfil_id", id)
+    .eq("empresa_id", perfil.empresaId);
   if (errBorrar) {
     return NextResponse.json({ error: errBorrar.message }, { status: 500 });
   }
 
   if (sedeIds.length) {
-    const { error: errInsertar } = await supabase
+    const { error: errInsertar } = await admin
       .from("perfil_sede")
       .insert(sedeIds.map((sedeId) => ({ perfil_id: id, sede_id: sedeId, empresa_id: perfil.empresaId })));
     if (errInsertar) {
@@ -63,10 +71,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
 
   if (!usuario.sede_id || !sedeIds.includes(usuario.sede_id)) {
-    const { error: errPrincipal } = await supabase
+    const { error: errPrincipal } = await admin
       .from("perfil")
       .update({ sede_id: sedeIds[0] ?? null })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("empresa_id", perfil.empresaId);
     if (errPrincipal) {
       return NextResponse.json({ error: errPrincipal.message }, { status: 500 });
     }

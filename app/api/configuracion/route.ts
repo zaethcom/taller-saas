@@ -11,7 +11,7 @@
  * operación de venta o de taller.
  */
 import { NextResponse } from "next/server";
-import { clienteServidor } from "@/lib/supabase/servidor";
+import { clienteAdmin, clienteServidor } from "@/lib/supabase/servidor";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { puede } from "@/lib/permisos";
@@ -82,7 +82,10 @@ export async function PATCH(req: Request) {
   }
 
   if (body.codigo !== undefined) {
-    const { error: errCodigo } = await supabase
+    // empresa es de solo lectura para los usuarios (0069): el cambio va
+    // con la llave de servicio, ya validado el permiso y solo sobre la
+    // empresa de quien llama.
+    const { error: errCodigo } = await clienteAdmin()
       .from("empresa")
       .update({ codigo: body.codigo })
       .eq("id", perfil.empresaId);
