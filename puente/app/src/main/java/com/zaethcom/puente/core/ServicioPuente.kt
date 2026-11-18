@@ -71,10 +71,9 @@ class ServicioPuente : Service() {
         val cfg = app.puente.config.value
         val detalle = "${ip ?: "sin red local"} · tickets ${cfg.de(Rol.TICKETS).puerto} · etiquetas ${cfg.de(Rol.ETIQUETAS).puerto}"
 
-        val abrir = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
-        )
+        // FLAG_IMMUTABLE existe desde Android 6 (API 23).
+        val inmutable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+        val abrir = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), inmutable)
 
         return NotificationCompat.Builder(this, CANAL)
             .setContentTitle("Puente de impresión activo")

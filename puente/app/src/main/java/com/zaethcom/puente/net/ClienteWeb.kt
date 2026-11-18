@@ -18,7 +18,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.Base64
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLSocketFactory
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 /**
  * El puente habla directo con la web, sin PC ni estación de Node en medio.
@@ -86,6 +89,14 @@ fun normalizarCodigo(texto: String): String? {
     return limpio.takeIf { it.length == 8 }
 }
 
+/**
+ * Base64 estándar a bytes. No usa java.util.Base64 porque no existe antes de
+ * Android 8 (API 26) y el terminal IDEMIA trae Android 5; android.util.Base64 no
+ * sirve en las pruebas de la JVM. La de Kotlin es puro código y vale en ambos.
+ */
+@OptIn(ExperimentalEncodingApi::class)
+fun decodificarBase64(texto: String): ByteArray = Base64.Default.decode(texto)
+
 /** Lee la respuesta de `pendientes?formato=bytes`. Pura, para poder probarla. */
 fun leerTrabajos(json: String): List<TrabajoWeb> {
     val arreglo = JSONArray(json)
@@ -96,7 +107,7 @@ fun leerTrabajos(json: String): List<TrabajoWeb> {
             "etiquetas" -> Rol.ETIQUETAS
             else -> null
         }
-        val datos = o.optString("bytes").takeIf { it.isNotEmpty() }?.let { Base64.getDecoder().decode(it) }
+        val datos = o.optString("bytes").takeIf { it.isNotEmpty() }?.let { decodificarBase64(it) }
         TrabajoWeb(
             id = o.getString("id"),
             tipo = o.optString("tipo"),
@@ -114,7 +125,7 @@ private fun mensajeDe(r: RespuestaHttp): String =
 class ClienteWeb(
     private val impresor: Impresor,
     private val almacen: AlmacenVinculo,
-    private val http: Http = HttpUrlConnection
+    private val http: Http = HttpUrlConnection()
 ) {
     private val _estado = MutableStateFlow(EstadoWeb(vinculo = almacen.cargar()))
     val estado: StateFlow<EstadoWeb> = _estado
@@ -218,10 +229,14 @@ class ClienteWeb(
     }
 }
 
-/** El [Http] real. HttpURLConnection alcanza: son tres llamadas JSON pequeñas. */
-object HttpUrlConnection : Http {
+/**
+ * El [Http] real. HttpURLConnection alcanza: son tres llamadas JSON pequeñas.
+ * [tls] es la fábrica de [fabricaTls]; null deja la del sistema.
+ */
+class HttpUrlConnection(private val tls: SSLSocketFactory? = null) : Http {
     override fun pedir(metodo: String, url: String, clave: String?, cuerpo: String?): RespuestaHttp {
         val c = URL(url).openConnection() as HttpURLConnection
+        if (tls != null && c is HttpsURLConnection) c.sslSocketFactory = tls
         try {
             c.requestMethod = metodo
             c.connectTimeout = 10_000

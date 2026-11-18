@@ -6,6 +6,7 @@ import android.net.LinkProperties
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.os.Build
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.net.Inet4Address
@@ -29,7 +30,9 @@ import java.net.NetworkInterface
  */
 class RedLocal(context: Context) {
 
-    private val cm = context.applicationContext.getSystemService(ConnectivityManager::class.java)
+    // getSystemService(Class) y activeNetwork son de API 23; el puente corre
+    // desde Android 5 (API 21, terminal IDEMIA MorphoTablet2).
+    private val cm = context.applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
 
     private val _ip = MutableStateFlow(leer())
     val ip: StateFlow<String?> = _ip
@@ -69,7 +72,7 @@ class RedLocal(context: Context) {
     @Suppress("DEPRECATION")
     private fun desdeConnectivity(): String? = runCatching {
         val cm = cm ?: return null
-        val activa = cm.activeNetwork
+        val activa = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) cm.activeNetwork else null
         cm.allNetworks
             .sortedByDescending { it == activa }
             .asSequence()

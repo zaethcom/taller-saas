@@ -16,7 +16,6 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
 import java.net.SocketTimeoutException
-import java.util.Base64
 
 /**
  * La misma función que [ServidorTcp] pero por HTTP, y aquí el rol SÍ viaja en el
@@ -151,7 +150,7 @@ class ServidorHttp(
                     ?: run { responder(salida, 400, "Rol desconocido: ${cuerpo.optString("rol")}"); return }
 
                 val payload = try {
-                    Base64.getDecoder().decode(cuerpo.getString("payload_base64"))
+                    decodificarBase64(cuerpo.getString("payload_base64"))
                 } catch (e: Exception) {
                     responder(salida, 400, "payload_base64 inválido: ${e.message}"); return
                 }
