@@ -60,8 +60,10 @@ export const config = {
   matcher: [
     /*
      * Corre en todo excepto archivos estáticos y de imagen -- ahí no
-     * hay sesión que refrescar y solo se sumaría latencia.
+     * hay sesión que refrescar y solo se sumaría latencia. Tampoco en
+     * /api/app/conexion: es la prueba de internet que la app hace cada
+     * minuto (lib/sin-conexion/conexion.ts) y no necesita sesión.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|api/app/conexion|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
