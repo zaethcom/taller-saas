@@ -36,7 +36,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const codigo = body.codigo?.trim() || null;
 
-  const { error } = await supabase.from("perfil").update({ codigo }).eq("id", id);
+  // perfil es de solo lectura para los usuarios (0069): se escribe con la
+  // llave de servicio, siempre limitado a la empresa de quien llama.
+  const { error } = await clienteAdmin()
+    .from("perfil")
+    .update({ codigo })
+    .eq("id", id)
+    .eq("empresa_id", perfil.empresaId);
 
   if (error) {
     const mensaje = error.code === "23505" ? "ese código ya está en uso" : error.message;
