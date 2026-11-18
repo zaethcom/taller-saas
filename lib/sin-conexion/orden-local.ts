@@ -60,7 +60,7 @@ function aBuscada(o: OrdenLocal): OrdenBuscada | null {
 export function buscarOrdenLocal(copia: CopiaLocal, q: { numero?: string | null; token?: string | null }): OrdenBuscada | null {
   let orden: OrdenLocal | undefined;
   if (q.token) {
-    orden = copia.ordenesAbiertas.find((o) => o.cuenta?.tokenPublico === q.token);
+    orden = copia.ordenesAbiertas.find((o) => o.cuenta?.tokenPublico && o.cuenta.tokenPublico === q.token);
   } else if (q.numero) {
     const texto = q.numero.trim();
     const numero = /^\d+$/.test(texto) ? Number(texto) : numeroDesdeCodigoEntrada(copia.prefijoEtiqueta, texto);
@@ -111,4 +111,60 @@ export function descripcionCobroOrden(numeroOrden: number, monto: number): strin
 
 export function descripcionEntrega(numeroOrden: number): string {
   return `Entrega orden #${numeroOrden}`;
+}
+
+/**
+ * La orden recibida sin conexión, agregada a la copia (fase 4): así se
+ * puede abonar o entregar por su número mientras sigue sin internet. El
+ * QR todavía no existe (el token lo pone el servidor al subirla).
+ */
+export function aplicarRecepcionEnCopia(
+  copia: CopiaLocal,
+  r: {
+    id: string;
+    numero: number;
+    abiertaEn: string;
+    motivo: string;
+    valorServicio: number;
+    abono: number;
+    medioAbono: string | null;
+    clienteId: string | null;
+    clienteNombre: string | null;
+    clienteTelefono: string | null;
+    serial: string | null;
+    tipo: string | null;
+    marca: string | null;
+    modelo: string | null;
+    telefonoAlterno: string | null;
+  },
+): CopiaLocal {
+  const orden: OrdenLocal = {
+    id: r.id,
+    numero: r.numero,
+    estado: "en_proceso",
+    abiertaEn: r.abiertaEn,
+    total: r.valorServicio,
+    telefonoAlterno: r.telefonoAlterno,
+    clienteId: r.clienteId,
+    serial: r.serial,
+    tipo: r.tipo,
+    marca: r.marca,
+    modelo: r.modelo,
+    cuenta: {
+      motivo: r.motivo,
+      tokenPublico: "",
+      clienteNombre: r.clienteNombre,
+      clienteTelefono: r.clienteTelefono,
+      valor: r.valorServicio,
+      pagado: r.abono,
+      saldo: Math.max(0, r.valorServicio - r.abono),
+      pagos: r.abono > 0 ? [{ numero: 0, tipo: "anticipo", monto: r.abono, medio: r.medioAbono, fecha: r.abiertaEn }] : [],
+      items: r.valorServicio > 0 ? [{ descripcion: r.motivo, cantidad: 1, precioUnit: r.valorServicio, repuestoId: null }] : [],
+    },
+  };
+  return { ...copia, ordenesAbiertas: [orden, ...copia.ordenesAbiertas.filter((o) => o.id !== r.id)] };
+}
+
+export function descripcionRecepcion(numeroOrden: number, cliente: string | null): string {
+  return `Recepción orden #${numeroOrden}${cliente ? ` · ${cliente}` : ""}`;
 }

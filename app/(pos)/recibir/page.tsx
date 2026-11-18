@@ -34,6 +34,12 @@ import { EnlaceOrden } from "@/componentes/taller/enlace-orden";
 import { UltimasRecepciones, reimprimirComprobante, rutaCorregir } from "@/componentes/recepcion/ultimas-recepciones";
 import type { MarcaConModelos } from "@/lib/modelos-equipo";
 import { pareceCelular, sePuedeBuscarCliente, type ClienteEncontrado } from "@/lib/busqueda-cliente";
+import { leerApi } from "@/lib/sin-conexion/leer-api";
+import { agregarACola, nuevaClaveLocal } from "@/lib/sin-conexion/cola";
+import { guardarCopia, leerCopia } from "@/lib/sin-conexion/copia-local";
+import { devolverNumero, tomarNumero } from "@/lib/sin-conexion/bloque-numeros";
+import { aplicarRecepcionEnCopia, descripcionRecepcion } from "@/lib/sin-conexion/orden-local";
+import { esFalloDeRed, ESPERA_VENTA_MS } from "@/lib/sin-conexion/venta-local";
 
 type TipoNegocio = "celular" | "computador" | "patineta" | "otro";
 
@@ -163,6 +169,11 @@ export default function PaginaRecibir() {
   const metodo = metodos.find((m) => m.id === metodoPagoId);
   const saldo = Math.max(0, valorServicio - abono);
   const [guardando, setGuardando] = useState(false);
+  // Id de la orden que se está recibiendo (plan sin internet, fase 4): el
+  // mismo en cada reintento, para que el servidor no la cree dos veces.
+  const claveRecepcion = useRef<string | null>(null);
+  // Sin conexión no se pudo buscar el serial: se registra como equipo nuevo.
+  const [serialSinBuscar, setSerialSinBuscar] = useState(false);
   const [resultado, setResultado] = useState<{
     ordenId: string;
     numero: number;
@@ -176,6 +187,8 @@ export default function PaginaRecibir() {
     abonoFallido: boolean;
     faltantesCompras: string[];
     faltantesFallidos: boolean;
+    /** Recibida sin conexión: quedó en la cola del equipo con un número del bloque apartado. */
+    sinConexion?: boolean;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [avisoReimpresion, setAvisoReimpresion] = useState<string | null>(null);
@@ -187,11 +200,11 @@ export default function PaginaRecibir() {
   // tipo_negocio en empresa_config) decide qué aparece preseleccionado
   // acá -- antes era siempre "patineta" sin importar el negocio.
   useEffect(() => {
-    fetch("/api/perfil")
+    leerApi("/api/perfil")
       .then((r) => r.json())
       .then((p: { empresaId?: string }) => setEmpresaId(p.empresaId ?? null))
       .catch(() => {});
-    fetch("/api/configuracion")
+    leerApi("/api/configuracion")
       .then((r) => r.json())
       .then((config: { tipoNegocio?: TipoNegocio | null }) => {
         if (config.tipoNegocio) {
@@ -200,7 +213,7 @@ export default function PaginaRecibir() {
         }
       })
       .catch(() => {});
-    fetch("/api/metodos-pago")
+    leerApi("/api/metodos-pago")
       .then((r) => r.json())
       .then((data) => {
         if (!Array.isArray(data)) return;
@@ -223,7 +236,7 @@ export default function PaginaRecibir() {
     const turno = ++busquedaCliente.current;
     setBuscandoCliente(true);
     try {
-      const res = await fetch(`/api/clientes?q=${encodeURIComponent(valor)}`);
+      const res = await leerApi(`/api/clientes?q=${encodeURIComponent(valor)}`);
       const data: { clientes?: ClienteEncontrado[] } = res.ok ? await res.json() : {};
       if (turno !== busquedaCliente.current) return;
       const clientes = data.clientes ?? [];
@@ -278,10 +291,19 @@ export default function PaginaRecibir() {
     const valor = (valorSerial ?? serial).trim();
     if (!valor) return;
     setBuscandoProducto(true);
-    const res = await fetch(`/api/productos?serial=${encodeURIComponent(valor)}`);
-    const data = await res.json();
-    setProducto(data);
-    setBuscandoProducto(false);
+    setSerialSinBuscar(false);
+    try {
+      const res = await fetch(`/api/productos?serial=${encodeURIComponent(valor)}`);
+      const data = await res.json();
+      setProducto(data);
+    } catch {
+      // Sin red: se registra como equipo nuevo; si ya existía, el
+      // servidor lo reconoce por el serial al subir la recepción.
+      setProducto(null);
+      setSerialSinBuscar(true);
+    } finally {
+      setBuscandoProducto(false);
+    }
   }
 
   async function guardar(enviarWhatsapp = false) {
@@ -334,11 +356,27 @@ export default function PaginaRecibir() {
         body.productoNuevo = { serial: serial.trim() || undefined, ...productoNuevo };
       }
 
-      const res = await fetch("/api/ordenes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      // El id de la orden lo pone el equipo: si el envío se repite o se
+      // sube después sin conexión, el servidor no la crea dos veces.
+      body.claveLocal = claveRecepcion.current ??= nuevaClaveLocal();
+
+      let res: Response;
+      const control = new AbortController();
+      const reloj = setTimeout(() => control.abort(), ESPERA_VENTA_MS);
+      try {
+        res = await fetch("/api/ordenes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: control.signal,
+        });
+      } catch (e) {
+        if (!esFalloDeRed(e)) throw e;
+        await recibirSinConexion(body as Record<string, unknown> & { claveLocal: string }, enviarWhatsapp);
+        return;
+      } finally {
+        clearTimeout(reloj);
+      }
       if (!res.ok) throw new Error((await res.json()).error);
 
       const data = await res.json();
@@ -368,7 +406,76 @@ export default function PaginaRecibir() {
     }
   }
 
+  /**
+   * Sin internet la recepción queda en la cola del equipo con el
+   * siguiente número del bloque apartado (lib/sin-conexion/
+   * bloque-numeros.ts): ese es el número definitivo de la orden, el que
+   * se le dice al cliente y se escribe en el equipo. Al volver internet
+   * se sube sola. La foto o video de ingreso no se guarda sin conexión.
+   */
+  async function recibirSinConexion(body: Record<string, unknown> & { claveLocal: string }, enviarWhatsapp: boolean) {
+    const copia = await leerCopia();
+    if (!copia) throw new Error("No hay conexión y este equipo no tiene la copia de datos para recibir sin internet.");
+    const numero = await tomarNumero(copia.empresaId);
+    if (!numero) {
+      throw new Error(
+        "No hay conexión y este equipo no tiene números de orden apartados para recibir sin internet. Se apartan solos la próxima vez que haya internet.",
+      );
+    }
+    const hechaEn = new Date().toISOString();
+    const nombreCliente = cliente?.nombre ?? (clienteNuevo.nombre.trim() || null);
+    const guardada = await agregarACola({
+      id: body.claveLocal,
+      tipo: "recepcion",
+      creadoEn: hechaEn,
+      empresaId: copia.empresaId,
+      sedeId: copia.sedeId,
+      usuarioId: copia.usuarioId,
+      descripcion: descripcionRecepcion(numero, nombreCliente),
+      url: "/api/ordenes",
+      cuerpo: { ...body, numero, hechaEn },
+    });
+    if (!guardada) {
+      await devolverNumero(copia.empresaId, numero);
+      throw new Error("No hay conexión y no se pudo guardar la recepción en este equipo.");
+    }
+    await guardarCopia(
+      aplicarRecepcionEnCopia(copia, {
+        id: body.claveLocal,
+        numero,
+        abiertaEn: hechaEn,
+        motivo: motivo.trim(),
+        valorServicio,
+        abono,
+        medioAbono: abono > 0 ? (metodo?.nombre ?? null) : null,
+        clienteId: cliente?.id ?? null,
+        clienteNombre: nombreCliente,
+        clienteTelefono: cliente?.telefono ?? (clienteNuevo.telefono.trim() || null),
+        serial: producto?.serial ?? (serial.trim() || null),
+        tipo: producto?.tipo ?? productoNuevo.tipo,
+        marca: producto?.marca ?? (productoNuevo.marca || null),
+        modelo: producto?.modelo ?? (productoNuevo.modelo || null),
+        telefonoAlterno: telefonoAlterno.trim() || null,
+      }),
+    );
+    setResultado({
+      ordenId: body.claveLocal,
+      numero,
+      tokenPublico: "",
+      enviarWhatsapp,
+      evidenciaFallida: evidencia.length,
+      valorServicio,
+      abono,
+      abonoFallido: false,
+      faltantesCompras: [],
+      faltantesFallidos: false,
+      sinConexion: true,
+    });
+  }
+
   function nuevaRecepcion() {
+    claveRecepcion.current = null;
+    setSerialSinBuscar(false);
     evidencia.forEach((a) => URL.revokeObjectURL(a.url));
     setEvidencia([]);
     setErrorEvidencia(null);
@@ -421,6 +528,62 @@ export default function PaginaRecibir() {
     const paso = faltantesVisibles?.[0]?.paso;
     setFaltantesVisibles(null);
     if (paso) document.getElementById(`paso-${paso}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  if (resultado?.sinConexion) {
+    return (
+      <Tarjeta style={{ textAlign: "center", padding: 36 }}>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 58,
+            height: 58,
+            borderRadius: "var(--r-lg)",
+            background: "var(--ok-fondo)",
+            color: "var(--ok)",
+            marginBottom: 14,
+          }}
+        >
+          <Check size={30} strokeWidth={2.4} />
+        </span>
+        <h1>
+          Orden <span className="cifra">#{resultado.numero}</span> recibida sin conexión
+        </h1>
+        <p style={{ margin: "8px 0 0", color: "var(--ink-2)" }}>
+          Escribe el número <strong className="cifra">#{resultado.numero}</strong> en el equipo y dáselo al cliente: es el
+          número definitivo de la orden.
+        </p>
+        <p style={{ margin: "8px 0 20px", color: "var(--ink-2)" }}>
+          Se sube sola cuando vuelva internet; ahí se imprime la etiqueta y se arma el enlace de seguimiento. Sin conexión no se
+          imprime el comprobante.
+        </p>
+        {resultado.valorServicio > 0 && (
+          <p className="cifra" style={{ margin: "0 0 16px", color: "var(--ink-2)" }}>
+            Valor {formatearMoneda(resultado.valorServicio)}
+            {resultado.abono > 0 ? ` · Abono ${formatearMoneda(resultado.abono)}` : ""} · Saldo{" "}
+            <strong>{formatearMoneda(resultado.valorServicio - resultado.abono)}</strong>
+          </p>
+        )}
+        {resultado.evidenciaFallida > 0 && (
+          <div style={{ marginBottom: 20, textAlign: "left" }}>
+            <Aviso tono="aviso">
+              Las fotos o videos de ingreso no se guardan sin conexión. Tómalos desde la evidencia de la orden cuando vuelva
+              internet.
+            </Aviso>
+          </div>
+        )}
+        <div className="fila" style={{ justifyContent: "center" }}>
+          <Boton variante="primario" icono={<Inbox size={18} strokeWidth={2} />} onClick={nuevaRecepcion}>
+            Recibir otro equipo
+          </Boton>
+          <Boton variante="contorno" onClick={() => router.push("/sincronizacion")}>
+            Ver lo pendiente por subir
+          </Boton>
+        </div>
+      </Tarjeta>
+    );
   }
 
   if (resultado) {
@@ -766,6 +929,11 @@ export default function PaginaRecibir() {
               title="Escanear"
             />
           </form>
+          {serialSinBuscar && !producto && (
+            <div style={{ marginTop: 8, fontSize: 13, color: "var(--ink-3)" }}>
+              Sin conexión no se pudo buscar el serial: se registra como equipo nuevo (si ya existía, se reconoce al subir).
+            </div>
+          )}
 
           {escaneando && (
             <div style={{ marginTop: 12 }}>

@@ -44,6 +44,8 @@ export function respuestaDesdeCopia(copia: CopiaLocal, url: string): unknown | n
       return copia.metodosPago.filter((m) => m.activo !== false);
     case "/api/turno/actual":
       return copia.turno;
+    case "/api/configuracion":
+      return copia.configuracion ?? null;
     case "/api/clientes": {
       const q = (p.get("q") ?? p.get("documento") ?? "").trim();
       if (!q) return null;

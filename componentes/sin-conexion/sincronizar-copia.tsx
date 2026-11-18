@@ -7,6 +7,9 @@
  * Si falla (sin internet), se queda con la copia anterior y reintenta en
  * el siguiente turno. No muestra nada.
  *
+ * Con cada copia nueva renueva también los números de orden apartados
+ * para recibir sin conexión (fase 4).
+ *
  * Antes de bajar la copia sube lo que se hizo sin conexión (fase 3,
  * lib/sin-conexion/cola.ts), cada REINTENTO_COLA_MS mientras quede algo.
  * Mientras quede algo pendiente no se baja copia nueva: la del servidor
@@ -17,7 +20,8 @@
  */
 import { useEffect } from "react";
 import { guardarCopia, leerCopia } from "@/lib/sin-conexion/copia-local";
-import { enviarCola, listarCola } from "@/lib/sin-conexion/cola";
+import { enviarCola, listarCola, numerosEnCola } from "@/lib/sin-conexion/cola";
+import { actualizarBloque, idEquipo } from "@/lib/sin-conexion/bloque-numeros";
 import type { CopiaLocal } from "@/lib/sin-conexion/tipos";
 
 const INTERVALO_MS = 5 * 60 * 1000;
@@ -33,11 +37,12 @@ async function json<T>(url: string): Promise<T | null> {
 }
 
 async function bajarCopia(): Promise<void> {
-  const [base, categorias, metodosPago, turno] = await Promise.all([
+  const [base, categorias, metodosPago, turno, configuracion] = await Promise.all([
     json<CopiaLocal>("/api/app/copia-local"),
     json<CopiaLocal["categorias"]>("/api/categorias"),
     json<CopiaLocal["metodosPago"]>("/api/metodos-pago"),
     json<CopiaLocal["turno"]>("/api/turno/actual"),
+    json<Record<string, unknown>>("/api/configuracion"),
   ]);
   if (!base) return;
   await guardarCopia({
@@ -45,7 +50,31 @@ async function bajarCopia(): Promise<void> {
     categorias: Array.isArray(categorias) ? categorias : [],
     metodosPago: Array.isArray(metodosPago) ? metodosPago : [],
     turno: turno ?? null,
+    configuracion: configuracion ?? null,
   });
+}
+
+/**
+ * Pide los números de orden libres de este equipo para recibir sin
+ * conexión (fase 4, lib/sin-conexion/bloque-numeros.ts). Lo que ya se
+ * usó en recepciones que siguen en la cola no se vuelve a ofrecer.
+ */
+async function renovarNumeros(empresaId: string): Promise<void> {
+  const equipo = await idEquipo();
+  if (!equipo) return;
+  try {
+    const r = await fetch("/api/app/bloque-numeros", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ equipo }),
+    });
+    if (!r.ok) return;
+    const datos = (await r.json()) as { libres?: unknown };
+    if (!Array.isArray(datos.libres)) return;
+    await actualizarBloque(empresaId, datos.libres as number[], numerosEnCola(await listarCola()));
+  } catch {
+    // Sin red: se queda con los números que ya tenía.
+  }
 }
 
 export function SincronizarCopia({ empresaId, sedeId, usuarioId }: { empresaId: string; sedeId: string | null; usuarioId: string }) {
@@ -68,7 +97,10 @@ export function SincronizarCopia({ empresaId, sedeId, usuarioId }: { empresaId: 
           actual.usuarioId !== usuarioId ||
           subidos > 0 ||
           Date.now() - Date.parse(actual.generadaEn) >= INTERVALO_MS;
-        if (vieja && !quedanPendientes && !cancelado) await bajarCopia();
+        if (vieja && !quedanPendientes && !cancelado) {
+          await bajarCopia();
+          await renovarNumeros(empresaId);
+        }
       }
       if (!cancelado) reloj = setTimeout(turno, quedanPendientes ? REINTENTO_COLA_MS : INTERVALO_MS);
     }
