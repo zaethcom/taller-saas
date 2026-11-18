@@ -18,6 +18,7 @@ export const PAGINAS_SIN_CONEXION = [
   "/recibos",
   "/orden",
   "/escanear",
+  "/sincronizacion",
 ] as const;
 
 export function debeGuardarPagina(ruta: string): boolean {

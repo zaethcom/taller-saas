@@ -5,13 +5,15 @@
  *
  * Aparece abajo, en todas las pantallas, cuando el equipo pierde
  * internet (lib/sin-conexion/conexion.ts), y avisa una vez más cuando
- * vuelve. Por ahora solo informa: guardar, cobrar o recibir todavía
- * necesitan conexión. Las fases siguientes del plan hacen que esas
- * acciones queden guardadas en el equipo y se suban solas.
+ * vuelve. También cuenta lo guardado sin conexión que falta subir o que
+ * quedó para revisar (lib/sin-conexion/cola.ts), con enlace a
+ * /sincronizacion.
  */
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { WifiOff, Wifi } from "lucide-react";
 import { estadoConexion, intervaloPrueba, probarServidor, type EstadoConexion } from "@/lib/sin-conexion/conexion";
+import { listarCola, suscribirCola } from "@/lib/sin-conexion/cola";
 
 const DURACION_AVISO_VOLVIO_MS = 4000;
 
@@ -19,6 +21,25 @@ export function AvisoConexion() {
   const [estado, setEstado] = useState<EstadoConexion>("en_linea");
   const [volvio, setVolvio] = useState(false);
   const anterior = useRef<EstadoConexion>("en_linea");
+  const [cola, setCola] = useState({ pendientes: 0, revisar: 0 });
+
+  useEffect(() => {
+    let vivo = true;
+    const contar = () =>
+      void listarCola().then((todos) => {
+        if (vivo)
+          setCola({
+            pendientes: todos.filter((e) => e.estado === "pendiente").length,
+            revisar: todos.filter((e) => e.estado !== "pendiente").length,
+          });
+      });
+    contar();
+    const quitar = suscribirCola(contar);
+    return () => {
+      vivo = false;
+      quitar();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelado = false;
@@ -55,9 +76,18 @@ export function AvisoConexion() {
     };
   }, []);
 
-  if (estado === "en_linea" && !volvio) return null;
+  const hayCola = cola.pendientes > 0 || cola.revisar > 0;
+  if (estado === "en_linea" && !volvio && !hayCola) return null;
 
   const sin = estado === "sin_conexion";
+  const conAviso = sin || cola.revisar > 0;
+  const plural = (n: number, una: string, varias: string) => `${n} ${n === 1 ? una : varias}`;
+  const textoCola = [
+    cola.pendientes > 0 && (sin ? plural(cola.pendientes, "venta guardada en este equipo", "ventas guardadas en este equipo") : `Subiendo ${plural(cola.pendientes, "venta guardada sin conexión", "ventas guardadas sin conexión")}…`),
+    cola.revisar > 0 && plural(cola.revisar, "para revisar", "para revisar"),
+  ]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <div
       role="status"
@@ -75,20 +105,24 @@ export function AvisoConexion() {
         margin: "0 auto",
         padding: "10px 14px",
         borderRadius: "var(--r-md)",
-        background: sin ? "var(--aviso-fondo)" : "var(--ok-fondo)",
-        border: `1px solid ${sin ? "var(--aviso-linea)" : "var(--ok-linea)"}`,
-        color: sin ? "var(--aviso)" : "var(--ok)",
+        background: conAviso ? "var(--aviso-fondo)" : "var(--ok-fondo)",
+        border: `1px solid ${conAviso ? "var(--aviso-linea)" : "var(--ok-linea)"}`,
+        color: conAviso ? "var(--aviso)" : "var(--ok)",
         boxShadow: "var(--sombra-2)",
         fontSize: 14,
         fontWeight: 600,
       }}
     >
       {sin ? <WifiOff size={18} aria-hidden /> : <Wifi size={18} aria-hidden />}
-      <span>
-        {sin
-          ? "Sin conexión a internet. Lo que guardes ahora puede no quedar registrado; espera a que vuelva."
-          : "Volvió la conexión."}
+      <span style={{ flex: 1, minWidth: 0 }}>
+        {sin ? "Sin conexión. Vender sigue funcionando y se sube solo cuando vuelva internet; lo demás necesita conexión." : volvio && !hayCola ? "Volvió la conexión." : null}
+        {textoCola && <span style={{ display: "block" }}>{textoCola}</span>}
       </span>
+      {hayCola && (
+        <Link href="/sincronizacion" style={{ color: "inherit", fontWeight: 700, textDecoration: "underline", whiteSpace: "nowrap" }}>
+          Ver
+        </Link>
+      )}
     </div>
   );
 }
