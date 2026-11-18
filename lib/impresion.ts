@@ -280,6 +280,58 @@ const TIPOS_CON_MARCA = new Set<TipoTrabajo>([
 // de tickets (estacion/etiqueta-escpos.ts) y se achican al rollo de 58mm.
 const TIPOS_ETIQUETA = new Set<TipoTrabajo>(["etiqueta_qr", "etiqueta_articulo", "etiqueta_repuesto"]);
 
+/** Ancho del rollo de tickets de la sede (0060): 58 u 80 mm; sin configurar, 80. */
+export async function anchoPapelSede(supabase: SupabaseClient, sedeId: string): Promise<58 | 80> {
+  const { data: papel } = await supabase
+    .from("impresora_sede")
+    .select("tickets_ancho_mm")
+    .eq("sede_id", sedeId)
+    .maybeSingle();
+  return papel?.tickets_ancho_mm === 58 ? 58 : 80;
+}
+
+/**
+ * El encabezado y pie de los recibos de una sede (nombre, dirección,
+ * teléfono, pie y logo ya convertido a puntos). Lo usa encolarImpresion
+ * y también /api/app/impresion-local, que lo guarda en el equipo para
+ * imprimir recibos sin internet (plan sin internet, fase 5).
+ */
+export async function marcaDeRecibo(
+  supabase: SupabaseClient,
+  empresaId: string,
+  sedeId: string,
+  anchoPapelMm: 58 | 80,
+): Promise<CargaMarcaEmpresa> {
+  const [{ data: empresa }, { data: config }, { data: sedeConfig }] = await Promise.all([
+    supabase.from("empresa").select("nombre").eq("id", empresaId).single(),
+    supabase
+      .from("empresa_config")
+      .select("recibo_direccion, recibo_telefono, recibo_pie, logo_url")
+      .eq("empresa_id", empresaId)
+      .maybeSingle(),
+    // Lo que esta sede sobrescribe (dirección/teléfono/pie/logo propios,
+    // por si son dos locales físicos distintos) -- lo que no sobrescribe
+    // cae al de empresa_config, campo por campo.
+    supabase
+      .from("sede_config")
+      .select("recibo_direccion, recibo_telefono, recibo_pie, logo_url")
+      .eq("sede_id", sedeId)
+      .maybeSingle(),
+  ]);
+
+  return {
+    empresaNombre: empresa?.nombre ?? "",
+    empresaDireccion: sedeConfig?.recibo_direccion ?? config?.recibo_direccion ?? null,
+    empresaTelefono: sedeConfig?.recibo_telefono ?? config?.recibo_telefono ?? null,
+    reciboPie: sedeConfig?.recibo_pie ?? config?.recibo_pie ?? "Gracias por su preferencia",
+    logoRaster: await generarLogoRaster(
+      sedeConfig?.logo_url ?? config?.logo_url,
+      anchoPapelMm === 58 ? TAMANO_RECIBO_58 : TAMANO_RECIBO,
+    ),
+    anchoPapelMm,
+  };
+}
+
 export async function encolarImpresion<T extends TipoTrabajo>(
   supabase: SupabaseClient,
   params: {
@@ -308,12 +360,7 @@ export async function encolarImpresion<T extends TipoTrabajo>(
   // columna o sin configurar, 80 mm como siempre.
   let anchoPapelMm: 58 | 80 = 80;
   if (TIPOS_CON_MARCA.has(params.tipo) || TIPOS_ETIQUETA.has(params.tipo)) {
-    const { data: papel } = await supabase
-      .from("impresora_sede")
-      .select("tickets_ancho_mm")
-      .eq("sede_id", params.sedeId)
-      .maybeSingle();
-    if (papel?.tickets_ancho_mm === 58) anchoPapelMm = 58;
+    anchoPapelMm = await anchoPapelSede(supabase, params.sedeId);
   }
 
   // Las etiquetas (etiqueta_qr, etiqueta_articulo) y abrir_cajon no
@@ -322,34 +369,7 @@ export async function encolarImpresion<T extends TipoTrabajo>(
   // verdad lo reciben aquí, una sola vez, en vez de que cada ruta que
   // llama a encolarImpresion tenga que acordarse de pedirlo.
   if (TIPOS_CON_MARCA.has(params.tipo)) {
-    const [{ data: empresa }, { data: config }, { data: sedeConfig }] = await Promise.all([
-      supabase.from("empresa").select("nombre").eq("id", params.empresaId).single(),
-      supabase
-        .from("empresa_config")
-        .select("recibo_direccion, recibo_telefono, recibo_pie, logo_url")
-        .eq("empresa_id", params.empresaId)
-        .maybeSingle(),
-      // Lo que esta sede sobrescribe (dirección/teléfono/pie/logo propios,
-      // por si son dos locales físicos distintos) -- lo que no sobrescribe
-      // cae al de empresa_config, campo por campo.
-      supabase
-        .from("sede_config")
-        .select("recibo_direccion, recibo_telefono, recibo_pie, logo_url")
-        .eq("sede_id", params.sedeId)
-        .maybeSingle(),
-    ]);
-
-    const marca: CargaMarcaEmpresa = {
-      empresaNombre: empresa?.nombre ?? "",
-      empresaDireccion: sedeConfig?.recibo_direccion ?? config?.recibo_direccion ?? null,
-      empresaTelefono: sedeConfig?.recibo_telefono ?? config?.recibo_telefono ?? null,
-      reciboPie: sedeConfig?.recibo_pie ?? config?.recibo_pie ?? "Gracias por su preferencia",
-      logoRaster: await generarLogoRaster(
-        sedeConfig?.logo_url ?? config?.logo_url,
-        anchoPapelMm === 58 ? TAMANO_RECIBO_58 : TAMANO_RECIBO,
-      ),
-      anchoPapelMm,
-    };
+    const marca = await marcaDeRecibo(supabase, params.empresaId, params.sedeId, anchoPapelMm);
     carga = { ...params.carga, ...marca };
   }
 

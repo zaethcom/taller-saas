@@ -75,7 +75,8 @@ export function reciboVenta(c: CargaReciboVenta): Buffer {
     // El número de venta en grande: es lo que se busca al reclamar o devolver.
     negrita(true),
     tamano(true),
-    texto(`Venta #${c.numeroVenta}`),
+    // Sin número (0): recibo impreso sin internet, el número lo pone el servidor al subir la venta.
+    texto(c.numeroVenta > 0 ? `Venta #${c.numeroVenta}` : "Venta sin conexion"),
     tamano(false),
     negrita(false),
     salto(),

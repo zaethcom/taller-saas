@@ -21,38 +21,21 @@ import { Aviso } from "@/componentes/ui/campo";
 import {
   FILTROS_IMPRESORA,
   coincide,
+  guardarHuellas,
   huella,
+  leerHuellas,
   puestoPara,
   usbDelNavegador,
   type DispositivoUsb,
-  type HuellaUsb,
+  type Huellas,
   type RolImpresora,
 } from "@/lib/impresion-usb";
 import { VentanaError } from "@/componentes/ui/ventana-error";
 
 export const NOMBRE_ROL: Record<RolImpresora, string> = { tickets: "Tickets", etiquetas: "Etiquetas" };
 const ROLES: RolImpresora[] = ["tickets", "etiquetas"];
-const CLAVE_IMPRESORAS = "estacion-navegador:impresoras";
 
-type Huellas = Partial<Record<RolImpresora, HuellaUsb>>;
 type Conectadas = Partial<Record<RolImpresora, DispositivoUsb>>;
-
-function leerHuellas(): Huellas {
-  try {
-    const crudo = localStorage.getItem(CLAVE_IMPRESORAS);
-    return crudo ? (JSON.parse(crudo) as Huellas) : {};
-  } catch {
-    return {};
-  }
-}
-
-function guardarHuellas(h: Huellas) {
-  try {
-    localStorage.setItem(CLAVE_IMPRESORAS, JSON.stringify(h));
-  } catch {
-    // Sin almacenamiento (ventana privada): sirve hasta cerrar la pestaña.
-  }
-}
 
 export function useImpresorasUsb() {
   const [soportado, setSoportado] = useState<boolean | null>(null);

@@ -48,6 +48,7 @@ import { leerApi } from "@/lib/sin-conexion/leer-api";
 import { agregarACola, nuevaClaveLocal, type ElementoCola } from "@/lib/sin-conexion/cola";
 import { guardarCopia, leerCopia } from "@/lib/sin-conexion/copia-local";
 import { esFalloDeRed, ESPERA_VENTA_MS } from "@/lib/sin-conexion/venta-local";
+import { cajeroLocal, imprimirReciboLocal, textoImpresionLocal } from "@/lib/sin-conexion/impresion-local";
 import {
   aplicarAbonoEnCopia,
   aplicarEntregaEnCopia,
@@ -168,7 +169,7 @@ export default function PaginaCobrarEntregar() {
   const [listo, setListo] = useState(false);
   // La entrega quedó guardada en el equipo (sin conexión); fotoSinGuardar:
   // se había tomado foto de salida y no se pudo subir.
-  const [entregaSinConexion, setEntregaSinConexion] = useState<{ fotoSinGuardar: boolean } | null>(null);
+  const [entregaSinConexion, setEntregaSinConexion] = useState<{ fotoSinGuardar: boolean; impresion?: string } | null>(null);
   const [perfil, setPerfil] = useState<{ empresaId: string } | null>(null);
   const turnoAbierto = useTurnoAbierto();
   const metodo = metodos.find((m) => m.id === metodoPagoId);
@@ -313,8 +314,33 @@ export default function PaginaCobrarEntregar() {
     if (!guardado) throw new Error(SIN_COPIA);
     const copia = await leerCopia();
     if (copia) await guardarCopia(aplicarAbonoEnCopia(copia, orden.id, { monto: cuerpo.monto, medio: metodo?.nombre ?? null, fecha: hechaEn }));
+    // El recibo del abono sale por la impresora USB de este equipo, si la tiene (fase 5).
+    const recibido = metodo?.es_efectivo ? montoRecibido : null;
+    const impresion = await imprimirReciboLocal({
+      tipo: "recibo_venta",
+      carga: {
+        numeroVenta: 0,
+        items: [{ descripcion: `Abono orden #${orden.numero}`, cantidad: 1, precioUnit: cuerpo.monto }],
+        total: cuerpo.monto,
+        etiquetaTotal: "ABONO",
+        medioPago: metodo?.nombre ?? "",
+        abreCajon: Boolean(metodo?.es_efectivo),
+        cajero: await cajeroLocal(),
+        montoRecibido: recibido,
+        cambio: recibido != null ? recibido - cuerpo.monto : null,
+        cuentaOrden: {
+          numeroOrden: orden.numero,
+          valor: orden.valor,
+          abonadoAntes: orden.pagado,
+          estePago: cuerpo.monto,
+          saldo: Math.max(0, orden.saldoPendiente - cuerpo.monto),
+        },
+        imprimir,
+      },
+    });
     setAviso(
-      `Abono de ${fmt(cuerpo.monto)} guardado sin conexión: se sube solo cuando vuelva internet. Saldo: ${fmt(Math.max(0, orden.saldoPendiente - cuerpo.monto))}.`,
+      `Abono de ${fmt(cuerpo.monto)} guardado sin conexión: se sube solo cuando vuelva internet. Saldo: ${fmt(Math.max(0, orden.saldoPendiente - cuerpo.monto))}.` +
+        (imprimir ? ` ${textoImpresionLocal(impresion)}` : ""),
     );
     setMonto(0);
     setMontoRecibido(0);
@@ -382,6 +408,7 @@ export default function PaginaCobrarEntregar() {
     // ahí todo lo que falta se guarda en la cola del equipo, en orden.
     let sinConexion = false;
     let fotoSinGuardar = false;
+    let impresion: string | undefined;
     const momento = Date.now();
     try {
       // 1. Cobrar el saldo pendiente, si lo hay -- un venta_item por
@@ -428,6 +455,27 @@ export default function PaginaCobrarEntregar() {
             cuerpo: { ...cuerpoCobro, imprimir: false, hechaEn: new Date(momento).toISOString() },
           });
           if (!guardado) throw new Error(SIN_COPIA);
+          // El recibo del cobro sale por la impresora USB de este equipo, si la tiene (fase 5).
+          const recibido = metodo?.es_efectivo ? montoRecibido : null;
+          const r = await imprimirReciboLocal({
+            tipo: "recibo_venta",
+            carga: {
+              numeroVenta: 0,
+              items: itemsCobro,
+              total: orden.saldoPendiente,
+              medioPago: metodo?.nombre ?? "",
+              abreCajon: Boolean(metodo?.es_efectivo),
+              cajero: await cajeroLocal(),
+              montoRecibido: recibido,
+              cambio: recibido != null ? recibido - orden.saldoPendiente : null,
+              cuentaOrden:
+                orden.pagado > 0
+                  ? { numeroOrden: orden.numero, valor: orden.valor, abonadoAntes: orden.pagado, estePago: orden.saldoPendiente, saldo: 0 }
+                  : null,
+              imprimir,
+            },
+          });
+          if (imprimir) impresion = textoImpresionLocal(r);
         }
         // Ya quedó cobrada (o guardada para cobrarse): si algo de abajo
         // falla y se reintenta, no se vuelve a cobrar.
@@ -487,7 +535,7 @@ export default function PaginaCobrarEntregar() {
         if (!guardado) throw new Error(SIN_COPIA);
         const copia = await leerCopia();
         if (copia) await guardarCopia(aplicarEntregaEnCopia(copia, orden.id));
-        setEntregaSinConexion({ fotoSinGuardar });
+        setEntregaSinConexion({ fotoSinGuardar, impresion });
       }
 
       setListo(true);
@@ -522,8 +570,9 @@ export default function PaginaCobrarEntregar() {
         {entregaSinConexion ? (
           <p style={{ margin: "8px 0 20px", color: "var(--ink-2)" }}>
             Guardada sin conexión: el cobro y la entrega se suben solos cuando vuelva internet (revísalos en{" "}
-            <Link href="/sincronizacion">Sincronización</Link>). Sin conexión no se imprime el comprobante
-            {entregaSinConexion.fotoSinGuardar ? " y la foto de salida no quedó guardada" : ""}.
+            <Link href="/sincronizacion">Sincronización</Link>).
+            {entregaSinConexion.fotoSinGuardar ? " La foto de salida no quedó guardada." : ""}
+            {entregaSinConexion.impresion ? ` ${entregaSinConexion.impresion}` : ""}
           </p>
         ) : (
           <p style={{ margin: "8px 0 20px", color: "var(--ink-2)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>

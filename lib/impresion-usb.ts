@@ -217,3 +217,41 @@ export function puestoPara(
   if (!ocupados[otro]) return otro;
   return sugerido;
 }
+
+const CLAVE_IMPRESORAS = "estacion-navegador:impresoras";
+
+export type Huellas = Partial<Record<RolImpresora, HuellaUsb>>;
+
+/** Qué impresora USB es la de tickets y cuál la de etiquetas en este navegador. */
+export function leerHuellas(): Huellas {
+  try {
+    const crudo = localStorage.getItem(CLAVE_IMPRESORAS);
+    return crudo ? (JSON.parse(crudo) as Huellas) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function guardarHuellas(h: Huellas) {
+  try {
+    localStorage.setItem(CLAVE_IMPRESORAS, JSON.stringify(h));
+  } catch {
+    // Sin almacenamiento (ventana privada): sirve hasta cerrar la pestaña.
+  }
+}
+
+/**
+ * La impresora USB ya permitida en este navegador para ese puesto, si
+ * está conectada. Sin pedir permiso (eso solo se puede con un toque).
+ */
+export async function impresoraConectada(rol: RolImpresora): Promise<DispositivoUsb | null> {
+  const usb = usbDelNavegador();
+  if (!usb) return null;
+  const buscada = leerHuellas()[rol];
+  if (!buscada) return null;
+  try {
+    return (await usb.getDevices()).find((d) => coincide(d, buscada)) ?? null;
+  } catch {
+    return null;
+  }
+}
