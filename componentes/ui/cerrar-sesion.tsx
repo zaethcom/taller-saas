@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { clienteNavegador } from "@/lib/supabase/cliente";
-import { borrarCopiaLocal } from "@/lib/sin-conexion/borrar-copia";
+import { borrarCopiaLocal, confirmarSalida } from "@/lib/sin-conexion/borrar-copia";
 import { Boton } from "@/componentes/ui/boton";
 
 /**
@@ -14,6 +14,7 @@ export function CerrarSesion({ icono, oscuro = true }: { icono?: React.ReactNode
   const router = useRouter();
 
   async function salir() {
+    if (!(await confirmarSalida())) return;
     await clienteNavegador().auth.signOut();
     await borrarCopiaLocal();
     router.push("/login");

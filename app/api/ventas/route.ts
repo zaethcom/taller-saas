@@ -33,6 +33,7 @@ import { obtenerSedeActivaId } from "@/lib/perfil";
 import { encolarImpresion } from "@/lib/impresion";
 import { obtenerCuentaOrden } from "@/lib/cuenta-orden";
 import { clienteImpreso } from "@/lib/cliente-venta";
+import { claveLocalValida, esColumnaFaltante, horaSinConexion } from "@/lib/sin-conexion/clave-local";
 
 export async function GET(req: NextRequest) {
   const supabase = await clienteServidor();
@@ -101,6 +102,9 @@ export async function POST(req: NextRequest) {
     imprimir?: boolean;
     clienteId?: string;
     clienteNuevo?: { nombre?: string; documento?: string | null; telefono?: string | null };
+    /** Venta hecha sin internet (0070): clave contra duplicados y hora real. */
+    claveLocal?: string;
+    hechaEn?: string;
   };
 
   if (!body.items?.length) {
@@ -127,6 +131,18 @@ export async function POST(req: NextRequest) {
 
   if (!perfil || !sedeActivaId) {
     return NextResponse.json({ error: "elige la sede en la que estás trabajando" }, { status: 400 });
+  }
+
+  // Una venta hecha sin internet puede llegar dos veces (el envío se
+  // cortó después de crearla): con la misma clave se devuelve la que ya
+  // existe y no se crea ni se descuenta nada otra vez. Sin la migración
+  // 0070 la columna no existe y se sigue como siempre.
+  const claveLocal = claveLocalValida(body.claveLocal) ? body.claveLocal : null;
+  let conClaveLocal = claveLocal !== null;
+  if (claveLocal) {
+    const previa = await ventaPorClave(supabase, perfil.empresa_id, claveLocal);
+    if (previa === "sin_columna") conClaveLocal = false;
+    else if (previa) return NextResponse.json({ ok: true, ventaId: previa.id, numero: previa.numero, repetida: true });
   }
 
   const { data: metodo } = await supabase
@@ -253,20 +269,32 @@ export async function POST(req: NextRequest) {
     cliente = data;
   }
 
-  const { data: venta, error: errVenta } = await supabase
-    .from("venta")
-    .insert({
-      empresa_id: perfil.empresa_id,
-      sede_id: sedeActivaId,
-      turno_id: turno.id,
-      orden_id: body.ordenId ?? null,
-      cliente_id: cliente?.id ?? null,
-      tipo: body.ordenId ? "servicio" : "mostrador",
-      total,
-      creada_por: user.id,
-    })
-    .select("id, numero")
-    .single();
+  const filaVenta = {
+    empresa_id: perfil.empresa_id,
+    sede_id: sedeActivaId,
+    turno_id: turno.id,
+    orden_id: body.ordenId ?? null,
+    cliente_id: cliente?.id ?? null,
+    tipo: body.ordenId ? "servicio" : "mostrador",
+    total,
+    creada_por: user.id,
+    ...(conClaveLocal && { clave_local: claveLocal, hecha_en: horaSinConexion(body.hechaEn) }),
+  };
+  let { data: venta, error: errVenta } = await supabase.from("venta").insert(filaVenta).select("id, numero").single();
+
+  if (errVenta?.code === "23505" && claveLocal) {
+    // Dos envíos de la misma venta al mismo tiempo: ganó el otro.
+    const previa = await ventaPorClave(supabase, perfil.empresa_id, claveLocal);
+    if (previa && previa !== "sin_columna") {
+      return NextResponse.json({ ok: true, ventaId: previa.id, numero: previa.numero, repetida: true });
+    }
+  }
+  if (esColumnaFaltante(errVenta) && conClaveLocal) {
+    const { clave_local: _c, hecha_en: _h, ...sinClave } = filaVenta as typeof filaVenta & { clave_local?: unknown; hecha_en?: unknown };
+    void _c;
+    void _h;
+    ({ data: venta, error: errVenta } = await supabase.from("venta").insert(sinClave).select("id, numero").single());
+  }
 
   if (errVenta || !venta) {
     return NextResponse.json({ error: errVenta?.message ?? "no se pudo crear la venta" }, { status: 500 });
@@ -301,15 +329,22 @@ export async function POST(req: NextRequest) {
   // técnico los consumió (POST /api/ordenes/[id]/repuestos, acción
   // "consumir") -- esto solo cobra lo que ya se usó, no debe volver a
   // mover existencia o se descuenta dos veces.
+  //
+  // Lo que no se pudo descontar se devuelve en `avisos`: pasa sobre todo
+  // con ventas hechas sin internet, cuando otra caja vendió la última
+  // unidad mientras tanto (decisión D4 del plan: se acepta la venta y se
+  // avisa).
+  const avisos: string[] = [];
   for (const item of body.items) {
     if (item.repuestoId && !body.ordenId) {
-      await supabase.rpc("mover_existencia", {
+      const { error: errMover } = await supabase.rpc("mover_existencia", {
         p_repuesto_id: item.repuestoId,
         p_sede_id: sedeActivaId,
         p_delta: -item.cantidad,
         p_tipo: "venta",
         p_referencia_id: venta.id,
       });
+      if (errMover) avisos.push(`"${item.descripcion}": no se descontó del inventario (${errMover.message})`);
     } else if (item.articuloId) {
       // Ya se validó arriba que estaba en_stock en esta sede -- este
       // guard repite la condición por si algo cambió entre medio.
@@ -362,5 +397,21 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  return NextResponse.json({ ok: true, ventaId: venta.id, numero: venta.numero });
+  return NextResponse.json({ ok: true, ventaId: venta.id, numero: venta.numero, ...(avisos.length && { avisos }) });
+}
+
+/** La venta ya creada con esa clave local, "sin_columna" si falta la migración 0070. */
+async function ventaPorClave(
+  supabase: Awaited<ReturnType<typeof clienteServidor>>,
+  empresaId: string,
+  claveLocal: string,
+): Promise<{ id: string; numero: number } | null | "sin_columna"> {
+  const { data, error } = await supabase
+    .from("venta")
+    .select("id, numero")
+    .eq("empresa_id", empresaId)
+    .eq("clave_local", claveLocal)
+    .maybeSingle();
+  if (esColumnaFaltante(error)) return "sin_columna";
+  return data ?? null;
 }

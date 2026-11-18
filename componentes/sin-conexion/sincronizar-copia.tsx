@@ -7,14 +7,21 @@
  * Si falla (sin internet), se queda con la copia anterior y reintenta en
  * el siguiente turno. No muestra nada.
  *
+ * Antes de bajar la copia sube lo que se hizo sin conexión (fase 3,
+ * lib/sin-conexion/cola.ts), cada REINTENTO_COLA_MS mientras quede algo.
+ * Mientras quede algo pendiente no se baja copia nueva: la del servidor
+ * no tendría esas ventas descontadas y volvería a ofrecer lo vendido.
+ *
  * La clave empresa:sede:usuario viene del layout: si cambia (otra sede,
  * otro usuario) la copia anterior no sirve y se baja de una vez.
  */
 import { useEffect } from "react";
 import { guardarCopia, leerCopia } from "@/lib/sin-conexion/copia-local";
+import { enviarCola, listarCola } from "@/lib/sin-conexion/cola";
 import type { CopiaLocal } from "@/lib/sin-conexion/tipos";
 
 const INTERVALO_MS = 5 * 60 * 1000;
+const REINTENTO_COLA_MS = 30 * 1000;
 
 async function json<T>(url: string): Promise<T | null> {
   try {
@@ -49,17 +56,21 @@ export function SincronizarCopia({ empresaId, sedeId, usuarioId }: { empresaId: 
 
     async function turno() {
       clearTimeout(reloj);
+      let quedanPendientes = false;
       if (document.visibilityState === "visible") {
+        const subidos = await enviarCola(usuarioId);
+        quedanPendientes = (await listarCola()).some((e) => e.estado === "pendiente" && e.usuarioId === usuarioId);
         const actual = await leerCopia();
         const vieja =
           !actual ||
           actual.empresaId !== empresaId ||
           actual.sedeId !== sedeId ||
           actual.usuarioId !== usuarioId ||
+          subidos > 0 ||
           Date.now() - Date.parse(actual.generadaEn) >= INTERVALO_MS;
-        if (vieja && !cancelado) await bajarCopia();
+        if (vieja && !quedanPendientes && !cancelado) await bajarCopia();
       }
-      if (!cancelado) reloj = setTimeout(turno, INTERVALO_MS);
+      if (!cancelado) reloj = setTimeout(turno, quedanPendientes ? REINTENTO_COLA_MS : INTERVALO_MS);
     }
 
     const alVolver = () => document.visibilityState === "visible" && void turno();

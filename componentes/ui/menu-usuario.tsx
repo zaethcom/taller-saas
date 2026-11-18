@@ -13,7 +13,7 @@ import Link from "next/link";
 import { LogOut, MapPin, ChevronDown, Download } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { clienteNavegador } from "@/lib/supabase/cliente";
-import { borrarCopiaLocal } from "@/lib/sin-conexion/borrar-copia";
+import { borrarCopiaLocal, confirmarSalida } from "@/lib/sin-conexion/borrar-copia";
 import { instalarApp, sePuedeInstalar, suscribirInstalar } from "@/lib/sin-conexion/instalar";
 
 export function MenuUsuario({
@@ -54,6 +54,7 @@ export function MenuUsuario({
   }, [abierto]);
 
   async function salir() {
+    if (!(await confirmarSalida())) return;
     await clienteNavegador().auth.signOut();
     await borrarCopiaLocal();
     router.push("/login");

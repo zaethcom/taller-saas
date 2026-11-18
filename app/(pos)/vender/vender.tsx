@@ -31,6 +31,9 @@
  */
 import { useEffect, useState } from "react";
 import { leerApi } from "@/lib/sin-conexion/leer-api";
+import { agregarACola, nuevaClaveLocal } from "@/lib/sin-conexion/cola";
+import { guardarCopia, leerCopia } from "@/lib/sin-conexion/copia-local";
+import { aplicarVentaEnCopia, descripcionVenta, esFalloDeRed, ESPERA_VENTA_MS } from "@/lib/sin-conexion/venta-local";
 import { Trash2, Plus, Minus, Search, ShoppingCart, Lock, Check, Printer, PlusCircle, ScanBarcode, Receipt } from "lucide-react";
 import { FotoProducto } from "@/componentes/ui/foto-producto";
 import { Boton, BotonEnlace } from "@/componentes/ui/boton";
@@ -97,7 +100,11 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [fallo, setFallo] = useState(false);
-  const [ventaResultado, setVentaResultado] = useState<{ id: string; numero: number } | null>(null);
+  // sinConexion: la venta quedó guardada en el equipo y se sube sola
+  // cuando vuelva internet (lib/sin-conexion/cola.ts); aún no tiene número.
+  const [ventaResultado, setVentaResultado] = useState<
+    { id: string; numero: number; sinConexion?: false } | { sinConexion: true } | null
+  >(null);
   const turnoAbierto = useTurnoAbierto();
 
   const [buscarRepuesto, setBuscarRepuesto] = useState("");
@@ -286,32 +293,41 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
     setEnviando(true);
     setMensaje(null);
     setFallo(false);
+    const items = carrito.map((l) =>
+      l.kind === "repuesto"
+        ? { repuestoId: l.repuestoId, descripcion: l.descripcion, cantidad: l.cantidad, precioUnit: l.precioUnit }
+        : { articuloId: l.articuloId, descripcion: `${l.codigo} ${l.descripcion}`, cantidad: 1, precioUnit: l.precioUnit },
+    );
+    // La clave local va siempre: si la venta se envía dos veces (doble
+    // toque, o un envío que se cortó), el servidor no la crea dos veces.
+    const cuerpo = {
+      items,
+      metodoPagoId,
+      montoRecibido: metodo?.es_efectivo ? montoRecibido : undefined,
+      imprimir,
+      ...clienteEnVenta(cliente),
+      claveLocal: nuevaClaveLocal(),
+    };
     try {
-      const res = await fetch("/api/ventas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: carrito.map((l) =>
-            l.kind === "repuesto"
-              ? { repuestoId: l.repuestoId, descripcion: l.descripcion, cantidad: l.cantidad, precioUnit: l.precioUnit }
-              : { articuloId: l.articuloId, descripcion: `${l.codigo} ${l.descripcion}`, cantidad: 1, precioUnit: l.precioUnit },
-          ),
-          metodoPagoId,
-          montoRecibido: metodo?.es_efectivo ? montoRecibido : undefined,
-          imprimir,
-          ...clienteEnVenta(cliente),
-        }),
-      });
+      let res: Response;
+      const control = new AbortController();
+      const reloj = setTimeout(() => control.abort(), ESPERA_VENTA_MS);
+      try {
+        res = await fetch("/api/ventas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(cuerpo),
+          signal: control.signal,
+        });
+      } catch (e) {
+        if (esFalloDeRed(e) && (await guardarSinConexion(cuerpo))) return;
+        throw new Error("No hay conexión y no se pudo guardar la venta en este equipo");
+      } finally {
+        clearTimeout(reloj);
+      }
       if (!res.ok) throw new Error((await res.json()).error);
       const data = await res.json();
-      setCarrito([]);
-      setCliente(null);
-      setMontoRecibido(0);
-      setVentaResultado({ id: data.ventaId, numero: data.numero });
-      // Un artículo vendido deja de estar disponible: la rejilla que
-      // quedó en pantalla ya no dice la verdad hasta volver a pedirla.
-      buscarArticulos();
-      buscarRepuestos();
+      terminarVenta({ id: data.ventaId, numero: data.numero });
     } catch (e) {
       setFallo(true);
       setMensaje(e instanceof Error ? e.message : "No se pudo registrar la venta");
@@ -320,8 +336,46 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
     }
   }
 
+  /**
+   * Sin internet la venta queda en la cola del equipo y se sube sola al
+   * volver la conexión. Necesita la copia local (de ahí salen empresa,
+   * sede y usuario); sin copia no hay cómo guardarla y se avisa el error.
+   */
+  async function guardarSinConexion(cuerpo: Record<string, unknown> & { claveLocal: string; items: { repuestoId?: string; articuloId?: string; cantidad: number }[] }) {
+    const copia = await leerCopia();
+    if (!copia) return false;
+    const guardada = await agregarACola({
+      id: cuerpo.claveLocal,
+      tipo: "venta",
+      creadoEn: new Date().toISOString(),
+      empresaId: copia.empresaId,
+      sedeId: copia.sedeId,
+      usuarioId: copia.usuarioId,
+      descripcion: descripcionVenta(total, unidades),
+      url: "/api/ventas",
+      // El recibo de una venta sin conexión no se imprime al subirla:
+      // el cliente ya se fue (la impresión local llega en la fase 5).
+      cuerpo: { ...cuerpo, imprimir: false, hechaEn: new Date().toISOString() },
+    });
+    if (!guardada) return false;
+    await guardarCopia(aplicarVentaEnCopia(copia, cuerpo.items));
+    terminarVenta({ sinConexion: true });
+    return true;
+  }
+
+  function terminarVenta(resultado: NonNullable<typeof ventaResultado>) {
+    setCarrito([]);
+    setCliente(null);
+    setMontoRecibido(0);
+    setVentaResultado(resultado);
+    // Un artículo vendido deja de estar disponible: la rejilla que
+    // quedó en pantalla ya no dice la verdad hasta volver a pedirla.
+    buscarArticulos();
+    buscarRepuestos();
+  }
+
   async function reimprimirRecibo() {
-    if (!ventaResultado) return;
+    if (!ventaResultado || ventaResultado.sinConexion) return;
     try {
       await fetch(`/api/ventas/${ventaResultado.id}/reimprimir`, { method: "POST" });
       setMensaje("Reimprimiendo recibo…");
@@ -681,13 +735,24 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
                   >
                     <Check size={22} strokeWidth={2.4} />
                   </span>
-                  <p className="cifra" style={{ margin: "0 0 14px", fontWeight: 800, fontSize: 15 }}>
-                    Venta #{ventaResultado.numero} registrada
-                  </p>
+                  {ventaResultado.sinConexion ? (
+                    <p style={{ margin: "0 0 14px", fontWeight: 700, fontSize: 15 }}>
+                      Venta guardada sin conexión
+                      <span style={{ display: "block", fontSize: 13, fontWeight: 500, color: "var(--ink-2)", marginTop: 4 }}>
+                        Se sube sola cuando vuelva internet y ahí recibe su número.
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="cifra" style={{ margin: "0 0 14px", fontWeight: 800, fontSize: 15 }}>
+                      Venta #{ventaResultado.numero} registrada
+                    </p>
+                  )}
                   <div className="fila" style={{ justifyContent: "center", gap: 8 }}>
-                    <Boton variante="contorno" icono={<Printer size={16} strokeWidth={2} />} onClick={reimprimirRecibo}>
-                      Imprimir recibo
-                    </Boton>
+                    {!ventaResultado.sinConexion && (
+                      <Boton variante="contorno" icono={<Printer size={16} strokeWidth={2} />} onClick={reimprimirRecibo}>
+                        Imprimir recibo
+                      </Boton>
+                    )}
                     <Boton variante="primario" icono={<PlusCircle size={16} strokeWidth={2} />} onClick={nuevaVenta}>
                       Nueva venta
                     </Boton>

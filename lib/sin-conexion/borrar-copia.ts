@@ -20,3 +20,19 @@ export async function borrarCopiaLocal(): Promise<void> {
   }
   await borrarCopiaDatos();
 }
+
+/**
+ * Antes de cerrar sesión: si quedan ventas guardadas sin conexión, avisa
+ * que no se pierden (quedan en el equipo y se suben cuando esa persona
+ * vuelva a entrar) y deja cancelar. true = seguir con la salida.
+ */
+export async function confirmarSalida(): Promise<boolean> {
+  const { listarCola } = await import("./cola");
+  const pendientes = (await listarCola()).filter((e) => e.estado === "pendiente").length;
+  if (pendientes === 0) return true;
+  return window.confirm(
+    `Hay ${pendientes} ${pendientes === 1 ? "venta guardada" : "ventas guardadas"} sin conexión que todavía no se ${
+      pendientes === 1 ? "subió" : "subieron"
+    }. Quedan en este equipo y se suben cuando vuelvas a entrar con internet. ¿Cerrar sesión de todas formas?`,
+  );
+}
