@@ -10,14 +10,16 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { Aviso } from "@/componentes/ui/campo";
+import { leerApi } from "@/lib/sin-conexion/leer-api";
 
 export function useTurnoAbierto(): boolean | null {
   const [abierto, setAbierto] = useState<boolean | null>(null);
 
   useEffect(() => {
-    fetch("/api/turno/actual")
+    // Sin internet responde la copia local (último estado conocido del turno).
+    leerApi("/api/turno/actual")
       .then((r) => r.json())
-      .then((data) => setAbierto(Boolean(data.abierto)))
+      .then((data) => setAbierto(Boolean(data?.abierto)))
       .catch(() => setAbierto(null));
   }, []);
 

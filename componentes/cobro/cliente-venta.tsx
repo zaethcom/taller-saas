@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import { UserRound, X } from "lucide-react";
 import { Boton } from "@/componentes/ui/boton";
 import { pareceCelular, sePuedeBuscarCliente, type ClienteEncontrado } from "@/lib/busqueda-cliente";
+import { leerApi } from "@/lib/sin-conexion/leer-api";
 
 export interface ClienteVenta {
   /** null: cliente nuevo, se crea al cobrar. */
@@ -59,7 +60,7 @@ export function ClienteVentaSelector({
     const t = setTimeout(async () => {
       setBuscando(true);
       try {
-        const res = await fetch(`/api/clientes?nombre=1&q=${encodeURIComponent(valorBuscado)}`);
+        const res = await leerApi(`/api/clientes?nombre=1&q=${encodeURIComponent(valorBuscado)}`);
         const data: { clientes?: ClienteEncontrado[] } = res.ok ? await res.json() : {};
         if (miTurno !== turno.current) return;
         setOpciones(data.clientes ?? []);

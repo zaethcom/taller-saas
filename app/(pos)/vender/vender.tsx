@@ -30,6 +30,7 @@
  * como búsqueda normal.
  */
 import { useEffect, useState } from "react";
+import { leerApi } from "@/lib/sin-conexion/leer-api";
 import { Trash2, Plus, Minus, Search, ShoppingCart, Lock, Check, Printer, PlusCircle, ScanBarcode, Receipt } from "lucide-react";
 import { FotoProducto } from "@/componentes/ui/foto-producto";
 import { Boton, BotonEnlace } from "@/componentes/ui/boton";
@@ -133,7 +134,7 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
   }, [cliente, carritoCargado, claveCarrito]);
 
   useEffect(() => {
-    fetch("/api/metodos-pago")
+    leerApi("/api/metodos-pago")
       .then((r) => r.json())
       .then((data) => {
         if (!Array.isArray(data)) return;
@@ -148,7 +149,7 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
   }, [metodoPagoId]);
 
   useEffect(() => {
-    fetch("/api/categorias")
+    leerApi("/api/categorias")
       .then((r) => r.json())
       .then((data) => setCategorias(Array.isArray(data) ? data : []))
       .catch(() => {});
@@ -165,7 +166,7 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
   }
 
   async function buscarRepuestos(texto = buscarRepuesto): Promise<Repuesto[]> {
-    const res = await fetch(conCategoria(`/api/repuestos?venta=1&buscar=${encodeURIComponent(texto)}`));
+    const res = await leerApi(conCategoria(`/api/repuestos?venta=1&buscar=${encodeURIComponent(texto)}`));
     const data = await res.json();
     const lista: Repuesto[] = res.ok && Array.isArray(data) ? data : [];
     setResultadosRepuesto(lista);
@@ -173,7 +174,7 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
   }
 
   async function buscarArticulos(texto = buscarArticulo): Promise<Articulo[]> {
-    const res = await fetch(
+    const res = await leerApi(
       conCategoria(`/api/inventario/articulos?disponibles=1&buscar=${encodeURIComponent(texto)}`),
     );
     const data = await res.json();
