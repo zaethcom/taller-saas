@@ -14,6 +14,7 @@ import { puedeEntrarA } from "@/lib/permisos";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { DESTINO_SIN_TALLER, empresaIncluyeTaller } from "@/lib/taller-activo";
 
 export default async function LayoutTaller({ children }: { children: React.ReactNode }) {
   const supabase = await clienteServidor();
@@ -34,6 +35,9 @@ export default async function LayoutTaller({ children }: { children: React.React
   // (lib/sede-activa.ts) -- si no, la venta o el turno caerían en una
   // sede adivinada.
   if (!perfil.sedeId && perfil.sedesPermitidas.length > 1) redirect("/elegir-sede");
+
+  // Una empresa sin taller (0072, lib/taller-activo.ts) no tiene app del técnico.
+  if (!(await empresaIncluyeTaller(supabase, perfil.empresaId))) redirect(DESTINO_SIN_TALLER);
 
   // La puerta del taller es siempre oscura a propósito -- visibilidad y
   // batería en un celular usado con una mano, sin importar el tema

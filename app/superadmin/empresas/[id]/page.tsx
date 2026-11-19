@@ -52,6 +52,8 @@ interface Empresa {
   servicio_inicio: string | null;
   servicio_fin: string | null;
   tipo_empresa_id: string | null;
+  /** 0072: false = solo POS e inventario. */
+  incluye_taller?: boolean;
   sedes: Sede[];
   pagos: Pago[];
 }
@@ -343,7 +345,12 @@ export default function PaginaEmpresaSuperadmin({ params }: { params: Promise<{ 
           </form>
         </Tarjeta>
 
-        <TipoEmpresaFicha empresaId={empresa.id} tipoActualId={empresa.tipo_empresa_id} alCambiar={cargar} />
+        <TipoEmpresaFicha
+          empresaId={empresa.id}
+          tipoActualId={empresa.tipo_empresa_id}
+          incluyeTaller={empresa.incluye_taller !== false}
+          alCambiar={cargar}
+        />
 
         <UsuariosEmpresa empresaId={empresa.id} />
 

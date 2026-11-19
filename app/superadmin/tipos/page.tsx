@@ -3,7 +3,8 @@
 /**
  * Los tipos de empresa (0053): los estándares que cambian según el
  * negocio -- tipo de equipo que propone Recibir equipo y categorías
- * iniciales de inventario. Se asignan
+ * iniciales de inventario, y si el negocio usa el taller (0072) o solo
+ * vende con POS e inventario. Se asignan
  * desde la ficha de cada empresa o al crearla.
  *
  * Editar un tipo no cambia a las empresas que ya lo tienen: lo que se
@@ -26,6 +27,7 @@ interface Tipo {
   nombre: string;
   tipo_equipo: TipoNegocio;
   categorias: string[];
+  incluye_taller?: boolean;
   activo: boolean;
   empresas: number;
 }
@@ -34,12 +36,14 @@ interface Borrador {
   nombre: string;
   tipo_equipo: TipoNegocio;
   categorias: string;
+  incluye_taller: boolean;
 }
 
 const VACIO: Borrador = {
   nombre: "",
   tipo_equipo: "otro",
   categorias: "",
+  incluye_taller: true,
 };
 
 function aBorrador(t: Tipo): Borrador {
@@ -47,6 +51,7 @@ function aBorrador(t: Tipo): Borrador {
     nombre: t.nombre,
     tipo_equipo: t.tipo_equipo,
     categorias: t.categorias.join("\n"),
+    incluye_taller: t.incluye_taller !== false,
   };
 }
 
@@ -55,6 +60,7 @@ function aCuerpo(b: Borrador) {
     nombre: b.nombre,
     tipo_equipo: b.tipo_equipo,
     categorias: lineas(b.categorias),
+    incluye_taller: b.incluye_taller,
   };
 }
 
@@ -110,6 +116,20 @@ function EditorTipo({
           </select>
         </Campo>
       </div>
+
+      <label className="fila" style={{ gap: 8, alignItems: "center", cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          checked={borrador.incluye_taller}
+          onChange={(e) => onChange({ ...borrador, incluye_taller: e.target.checked })}
+        />
+        <span>
+          <strong>Incluye taller</strong>
+          <span style={{ display: "block", fontSize: 13, color: "var(--ink-3)" }}>
+            Sin taller, la empresa solo ve el POS con inventario: nada de recibir equipos ni órdenes.
+          </span>
+        </span>
+      </label>
 
       <Campo
         etiqueta="Categorías iniciales de inventario"
@@ -220,6 +240,7 @@ export default function PaginaTiposEmpresa() {
                 <Etiqueta tono={t.activo ? "ok" : "neutro"} punto>
                   {t.activo ? "Activo" : "Inactivo"}
                 </Etiqueta>
+                {t.incluye_taller === false && <Etiqueta tono="neutro">Sin taller</Etiqueta>}
                 <span style={{ fontSize: 13, color: "var(--ink-3)" }}>
                   {t.empresas} empresa{t.empresas === 1 ? "" : "s"}
                 </span>

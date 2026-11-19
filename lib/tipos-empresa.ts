@@ -6,7 +6,9 @@
  * Asignar un tipo copia a la empresa su tipo de equipo por defecto y
  * sus categorías iniciales. Solo agrega: nunca borra ni renombra lo que
  * la empresa ya tiene, y aplicarlo dos veces no duplica nada (las
- * categorías repetidas se ignoran). Las fases que guardaba cada tipo se
+ * categorías repetidas se ignoran). También copia si la empresa usa el
+ * taller (0072); eso sí se reemplaza, y el superadmin lo puede cambiar
+ * después a mano en la ficha. Las fases que guardaba cada tipo se
  * dejaron de copiar con los estados simples (0065_estados_simples.sql).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -17,6 +19,8 @@ export interface TipoEmpresa {
   nombre: string;
   tipo_equipo: TipoNegocio;
   categorias: string[];
+  /** Si las empresas de este tipo usan el taller (0072_negocio_sin_taller.sql). */
+  incluye_taller: boolean;
   activo: boolean;
 }
 
@@ -74,6 +78,10 @@ export function validarTipo(
     if (!Array.isArray(body.categorias)) return { error: "las categorías no son válidas" };
     campos.categorias = limpiarNombres(body.categorias);
   }
+  if (body.incluye_taller !== undefined) {
+    if (typeof body.incluye_taller !== "boolean") return { error: "el valor de incluye taller no es válido" };
+    campos.incluye_taller = body.incluye_taller;
+  }
   if (body.activo !== undefined) {
     if (typeof body.activo !== "boolean") return { error: "el estado activo no es válido" };
     campos.activo = body.activo;
@@ -90,9 +98,12 @@ export function validarTipo(
 export async function aplicarTipoEmpresa(
   admin: SupabaseClient,
   empresaId: string,
-  tipo: Pick<TipoEmpresa, "id" | "tipo_equipo" | "categorias">,
+  tipo: Pick<TipoEmpresa, "id" | "tipo_equipo" | "categorias" | "incluye_taller">,
 ): Promise<{ categorias: number }> {
-  const { error: errEmpresa } = await admin.from("empresa").update({ tipo_empresa_id: tipo.id }).eq("id", empresaId);
+  const { error: errEmpresa } = await admin
+    .from("empresa")
+    .update({ tipo_empresa_id: tipo.id, incluye_taller: tipo.incluye_taller !== false })
+    .eq("id", empresaId);
   if (errEmpresa) throw new Error(errEmpresa.message);
 
   const { error: errConfig } = await admin

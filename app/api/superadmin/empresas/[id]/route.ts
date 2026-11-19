@@ -4,7 +4,9 @@
  * que muestra /superadmin/empresas/<id>.
  *
  * PATCH /api/superadmin/empresas/<id>
- * Body: { activa?, nombre?, nit?, servicio_inicio?, servicio_fin? }
+ * Body: { activa?, nombre?, nit?, servicio_inicio?, servicio_fin?, incluye_taller? }
+ * incluye_taller: si la empresa usa el taller (0072). En false solo
+ * esconde las pantallas de servicio técnico; no borra órdenes.
  * Suspender o reactivar una empresa, corregir sus datos o ajustar a mano
  * las fechas del servicio. empresa_actual() (0020_superadmin.sql) exige
  * empresa.activa -- en cuanto esto se guarda en false, ningún usuario de
@@ -31,7 +33,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const [{ data: empresa, error }, { data: sedes }, { data: pagos }] = await Promise.all([
       admin
         .from("empresa")
-        .select("id, nombre, nit, activa, creada_en, servicio_inicio, servicio_fin, tipo_empresa_id")
+        .select("id, nombre, nit, activa, creada_en, servicio_inicio, servicio_fin, tipo_empresa_id, incluye_taller")
         .eq("id", id)
         .maybeSingle(),
       admin.from("sede").select("id, nombre, tipo").eq("empresa_id", id).order("nombre"),
@@ -64,6 +66,7 @@ interface CuerpoPatch {
   nit?: string | null;
   servicio_inicio?: string | null;
   servicio_fin?: string | null;
+  incluye_taller?: boolean;
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -83,6 +86,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         return NextResponse.json({ error: "el estado activa no es válido" }, { status: 400 });
       }
       cambios.activa = body.activa;
+    }
+    if (body.incluye_taller !== undefined) {
+      if (typeof body.incluye_taller !== "boolean") {
+        return NextResponse.json({ error: "el valor de incluye taller no es válido" }, { status: 400 });
+      }
+      cambios.incluye_taller = body.incluye_taller;
     }
     if (body.nombre !== undefined) {
       if (typeof body.nombre !== "string" || !body.nombre.trim()) {

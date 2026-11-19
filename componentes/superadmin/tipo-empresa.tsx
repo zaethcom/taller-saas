@@ -3,8 +3,11 @@
 /**
  * El tipo de una empresa visto desde su ficha del superadmin: cuál
  * tiene y el botón para asignarle otro (o volver a aplicar el mismo
- * después de editar el estándar). Asignar solo agrega fases y
- * categorías; nunca borra lo que la empresa ya tiene (0053).
+ * después de editar el estándar). Asignar solo agrega categorías;
+ * nunca borra lo que la empresa ya tiene (0053).
+ *
+ * También el interruptor "Usa el taller" (0072): asignar un tipo lo
+ * pone como diga el tipo, y aquí se cambia a mano para esta empresa.
  */
 import { useEffect, useState } from "react";
 import { Layers } from "lucide-react";
@@ -17,20 +20,25 @@ interface TipoResumen {
   id: string;
   nombre: string;
   activo: boolean;
+  incluye_taller?: boolean;
 }
 
 export function TipoEmpresaFicha({
   empresaId,
   tipoActualId,
+  incluyeTaller,
   alCambiar,
 }: {
   empresaId: string;
   tipoActualId: string | null;
+  /** empresa.incluye_taller (0072). */
+  incluyeTaller: boolean;
   alCambiar: () => void | Promise<void>;
 }) {
   const [tipos, setTipos] = useState<TipoResumen[]>([]);
   const [elegido, setElegido] = useState(tipoActualId ?? "");
   const [aplicando, setAplicando] = useState(false);
+  const [cambiandoTaller, setCambiandoTaller] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,16 +67,42 @@ export function TipoEmpresaFicha({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "No se pudo asignar el tipo");
+      const tipo = tipos.find((t) => t.id === elegido);
       setMensaje(
-        `Tipo asignado. Se agregaron ${data.fases} fase${data.fases === 1 ? "" : "s"} y ${data.categorias} categoría${
-          data.categorias === 1 ? "" : "s"
-        } que no tenía.`,
+        `Tipo asignado. Se agregaron ${data.categorias} categoría${data.categorias === 1 ? "" : "s"} que no tenía${
+          tipo?.incluye_taller === false ? ", y queda sin taller: solo POS e inventario" : ""
+        }.`,
       );
       await alCambiar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo asignar el tipo");
     } finally {
       setAplicando(false);
+    }
+  }
+
+  async function cambiarTaller(valor: boolean) {
+    setCambiandoTaller(true);
+    setMensaje(null);
+    setError(null);
+    try {
+      const res = await fetch(`/api/superadmin/empresas/${empresaId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ incluye_taller: valor }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "No se pudo cambiar el taller");
+      setMensaje(
+        valor
+          ? "La empresa vuelve a tener taller: Recibir equipo, Órdenes y Cobrar y entregar."
+          : "La empresa queda sin taller: solo POS, inventario y lo demás. Sus órdenes no se borran.",
+      );
+      await alCambiar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo cambiar el taller");
+    } finally {
+      setCambiandoTaller(false);
     }
   }
 
@@ -83,8 +117,8 @@ export function TipoEmpresaFicha({
         ) : (
           "Todavía no tiene tipo. "
         )}
-        Asignar un tipo le carga sus fases de la orden, categorías y tipo de equipo por defecto. Solo agrega: no borra
-        nada de lo que la empresa ya tiene.
+        Asignar un tipo le carga sus categorías, su tipo de equipo por defecto y si usa el taller. Solo agrega: no
+        borra nada de lo que la empresa ya tiene.
       </p>
       <div className="fila" style={{ gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
         <Campo etiqueta="Tipo">
@@ -95,6 +129,7 @@ export function TipoEmpresaFicha({
               .map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.nombre}
+                  {t.incluye_taller === false ? " (sin taller)" : ""}
                 </option>
               ))}
           </select>
@@ -108,6 +143,21 @@ export function TipoEmpresaFicha({
           {aplicando ? "Aplicando…" : elegido && elegido === tipoActualId ? "Volver a aplicar" : "Asignar tipo"}
         </Boton>
       </div>
+      <label className="fila" style={{ gap: 8, alignItems: "center", marginTop: 16, cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          checked={incluyeTaller}
+          disabled={cambiandoTaller}
+          onChange={(e) => cambiarTaller(e.target.checked)}
+        />
+        <span>
+          <strong>Usa el taller</strong>
+          <span style={{ display: "block", fontSize: 13, color: "var(--ink-3)" }}>
+            Sin taller se esconden Recibir equipo, Órdenes, Cobrar y entregar, la app del técnico, Servicios, Mano de
+            obra y Equipos. Queda el POS con inventario.
+          </span>
+        </span>
+      </label>
       {mensaje && (
         <div style={{ marginTop: 12 }}>
           <Aviso tono="ok">{mensaje}</Aviso>

@@ -27,7 +27,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const admin = clienteAdmin();
     const [{ data: empresa }, { data: tipo, error }] = await Promise.all([
       admin.from("empresa").select("id").eq("id", id).maybeSingle(),
-      admin.from("tipo_empresa").select("id, tipo_equipo, categorias").eq("id", body.tipoId).maybeSingle(),
+      admin.from("tipo_empresa").select("id, tipo_equipo, categorias, incluye_taller").eq("id", body.tipoId).maybeSingle(),
     ]);
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

@@ -17,6 +17,7 @@ import { puede, puedeEntrarA } from "@/lib/permisos";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { empresaIncluyeTaller } from "@/lib/taller-activo";
 
 export default async function LayoutAdmin({ children }: { children: React.ReactNode }) {
   const supabase = await clienteServidor();
@@ -37,7 +38,10 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
   // sede adivinada.
   if (!perfil.sedeId && perfil.sedesPermitidas.length > 1) redirect("/elegir-sede");
 
-  const config = await obtenerConfiguracion(supabase, perfil.empresaId);
+  const [config, incluyeTaller] = await Promise.all([
+    obtenerConfiguracion(supabase, perfil.empresaId),
+    empresaIncluyeTaller(supabase, perfil.empresaId),
+  ]);
 
   const veConfiguracion = puede(perfil.rol, "personalizar_empresa");
 
@@ -53,12 +57,18 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
     ],
     [
       { href: "/categorias", etiqueta: "Categorías" },
-      { href: "/servicios", etiqueta: "Servicios" },
-      { href: "/mano-obra", etiqueta: "Mano de obra" },
+      // Servicios, mano de obra y equipos de clientes solo sirven al
+      // taller (0072, lib/taller-activo.ts).
+      ...(incluyeTaller
+        ? [
+            { href: "/servicios", etiqueta: "Servicios" },
+            { href: "/mano-obra", etiqueta: "Mano de obra" },
+          ]
+        : []),
     ],
     [
       { href: "/clientes", etiqueta: "Clientes" },
-      { href: "/equipos", etiqueta: "Equipos" },
+      ...(incluyeTaller ? [{ href: "/equipos", etiqueta: "Equipos" }] : []),
     ],
     [
       { href: "/usuarios", etiqueta: "Usuarios" },
@@ -74,7 +84,9 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
   const incluye = (href: string) => secciones.find((s) => s[0]?.href === href)?.slice(1).map((p) => p.href);
 
   const items: ItemNavLateral[] = [
-    { href: "/ordenes", etiqueta: "Órdenes", icono: <ClipboardList size={18} strokeWidth={2} /> },
+    ...(incluyeTaller
+      ? [{ href: "/ordenes", etiqueta: "Órdenes", icono: <ClipboardList size={18} strokeWidth={2} /> }]
+      : []),
     { href: "/compras", etiqueta: "Compras", icono: <ShoppingBag size={18} strokeWidth={2} /> },
     { href: "/inventario", etiqueta: "Inventario", icono: <Package size={18} strokeWidth={2} />, incluye: incluye("/inventario") },
     { href: "/categorias", etiqueta: "Catálogo", icono: <Tags size={18} strokeWidth={2} />, incluye: incluye("/categorias") },
@@ -104,7 +116,7 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
         pie={<BloqueMarca imagenUrl={config.imagenMarcaUrl} eslogan={config.eslogan} />}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <BarraSuperior nombre={perfil.nombre} rol={perfil.rol} sedeNombre={perfil.sedeNombre} puedeCambiarSede={perfil.sedesPermitidas.length > 1} puerta="admin" />
+        <BarraSuperior nombre={perfil.nombre} rol={perfil.rol} sedeNombre={perfil.sedeNombre} puedeCambiarSede={perfil.sedesPermitidas.length > 1} puerta="admin" incluyeTaller={incluyeTaller} />
         <main style={{ padding: 20, maxWidth: 1180, margin: "0 auto" }}>
           <PestanasSeccion secciones={secciones} />
           {children}
