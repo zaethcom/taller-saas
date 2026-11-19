@@ -86,6 +86,34 @@ describe("pantallas sin internet", () => {
     expect(debeGuardarPagina("/configuracion")).toBe(false);
     expect(debeGuardarPagina("/login")).toBe(false);
     expect(debeGuardarPagina("/seguimiento/x")).toBe(false);
+    expect(debeGuardarPagina("/")).toBe(true);
+  });
+
+  it("baja de antemano solo las pantallas de las puertas del rol, todas guardables", async () => {
+    const { pantallasParaPrecargar, debeGuardarPagina } = await import("../lib/sin-conexion/paginas");
+    const cajero = pantallasParaPrecargar({ pos: true, taller: false });
+    expect(cajero).toEqual(expect.arrayContaining(["/", "/vender", "/recibir", "/entregar", "/turno"]));
+    expect(cajero).not.toContain("/escanear");
+    expect(pantallasParaPrecargar({ pos: false, taller: true })).toEqual(["/", "/escanear"]);
+    for (const p of pantallasParaPrecargar({ pos: true, taller: true })) expect(debeGuardarPagina(p)).toBe(true);
+  });
+
+  it("el service worker encuentra el código de una pantalla en su HTML y en el CSS", async () => {
+    const { readFileSync } = await import("node:fs");
+    const sw = readFileSync(new URL("../public/sw.js", import.meta.url), "utf8");
+    const fuente = sw.match(/const RE_ESTATICO = [^\n]+\n\nfunction rutasEstaticas[\s\S]*?\n}\n/);
+    expect(fuente).not.toBeNull();
+    const rutasEstaticas = new Function(`${fuente![0]}; return rutasEstaticas;`)() as (t: string) => Set<string>;
+    const html =
+      '<script src="/_next/static/chunks/app/(pos)/recibir/page-ab12.js?dpl=x" async></script>' +
+      'self.__next_f.push([1,"3:I[1,[\\"static/chunks/45-ff.js\\",\\"static/chunks/app/(pos)/layout-9.js\\"]"])' +
+      "src:url(/_next/static/media/a.woff2) format('woff2')";
+    expect([...rutasEstaticas(html)]).toEqual([
+      "/_next/static/chunks/app/(pos)/recibir/page-ab12.js?dpl=x",
+      "/_next/static/chunks/45-ff.js",
+      "/_next/static/chunks/app/(pos)/layout-9.js",
+      "/_next/static/media/a.woff2",
+    ]);
   });
 
   it("public/sw.js usa la misma lista y el mismo nombre de caché", async () => {

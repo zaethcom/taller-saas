@@ -11,6 +11,8 @@ import { BarraSuperior } from "@/componentes/ui/barra-superior";
 import { BarraLateral, type ItemNavLateral } from "@/componentes/ui/barra-lateral";
 import { BloqueMarca } from "@/componentes/ui/bloque-marca";
 import { puedeEntrarA } from "@/lib/permisos";
+import { PrecargarPantallas } from "@/componentes/sin-conexion/precargar-pantallas";
+import { pantallasParaPrecargar } from "@/lib/sin-conexion/paginas";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { clienteServidor } from "@/lib/supabase/servidor";
@@ -47,6 +49,7 @@ export default async function LayoutTaller({ children }: { children: React.React
 
   return (
     <div className="puerta-oscura" style={{ minHeight: "100vh", display: "flex" }}>
+      <PrecargarPantallas paginas={pantallasParaPrecargar({ pos: puedeEntrarA(perfil.rol, "pos"), taller: puedeEntrarA(perfil.rol, "taller") })} />
       <BarraLateral
         items={items}
         logoUrl={config.logoUrl}

@@ -14,6 +14,9 @@ import { BarraLateral, type ItemNavLateral } from "@/componentes/ui/barra-latera
 import { PestanasSeccion, type PestanaSeccion } from "@/componentes/ui/pestanas-seccion";
 import { BloqueMarca } from "@/componentes/ui/bloque-marca";
 import { puede, puedeEntrarA } from "@/lib/permisos";
+import { SincronizarCopia } from "@/componentes/sin-conexion/sincronizar-copia";
+import { PrecargarPantallas } from "@/componentes/sin-conexion/precargar-pantallas";
+import { pantallasParaPrecargar } from "@/lib/sin-conexion/paginas";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { clienteServidor } from "@/lib/supabase/servidor";
@@ -96,6 +99,11 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
 
   return (
     <div style={{ minHeight: "100vh", display: "flex" }}>
+      {/* La copia para trabajar sin internet y la subida de lo hecho sin
+          conexión siguen aquí también: quien entra al POS puede pasar
+          el día en el tablero. */}
+      {puedeEntrarA(perfil.rol, "pos") && <SincronizarCopia empresaId={perfil.empresaId} sedeId={perfil.sedeId} usuarioId={perfil.id} />}
+      <PrecargarPantallas paginas={pantallasParaPrecargar({ pos: puedeEntrarA(perfil.rol, "pos"), taller: puedeEntrarA(perfil.rol, "taller") })} />
       <BarraLateral
         items={items}
         logoUrl={config.logoUrl}
