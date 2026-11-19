@@ -14,6 +14,8 @@ import { SincronizarCopia } from "@/componentes/sin-conexion/sincronizar-copia";
 import { BarraLateral, type ItemNavLateral } from "@/componentes/ui/barra-lateral";
 import { BloqueMarca } from "@/componentes/ui/bloque-marca";
 import { puedeEntrarA } from "@/lib/permisos";
+import { PrecargarPantallas } from "@/componentes/sin-conexion/precargar-pantallas";
+import { pantallasParaPrecargar } from "@/lib/sin-conexion/paginas";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { clienteServidor } from "@/lib/supabase/servidor";
@@ -52,6 +54,7 @@ export default async function LayoutPos({ children }: { children: React.ReactNod
     <div style={{ minHeight: "100vh", display: "flex" }}>
       {/* Copia de datos de la sede para vender sin internet (lib/sin-conexion). */}
       <SincronizarCopia empresaId={perfil.empresaId} sedeId={perfil.sedeId} usuarioId={perfil.id} />
+      <PrecargarPantallas paginas={pantallasParaPrecargar({ pos: puedeEntrarA(perfil.rol, "pos"), taller: puedeEntrarA(perfil.rol, "taller"), admin: puedeEntrarA(perfil.rol, "admin") })} />
       <BarraLateral
         items={items}
         logoUrl={config.logoUrl}

@@ -30,6 +30,24 @@ import { Tarjeta } from "@/componentes/ui/tarjeta";
 import { Campo } from "@/componentes/ui/campo";
 import { TituloPantalla } from "@/componentes/ui/titulo-pantalla";
 import { VentanaError } from "@/componentes/ui/ventana-error";
+import { FichaSinConexion } from "@/componentes/sin-conexion/ficha-sin-conexion";
+import { leerCopia } from "@/lib/sin-conexion/copia-local";
+import { buscarOrdenTaller } from "@/lib/sin-conexion/orden-local";
+import type { OrdenLocal } from "@/lib/sin-conexion/tipos";
+
+const NO_GUARDADA = "Sin internet, y esta orden no está guardada en este equipo (solo están las abiertas de la última vez que hubo internet).";
+
+/**
+ * Sin internet (el fetch falla), la orden se busca en la copia local y
+ * se muestra aquí mismo (componentes/sin-conexion/ficha-sin-conexion.tsx):
+ * la ficha completa de /orden/[id] necesita el servidor.
+ */
+async function buscarSinConexion(q: { token?: string; texto?: string }): Promise<OrdenLocal> {
+  const copia = await leerCopia();
+  const orden = copia ? buscarOrdenTaller(copia, q) : null;
+  if (!orden) throw new Error(NO_GUARDADA);
+  return orden;
+}
 
 function extraerTokenDeSeguimiento(valor: string): string | null {
   try {
@@ -49,6 +67,7 @@ export default function PaginaEscanear() {
   const [serial, setSerial] = useState("");
   const [buscando, setBuscando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ordenLocal, setOrdenLocal] = useState<OrdenLocal | null>(null);
 
   async function procesarCodigo(valor: string) {
     const token = extraerTokenDeSeguimiento(valor);
@@ -63,7 +82,14 @@ export default function PaginaEscanear() {
     setBuscando(true);
     setError(null);
     try {
-      const res = await fetch(`/api/ordenes/por-token?token=${encodeURIComponent(token)}`);
+      let res: Response;
+      try {
+        res = await fetch(`/api/ordenes/por-token?token=${encodeURIComponent(token)}`);
+      } catch {
+        setOrdenLocal(await buscarSinConexion({ token }));
+        setBuscando(false);
+        return;
+      }
       if (!res.ok) throw new Error((await res.json()).error);
       const { ordenId } = await res.json();
       router.push(`/orden/${ordenId}`);
@@ -77,7 +103,13 @@ export default function PaginaEscanear() {
     setBuscando(true);
     setError(null);
     try {
-      const res = await fetch(`/api/ordenes/por-serial?serial=${encodeURIComponent(valor)}`);
+      let res: Response;
+      try {
+        res = await fetch(`/api/ordenes/por-serial?serial=${encodeURIComponent(valor)}`);
+      } catch {
+        setOrdenLocal(await buscarSinConexion({ texto: valor }));
+        return;
+      }
       if (!res.ok) throw new Error((await res.json()).error);
       const { ordenId } = await res.json();
       router.push(`/orden/${ordenId}`);
@@ -86,6 +118,21 @@ export default function PaginaEscanear() {
     } finally {
       setBuscando(false);
     }
+  }
+
+  if (ordenLocal) {
+    return (
+      <div>
+        <TituloPantalla titulo="Orden sin conexión" />
+        <FichaSinConexion
+          orden={ordenLocal}
+          onVolver={() => {
+            setOrdenLocal(null);
+            setSerial("");
+          }}
+        />
+      </div>
+    );
   }
 
   return (

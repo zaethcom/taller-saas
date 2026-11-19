@@ -20,12 +20,77 @@
 const CACHE = "taller-shell-v1";
 const CACHE_PAGINAS = "taller-paginas-v1"; // igual a lib/sin-conexion/borrar-copia.ts
 const PAGINA_SIN_CONEXION = "/sin-conexion.html";
-const PAGINAS_SIN_CONEXION = ["/vender", "/recibir", "/entregar", "/abonos", "/turno", "/recibos", "/orden", "/escanear", "/sincronizacion"];
+const PAGINAS_SIN_CONEXION = ["/vender", "/recibir", "/entregar", "/abonos", "/turno", "/recibos", "/orden", "/escanear", "/sincronizacion", "/ordenes", "/inventario", "/clientes"];
 const CACHES_VIGENTES = [CACHE, CACHE_PAGINAS];
 
 function debeGuardarPagina(ruta) {
-  return PAGINAS_SIN_CONEXION.some((p) => ruta === p || ruta.startsWith(p + "/"));
+  // La portada (las tres puertas) también: es donde abre la app instalada.
+  return ruta === "/" || PAGINAS_SIN_CONEXION.some((p) => ruta === p || ruta.startsWith(p + "/"));
 }
+
+/*
+ * Guardar de antemano (componentes/sin-conexion/precargar-pantallas.tsx).
+ * Moverse por el menú no es una navegación del navegador sino una
+ * consulta interna de Next, así que una pantalla a la que solo se llegó
+ * por el menú nunca quedaba guardada y sin internet salía "Sin
+ * conexión". Con internet, la app le pide al service worker que baje
+ * cada pantalla operativa y el código (JS/CSS) que esa pantalla carga.
+ */
+const RE_ESTATICO = /(?:\/_next\/)?static\/(?:chunks|css|media)\/[^"'\\\s<>`]+/g;
+
+function rutasEstaticas(texto) {
+  const rutas = new Set();
+  for (const m of texto.matchAll(RE_ESTATICO)) {
+    let r = m[0];
+    // url(/_next/static/media/x.woff2) en el CSS: el ")" no es del nombre.
+    if (r.endsWith(")") && !r.slice(r.lastIndexOf("/")).includes("(")) r = r.slice(0, -1);
+    rutas.add(r.startsWith("/") ? r : "/_next/" + r);
+  }
+  return rutas;
+}
+
+async function guardarEstatico(cache, ruta) {
+  if (await cache.match(ruta)) return null;
+  const respuesta = await fetch(ruta);
+  if (!respuesta.ok) return null;
+  const texto = ruta.split("?")[0].endsWith(".css") ? await respuesta.clone().text() : null;
+  await cache.put(ruta, respuesta);
+  return texto;
+}
+
+async function precargar(paginas) {
+  const cachePaginas = await caches.open(CACHE_PAGINAS);
+  const cacheShell = await caches.open(CACHE);
+  const estaticos = new Set();
+  for (const ruta of paginas) {
+    try {
+      const url = new URL(ruta, self.location.origin);
+      const respuesta = await fetch(url.href, { credentials: "same-origin", cache: "no-store" });
+      if (!respuesta.ok || respuesta.redirected || respuesta.type !== "basic") continue;
+      const html = await respuesta.clone().text();
+      await cachePaginas.put(url.origin + url.pathname, respuesta);
+      for (const r of rutasEstaticas(html)) estaticos.add(r);
+    } catch {
+      // Sin red a mitad de camino: lo que alcanzó a bajar queda guardado.
+    }
+  }
+  for (const ruta of estaticos) {
+    try {
+      const css = await guardarEstatico(cacheShell, ruta);
+      // Las fuentes que pide el CSS.
+      if (css) for (const r of rutasEstaticas(css)) await guardarEstatico(cacheShell, r).catch(() => null);
+    } catch {
+      // Sigue con el resto.
+    }
+  }
+}
+
+self.addEventListener("message", (event) => {
+  const datos = event.data;
+  if (!datos || datos.tipo !== "precargar" || !Array.isArray(datos.paginas)) return;
+  const paginas = datos.paginas.filter((p) => typeof p === "string" && p.startsWith("/") && debeGuardarPagina(p));
+  event.waitUntil(precargar(paginas));
+});
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

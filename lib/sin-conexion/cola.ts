@@ -30,8 +30,8 @@ export type EstadoElemento = "pendiente" | "error" | "aviso";
 export interface ElementoCola {
   /** La clave local (uuid): también va en el cuerpo como claveLocal. */
   id: string;
-  /** venta (fase 3); abono, cobro de saldo y entrega de una orden (fase 3b); recepción (fase 4). */
-  tipo: "venta" | "abono" | "cobro_orden" | "entrega" | "recepcion";
+  /** venta (fase 3); abono, cobro de saldo y entrega de una orden (fase 3b); recepción (fase 4); cambio de estado del técnico. */
+  tipo: "venta" | "abono" | "cobro_orden" | "entrega" | "recepcion" | "estado";
   creadoEn: string;
   empresaId: string;
   sedeId: string;

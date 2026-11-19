@@ -133,3 +133,30 @@ describe("descripciones de la cola", () => {
     expect(descripcionEntrega(14)).toBe("Entrega orden #14");
   });
 });
+
+describe("el técnico sin internet", () => {
+  it("encuentra la orden por token del QR, serial (sin importar mayúsculas), número o código de etiqueta", async () => {
+    const { buscarOrdenTaller } = await import("../lib/sin-conexion/orden-local");
+    expect(buscarOrdenTaller(copia, { token: "tok-o1" })?.id).toBe("o1");
+    expect(buscarOrdenTaller(copia, { texto: " sn1 " })?.id).toBe("o1");
+    expect(buscarOrdenTaller(copia, { texto: "15" })?.id).toBe("o2");
+    expect(buscarOrdenTaller(copia, { texto: "PS000014" })?.id).toBe("o1");
+    expect(buscarOrdenTaller(copia, { texto: "NOEXISTE" })).toBeNull();
+    expect(buscarOrdenTaller(copia, { token: "otro" })).toBeNull();
+  });
+
+  it("el cambio de estado queda en la copia sin tocar la original", async () => {
+    const { aplicarEstadoEnCopia, descripcionEstado } = await import("../lib/sin-conexion/orden-local");
+    const nueva = aplicarEstadoEnCopia(copia, "o1", "listo_entrega");
+    expect(nueva.ordenesAbiertas[0]!.estado).toBe("listo_entrega");
+    expect(copia.ordenesAbiertas[0]!.estado).toBe("en_proceso");
+    expect(descripcionEstado(14, "Listo para entregar")).toBe("Orden #14 → Listo para entregar");
+  });
+
+  it("sin internet el técnico no entrega: eso es del mostrador", async () => {
+    const { estadosSinConexion } = await import("../lib/sin-conexion/orden-local");
+    expect(estadosSinConexion("en_proceso")).toEqual(["falta_repuesto", "esperando_cliente", "listo_entrega"]);
+    expect(estadosSinConexion("listo_entrega")).toEqual(["en_proceso"]);
+    expect(estadosSinConexion("raro")).toEqual([]);
+  });
+});

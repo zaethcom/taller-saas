@@ -11,6 +11,9 @@ import { BarraSuperior } from "@/componentes/ui/barra-superior";
 import { BarraLateral, type ItemNavLateral } from "@/componentes/ui/barra-lateral";
 import { BloqueMarca } from "@/componentes/ui/bloque-marca";
 import { puedeEntrarA } from "@/lib/permisos";
+import { SincronizarCopia } from "@/componentes/sin-conexion/sincronizar-copia";
+import { PrecargarPantallas } from "@/componentes/sin-conexion/precargar-pantallas";
+import { pantallasParaPrecargar } from "@/lib/sin-conexion/paginas";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { clienteServidor } from "@/lib/supabase/servidor";
@@ -47,6 +50,9 @@ export default async function LayoutTaller({ children }: { children: React.React
 
   return (
     <div className="puerta-oscura" style={{ minHeight: "100vh", display: "flex" }}>
+      {/* Copia de las órdenes abiertas para ver y cambiar el estado sin internet (escanear). */}
+      <SincronizarCopia empresaId={perfil.empresaId} sedeId={perfil.sedeId} usuarioId={perfil.id} numeros={puedeEntrarA(perfil.rol, "pos")} />
+      <PrecargarPantallas paginas={pantallasParaPrecargar({ pos: puedeEntrarA(perfil.rol, "pos"), taller: puedeEntrarA(perfil.rol, "taller"), admin: puedeEntrarA(perfil.rol, "admin") })} />
       <BarraLateral
         items={items}
         logoUrl={config.logoUrl}

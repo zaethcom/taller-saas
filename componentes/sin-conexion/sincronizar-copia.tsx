@@ -77,7 +77,18 @@ async function renovarNumeros(empresaId: string): Promise<void> {
   }
 }
 
-export function SincronizarCopia({ empresaId, sedeId, usuarioId }: { empresaId: string; sedeId: string | null; usuarioId: string }) {
+export function SincronizarCopia({
+  empresaId,
+  sedeId,
+  usuarioId,
+  numeros = true,
+}: {
+  empresaId: string;
+  sedeId: string | null;
+  usuarioId: string;
+  /** false en la puerta del taller: el técnico no recibe equipos y no debe apartar números de orden. */
+  numeros?: boolean;
+}) {
   useEffect(() => {
     if (!sedeId) return;
     let cancelado = false;
@@ -99,7 +110,7 @@ export function SincronizarCopia({ empresaId, sedeId, usuarioId }: { empresaId: 
           Date.now() - Date.parse(actual.generadaEn) >= INTERVALO_MS;
         if (vieja && !quedanPendientes && !cancelado) {
           await bajarCopia();
-          await renovarNumeros(empresaId);
+          if (numeros) await renovarNumeros(empresaId);
         }
       }
       if (!cancelado) reloj = setTimeout(turno, quedanPendientes ? REINTENTO_COLA_MS : INTERVALO_MS);
@@ -115,7 +126,7 @@ export function SincronizarCopia({ empresaId, sedeId, usuarioId }: { empresaId: 
       document.removeEventListener("visibilitychange", alVolver);
       window.removeEventListener("online", alVolver);
     };
-  }, [empresaId, sedeId, usuarioId]);
+  }, [empresaId, sedeId, usuarioId, numeros]);
 
   return null;
 }
