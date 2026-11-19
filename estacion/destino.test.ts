@@ -1,6 +1,6 @@
 import { createServer, type Server } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
-import { DestinoPuenteAndroid, DestinoRed } from "./destino";
+import { DestinoPuenteAndroid, DestinoRed, MAX_PAYLOAD_PUENTE } from "./destino";
 
 let servidor: Server | undefined;
 
@@ -77,5 +77,30 @@ describe("DestinoPuenteAndroid", () => {
     await expect(new DestinoPuenteAndroid("127.0.0.1", puerto).enviar(Buffer.from("x"))).rejects.toThrow(
       "no confirmó la impresión",
     );
+  });
+
+  it("con token, manda primero la trama del token y después la del payload", async () => {
+    const recibido: Buffer[] = [];
+    const puerto = await escucharEnPuertoLibre((socket) => {
+      socket.on("data", (chunk) => {
+        recibido.push(chunk);
+        const todo = Buffer.concat(recibido);
+        if (todo.length >= 4 + 7 + 4 + 4) socket.end("OK\n");
+      });
+    });
+
+    await new DestinoPuenteAndroid("127.0.0.1", puerto, 15000, "secreto").enviar(Buffer.from("hola"));
+
+    const enviado = Buffer.concat(recibido);
+    expect(enviado.readInt32BE(0)).toBe(7);
+    expect(enviado.subarray(4, 11).toString()).toBe("secreto");
+    expect(enviado.readInt32BE(11)).toBe(4);
+    expect(enviado.subarray(15).toString()).toBe("hola");
+  });
+
+  it("no manda un trabajo más grande de lo que acepta el puente", async () => {
+    await expect(
+      new DestinoPuenteAndroid("127.0.0.1", 1).enviar(Buffer.alloc(MAX_PAYLOAD_PUENTE + 1)),
+    ).rejects.toThrow("acepta hasta 512 KB");
   });
 });

@@ -26,6 +26,9 @@ interface Config {
   // responde (la sede todavía no tiene nada configurado desde la web,
   // o no hay red hacia el servidor en este arranque en particular).
   impresoras?: ConfigImpresoras;
+  // Token del puente Android («Acceso por red» en la app). Solo aplica a
+  // impresoras con protocolo "puente_android". Ver destino.ts.
+  tokenPuente?: string;
 }
 
 function cargarConfig(ruta: string): Config {
@@ -124,7 +127,7 @@ async function cicloPrincipal(config: Config): Promise<void> {
   console.log(
     `[estacion] impresoras: tickets ${impresoras.tickets.host}, etiquetas ${impresoras.etiquetas.host} (${(impresoras.etiquetas.lenguaje ?? "pplb").toUpperCase()})`,
   );
-  let destinos = crearDestinos(impresoras);
+  let destinos = crearDestinos(impresoras, config.tokenPuente);
   let ultimoRefresco = Date.now();
 
   // eslint-disable-next-line no-constant-condition
@@ -138,7 +141,7 @@ async function cicloPrincipal(config: Config): Promise<void> {
       if (JSON.stringify(nuevas) !== JSON.stringify(impresoras)) {
         console.log("[estacion] impresoras cambiaron en la web, usando la nueva configuración");
         impresoras = nuevas;
-        destinos = crearDestinos(impresoras);
+        destinos = crearDestinos(impresoras, config.tokenPuente);
       }
     }
 
