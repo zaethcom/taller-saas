@@ -48,3 +48,12 @@ describe("validar un tipo", () => {
     });
   });
 });
+
+describe("incluye taller (0072)", () => {
+  it("acepta incluye_taller booleano y rechaza otra cosa", () => {
+    expect(validarTipo({ incluye_taller: false }, { parcial: true })).toEqual({ campos: { incluye_taller: false } });
+    expect(validarTipo({ incluye_taller: "no" }, { parcial: true })).toEqual({
+      error: "el valor de incluye taller no es válido",
+    });
+  });
+});

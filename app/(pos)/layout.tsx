@@ -19,6 +19,7 @@ import { pantallasParaPrecargar } from "@/lib/sin-conexion/paginas";
 import { obtenerPerfilActual } from "@/lib/perfil";
 import { obtenerConfiguracion } from "@/lib/configuracion";
 import { clienteServidor } from "@/lib/supabase/servidor";
+import { empresaIncluyeTaller } from "@/lib/taller-activo";
 
 export default async function LayoutPos({ children }: { children: React.ReactNode }) {
   const supabase = await clienteServidor();
@@ -39,14 +40,22 @@ export default async function LayoutPos({ children }: { children: React.ReactNod
   // sede adivinada.
   if (!perfil.sedeId && perfil.sedesPermitidas.length > 1) redirect("/elegir-sede");
 
-  const config = await obtenerConfiguracion(supabase, perfil.empresaId);
+  const [config, incluyeTaller] = await Promise.all([
+    obtenerConfiguracion(supabase, perfil.empresaId),
+    empresaIncluyeTaller(supabase, perfil.empresaId),
+  ]);
 
   // Abonos vive dentro de Cobrar y entregar, y Recibos es un botón de
   // Vender: siguen siendo direcciones propias, pero sin entrada en el menú.
   const items: ItemNavLateral[] = [
     { href: "/vender", etiqueta: "Vender", icono: <ShoppingCart size={18} strokeWidth={2} />, incluye: ["/recibos"] },
-    { href: "/recibir", etiqueta: "Recibir equipo", icono: <Inbox size={18} strokeWidth={2} /> },
-    { href: "/entregar", etiqueta: "Cobrar y entregar", icono: <PackageCheck size={18} strokeWidth={2} />, incluye: ["/abonos"] },
+    // Sin taller (0072, lib/taller-activo.ts) no se reciben ni entregan equipos.
+    ...(incluyeTaller
+      ? [
+          { href: "/recibir", etiqueta: "Recibir equipo", icono: <Inbox size={18} strokeWidth={2} /> },
+          { href: "/entregar", etiqueta: "Cobrar y entregar", icono: <PackageCheck size={18} strokeWidth={2} />, incluye: ["/abonos"] },
+        ]
+      : []),
     { href: "/turno", etiqueta: "Turno", icono: <Clock size={18} strokeWidth={2} /> },
   ];
 
@@ -63,7 +72,7 @@ export default async function LayoutPos({ children }: { children: React.ReactNod
         pie={<BloqueMarca imagenUrl={config.imagenMarcaUrl} eslogan={config.eslogan} />}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <BarraSuperior nombre={perfil.nombre} rol={perfil.rol} sedeNombre={perfil.sedeNombre} puedeCambiarSede={perfil.sedesPermitidas.length > 1} puerta="pos" />
+        <BarraSuperior nombre={perfil.nombre} rol={perfil.rol} sedeNombre={perfil.sedeNombre} puedeCambiarSede={perfil.sedesPermitidas.length > 1} puerta="pos" incluyeTaller={incluyeTaller} />
         <main style={{ padding: 20, maxWidth: 1280, margin: "0 auto" }}>{children}</main>
       </div>
     </div>

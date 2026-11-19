@@ -18,8 +18,19 @@ const PUERTAS = [
   { key: "admin" as const, href: "/ordenes", etiqueta: "Admin", icono: <ClipboardList size={17} strokeWidth={2} /> },
 ];
 
-export function SelectorPuertas({ rol, actual }: { rol: Rol; actual: "pos" | "taller" | "admin" }) {
-  const otras = PUERTAS.filter((p) => p.key !== actual && puedeEntrarA(rol, p.key));
+export function SelectorPuertas({
+  rol,
+  actual,
+  incluyeTaller = true,
+}: {
+  rol: Rol;
+  actual: "pos" | "taller" | "admin";
+  /** Sin taller (0072): no hay puerta del técnico y Admin abre en Inventario. */
+  incluyeTaller?: boolean;
+}) {
+  const otras = PUERTAS.filter((p) => p.key !== actual && puedeEntrarA(rol, p.key))
+    .filter((p) => incluyeTaller || p.key !== "taller")
+    .map((p) => (!incluyeTaller && p.key === "admin" ? { ...p, href: "/inventario" } : p));
   if (otras.length === 0) return null;
 
   return (

@@ -21,6 +21,7 @@ export function BarraSuperior({
   sedeNombre = null,
   puedeCambiarSede = false,
   puerta,
+  incluyeTaller = true,
 }: {
   nombre: string;
   rol: Rol;
@@ -28,6 +29,8 @@ export function BarraSuperior({
   /** Con más de una sede permitida, la sede es un enlace a /elegir-sede. */
   puedeCambiarSede?: boolean;
   puerta: "pos" | "taller" | "admin";
+  /** Sin taller (0072) no hay órdenes que buscar ni puerta del técnico. */
+  incluyeTaller?: boolean;
 }) {
   return (
     <header
@@ -43,10 +46,10 @@ export function BarraSuperior({
         flexWrap: "wrap",
       }}
     >
-      <Buscador className="bs-buscador" />
+      {incluyeTaller ? <Buscador className="bs-buscador" /> : <div className="bs-buscador" />}
 
       <div className="bs-acciones" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-        <SelectorPuertas rol={rol} actual={puerta} />
+        <SelectorPuertas rol={rol} actual={puerta} incluyeTaller={incluyeTaller} />
         {veAvisos(rol) && <Avisos rol={rol} />}
         <MenuUsuario nombre={nombre} rol={rol} sedeNombre={sedeNombre} puedeCambiarSede={puedeCambiarSede} />
       </div>

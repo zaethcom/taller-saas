@@ -170,7 +170,7 @@ export async function POST(req: Request) {
       try {
         const { data: tipo } = await admin
           .from("tipo_empresa")
-          .select("id, tipo_equipo, categorias")
+          .select("id, tipo_equipo, categorias, incluye_taller")
           .eq("id", body.tipoEmpresaId)
           .maybeSingle();
         if (!tipo) throw new Error("el tipo de empresa no existe");
