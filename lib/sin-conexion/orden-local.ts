@@ -8,6 +8,7 @@
  * la pantalla no distingue si vino del servidor o de la copia.
  */
 import { numeroDesdeCodigoEntrada } from "../codigo-entrada";
+import { esEstado, siguientesEstados, type Estado } from "../estados";
 import type { CopiaLocal, OrdenLocal } from "./tipos";
 
 export interface OrdenBuscada {
@@ -167,4 +168,34 @@ export function aplicarRecepcionEnCopia(
 
 export function descripcionRecepcion(numeroOrden: number, cliente: string | null): string {
   return `Recepción orden #${numeroOrden}${cliente ? ` · ${cliente}` : ""}`;
+}
+
+/**
+ * La orden que busca el técnico al escanear, sin internet: por el token
+ * del QR, por el serial del equipo, o por el número o el código de
+ * entrada de la etiqueta. null si no está entre las abiertas de la copia.
+ */
+export function buscarOrdenTaller(copia: CopiaLocal, q: { token?: string | null; texto?: string | null }): OrdenLocal | null {
+  if (q.token) return copia.ordenesAbiertas.find((o) => o.cuenta?.tokenPublico && o.cuenta.tokenPublico === q.token) ?? null;
+  const texto = (q.texto ?? "").trim();
+  if (!texto) return null;
+  const serial = texto.toUpperCase();
+  const porSerial = copia.ordenesAbiertas.find((o) => (o.serial ?? "").trim().toUpperCase() === serial);
+  if (porSerial) return porSerial;
+  const numero = /^\d+$/.test(texto) ? Number(texto) : numeroDesdeCodigoEntrada(copia.prefijoEtiqueta, texto);
+  return numero ? (copia.ordenesAbiertas.find((o) => o.numero === numero) ?? null) : null;
+}
+
+/** La copia con el estado nuevo de la orden (cambio hecho sin conexión). No cambia la original. */
+export function aplicarEstadoEnCopia(copia: CopiaLocal, ordenId: string, estado: string): CopiaLocal {
+  return { ...copia, ordenesAbiertas: copia.ordenesAbiertas.map((o) => (o.id === ordenId ? { ...o, estado } : o)) };
+}
+
+export function descripcionEstado(numeroOrden: number, etiqueta: string): string {
+  return `Orden #${numeroOrden} → ${etiqueta}`;
+}
+
+/** Los estados a los que el técnico puede pasar sin internet: todos menos entregar (eso es del mostrador). */
+export function estadosSinConexion(estado: string): Estado[] {
+  return esEstado(estado) ? siguientesEstados(estado).filter((e) => e !== "entregada") : [];
 }
