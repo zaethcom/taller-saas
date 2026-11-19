@@ -40,6 +40,9 @@ import { guardarCopia, leerCopia } from "@/lib/sin-conexion/copia-local";
 import { devolverNumero, tomarNumero } from "@/lib/sin-conexion/bloque-numeros";
 import { aplicarRecepcionEnCopia, descripcionRecepcion } from "@/lib/sin-conexion/orden-local";
 import { esFalloDeRed, ESPERA_VENTA_MS } from "@/lib/sin-conexion/venta-local";
+import { cajeroLocal, imprimirReciboLocal, textoImpresionLocal } from "@/lib/sin-conexion/impresion-local";
+import { codigoEntrada } from "@/lib/codigo-entrada";
+import { fechaHoraRecibo } from "@/lib/fecha-recibo";
 
 type TipoNegocio = "celular" | "computador" | "patineta" | "otro";
 
@@ -189,6 +192,8 @@ export default function PaginaRecibir() {
     faltantesFallidos: boolean;
     /** Recibida sin conexión: quedó en la cola del equipo con un número del bloque apartado. */
     sinConexion?: boolean;
+    /** Cómo salió el comprobante por la impresora USB de este equipo (fase 5). */
+    impresion?: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [avisoReimpresion, setAvisoReimpresion] = useState<string | null>(null);
@@ -458,7 +463,39 @@ export default function PaginaRecibir() {
         telefonoAlterno: telefonoAlterno.trim() || null,
       }),
     );
+    // El comprobante sale por la impresora USB de este equipo, si la tiene
+    // (fase 5); sin QR, porque el enlace de seguimiento se arma al subirla.
+    const cajero = await cajeroLocal();
+    const nombreEquipo =
+      [producto?.marca ?? productoNuevo.marca, producto?.modelo ?? productoNuevo.modelo].filter(Boolean).join(" ") ||
+      (producto?.tipo ?? productoNuevo.tipo);
+    const impresion = await imprimirReciboLocal({
+      tipo: "comprobante_recepcion",
+      carga: {
+        numeroOrden: numero,
+        codigoEntrada: codigoEntrada(copia.prefijoEtiqueta, numero),
+        clienteNombre: nombreCliente ?? "",
+        clienteTelefono: cliente?.telefono ?? (clienteNuevo.telefono.trim() || null),
+        producto: nombreEquipo,
+        serial: producto?.serial ?? (serial.trim() || "Se asigna al subir"),
+        motivo: motivo.trim(),
+        fecha: fechaHoraRecibo(new Date(hechaEn)),
+        urlSeguimiento: "",
+        recibidoPor: cajero,
+        valorServicio: valorServicio || null,
+        abono: abono > 0 ? { monto: abono, medio: metodo?.nombre ?? "" } : null,
+        saldo: valorServicio ? Math.max(0, valorServicio - abono) : null,
+      },
+    });
+    // Abono en efectivo: se abre el cajón (sin otro ticket, como con internet).
+    if (abono > 0 && metodo?.es_efectivo) {
+      await imprimirReciboLocal({
+        tipo: "recibo_venta",
+        carga: { numeroVenta: 0, items: [], total: abono, medioPago: metodo.nombre, abreCajon: true, imprimir: false },
+      });
+    }
     setResultado({
+      impresion: textoImpresionLocal(impresion),
       ordenId: body.claveLocal,
       numero,
       tokenPublico: "",
@@ -556,8 +593,8 @@ export default function PaginaRecibir() {
           número definitivo de la orden.
         </p>
         <p style={{ margin: "8px 0 20px", color: "var(--ink-2)" }}>
-          Se sube sola cuando vuelva internet; ahí se imprime la etiqueta y se arma el enlace de seguimiento. Sin conexión no se
-          imprime el comprobante.
+          Se sube sola cuando vuelva internet; ahí se imprime la etiqueta y se arma el enlace de seguimiento.
+          {resultado.impresion ? ` ${resultado.impresion.replace("El recibo", "El comprobante")}` : ""}
         </p>
         {resultado.valorServicio > 0 && (
           <p className="cifra" style={{ margin: "0 0 16px", color: "var(--ink-2)" }}>

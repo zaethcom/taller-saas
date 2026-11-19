@@ -34,6 +34,7 @@ import { leerApi } from "@/lib/sin-conexion/leer-api";
 import { agregarACola, nuevaClaveLocal } from "@/lib/sin-conexion/cola";
 import { guardarCopia, leerCopia } from "@/lib/sin-conexion/copia-local";
 import { aplicarVentaEnCopia, descripcionVenta, esFalloDeRed, ESPERA_VENTA_MS } from "@/lib/sin-conexion/venta-local";
+import { cajeroLocal, imprimirReciboLocal, textoImpresionLocal } from "@/lib/sin-conexion/impresion-local";
 import { Trash2, Plus, Minus, Search, ShoppingCart, Lock, Check, Printer, PlusCircle, ScanBarcode, Receipt } from "lucide-react";
 import { FotoProducto } from "@/componentes/ui/foto-producto";
 import { Boton, BotonEnlace } from "@/componentes/ui/boton";
@@ -103,7 +104,7 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
   // sinConexion: la venta quedó guardada en el equipo y se sube sola
   // cuando vuelva internet (lib/sin-conexion/cola.ts); aún no tiene número.
   const [ventaResultado, setVentaResultado] = useState<
-    { id: string; numero: number; sinConexion?: false } | { sinConexion: true } | null
+    { id: string; numero: number; sinConexion?: false } | { sinConexion: true; impresion?: string } | null
   >(null);
   const turnoAbierto = useTurnoAbierto();
 
@@ -359,7 +360,31 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
     });
     if (!guardada) return false;
     await guardarCopia(aplicarVentaEnCopia(copia, cuerpo.items));
-    terminarVenta({ sinConexion: true });
+    // El recibo (y el cajón, si es efectivo) sale por la impresora USB de
+    // este equipo, si la tiene (fase 5): la estación no recibe nada sin internet.
+    const recibido = metodo?.es_efectivo ? montoRecibido : null;
+    const resultado = await imprimirReciboLocal({
+      tipo: "recibo_venta",
+      carga: {
+        numeroVenta: 0,
+        items: cuerpo.items.map((i) => ({
+          descripcion: String((i as { descripcion?: string }).descripcion ?? ""),
+          cantidad: i.cantidad,
+          precioUnit: Number((i as { precioUnit?: number }).precioUnit ?? 0),
+        })),
+        total,
+        medioPago: metodo?.nombre ?? "",
+        abreCajon: Boolean(metodo?.es_efectivo),
+        cajero: await cajeroLocal(),
+        cliente: cliente ? { nombre: cliente.nombre, documento: cliente.documento, telefono: cliente.telefono } : null,
+        montoRecibido: recibido,
+        cambio: recibido != null ? recibido - total : null,
+        imprimir,
+      },
+    });
+    // Sin recibo pedido (solo cajón, si era efectivo) no hay nada que contar.
+    const avisar = imprimir ? textoImpresionLocal(resultado) : undefined;
+    terminarVenta({ sinConexion: true, impresion: avisar });
     return true;
   }
 
@@ -741,6 +766,11 @@ export default function PaginaVender({ claveCarrito }: { claveCarrito: string })
                       <span style={{ display: "block", fontSize: 13, fontWeight: 500, color: "var(--ink-2)", marginTop: 4 }}>
                         Se sube sola cuando vuelva internet y ahí recibe su número.
                       </span>
+                      {ventaResultado.impresion && (
+                        <span style={{ display: "block", fontSize: 13, fontWeight: 500, color: "var(--ink-2)", marginTop: 4 }}>
+                          {ventaResultado.impresion}
+                        </span>
+                      )}
                     </p>
                   ) : (
                     <p className="cifra" style={{ margin: "0 0 14px", fontWeight: 800, fontSize: 15 }}>

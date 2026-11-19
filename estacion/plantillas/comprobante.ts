@@ -98,9 +98,14 @@ export function comprobanteRecepcion(c: CargaComprobanteRecepcion): Buffer {
       ? [imagenRaster(c.qrRaster.anchoDots, c.qrRaster.altoDots, Buffer.from(c.qrRaster.datosBase64, "base64")), salto()]
       : []),
     // Partidos por palabras: a 40 letras la impresora cortaba "eq / uipo".
-    negrita(true),
-    ...renglones(ajustar(angosto ? "Escanea para ver tu orden" : "Escanea para ver el estado de tu orden", columnas)),
-    negrita(false),
+    // Sin QR (recepción sin internet: el enlace se arma al subirla) no se invita a escanear.
+    ...(c.qrRaster
+      ? [
+          negrita(true),
+          ...renglones(ajustar(angosto ? "Escanea para ver tu orden" : "Escanea para ver el estado de tu orden", columnas)),
+          negrita(false),
+        ]
+      : []),
     ...renglones(ajustar(angosto ? "Conserve este recibo" : "Conserve este recibo para reclamar su equipo", columnas)),
 
     ...piePersonalizado(c),

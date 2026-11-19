@@ -37,12 +37,13 @@ async function json<T>(url: string): Promise<T | null> {
 }
 
 async function bajarCopia(): Promise<void> {
-  const [base, categorias, metodosPago, turno, configuracion] = await Promise.all([
+  const [base, categorias, metodosPago, turno, configuracion, impresion] = await Promise.all([
     json<CopiaLocal>("/api/app/copia-local"),
     json<CopiaLocal["categorias"]>("/api/categorias"),
     json<CopiaLocal["metodosPago"]>("/api/metodos-pago"),
     json<CopiaLocal["turno"]>("/api/turno/actual"),
     json<Record<string, unknown>>("/api/configuracion"),
+    json<NonNullable<CopiaLocal["impresion"]>>("/api/app/impresion-local"),
   ]);
   if (!base) return;
   await guardarCopia({
@@ -51,6 +52,7 @@ async function bajarCopia(): Promise<void> {
     metodosPago: Array.isArray(metodosPago) ? metodosPago : [],
     turno: turno ?? null,
     configuracion: configuracion ?? null,
+    impresion: impresion ?? null,
   });
 }
 

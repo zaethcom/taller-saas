@@ -8,6 +8,8 @@
  * los campos que hacen falta para buscar sin el servidor (marca, modelo,
  * categoría). Así Vender usa la copia sin cambiar sus tipos.
  */
+import type { CargaMarcaEmpresa } from "../../estacion/marca";
+
 export interface RepuestoLocal {
   id: string;
   codigo: string;
@@ -107,4 +109,6 @@ export interface CopiaLocal {
   turno: Record<string, unknown> | null;
   /** La última respuesta de /api/configuracion (tipo de negocio para Recibir, fase 4). */
   configuracion?: Record<string, unknown> | null;
+  /** Encabezado de los recibos con el logo ya convertido, para imprimir sin conexión (fase 5, /api/app/impresion-local). */
+  impresion?: { marca: CargaMarcaEmpresa; cajero: string | null } | null;
 }
