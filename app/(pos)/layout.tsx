@@ -54,7 +54,7 @@ export default async function LayoutPos({ children }: { children: React.ReactNod
     <div style={{ minHeight: "100vh", display: "flex" }}>
       {/* Copia de datos de la sede para vender sin internet (lib/sin-conexion). */}
       <SincronizarCopia empresaId={perfil.empresaId} sedeId={perfil.sedeId} usuarioId={perfil.id} />
-      <PrecargarPantallas paginas={pantallasParaPrecargar({ pos: puedeEntrarA(perfil.rol, "pos"), taller: puedeEntrarA(perfil.rol, "taller") })} />
+      <PrecargarPantallas paginas={pantallasParaPrecargar({ pos: puedeEntrarA(perfil.rol, "pos"), taller: puedeEntrarA(perfil.rol, "taller"), admin: puedeEntrarA(perfil.rol, "admin") })} />
       <BarraLateral
         items={items}
         logoUrl={config.logoUrl}

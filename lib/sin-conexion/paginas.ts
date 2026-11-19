@@ -5,9 +5,10 @@
  * PAGINAS_SIN_CONEXION; pruebas/sin-conexion.test.ts revisa que las dos
  * listas sean iguales.
  *
- * Solo las pantallas de mostrador y taller: son las que el plan pide
- * sin internet. Configuración, reportes, superadmin, login y el
- * seguimiento público siempre van a la red.
+ * Las pantallas operativas: mostrador, taller y las tres consultas del
+ * admin (órdenes, existencias, clientes). Configuración, catálogos,
+ * reportes, superadmin, login y el seguimiento público siempre van a
+ * la red.
  */
 export const PAGINAS_SIN_CONEXION = [
   "/vender",
@@ -19,6 +20,9 @@ export const PAGINAS_SIN_CONEXION = [
   "/orden",
   "/escanear",
   "/sincronizacion",
+  "/ordenes",
+  "/inventario",
+  "/clientes",
 ] as const;
 
 export function debeGuardarPagina(ruta: string): boolean {
@@ -33,9 +37,11 @@ export function debeGuardarPagina(ruta: string): boolean {
  * puertas a las que entra el rol: a las otras nunca va a ir.
  * /orden/[id] no se puede bajar de antemano (una por orden).
  */
-export function pantallasParaPrecargar(puertas: { pos: boolean; taller: boolean }): string[] {
+export function pantallasParaPrecargar(puertas: { pos: boolean; taller: boolean; admin?: boolean }): string[] {
   const lista = ["/"];
   if (puertas.pos) lista.push("/vender", "/recibir", "/entregar", "/abonos", "/turno", "/recibos", "/sincronizacion");
   if (puertas.taller) lista.push("/escanear");
+  // Admin: las tres consultas que se pueden ver sin internet (componentes/sin-conexion/consulta-sin-conexion.tsx).
+  if (puertas.admin) lista.push("/ordenes", "/inventario", "/clientes");
   return lista;
 }

@@ -20,7 +20,7 @@
 const CACHE = "taller-shell-v1";
 const CACHE_PAGINAS = "taller-paginas-v1"; // igual a lib/sin-conexion/borrar-copia.ts
 const PAGINA_SIN_CONEXION = "/sin-conexion.html";
-const PAGINAS_SIN_CONEXION = ["/vender", "/recibir", "/entregar", "/abonos", "/turno", "/recibos", "/orden", "/escanear", "/sincronizacion"];
+const PAGINAS_SIN_CONEXION = ["/vender", "/recibir", "/entregar", "/abonos", "/turno", "/recibos", "/orden", "/escanear", "/sincronizacion", "/ordenes", "/inventario", "/clientes"];
 const CACHES_VIGENTES = [CACHE, CACHE_PAGINAS];
 
 function debeGuardarPagina(ruta) {

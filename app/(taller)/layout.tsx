@@ -49,7 +49,7 @@ export default async function LayoutTaller({ children }: { children: React.React
 
   return (
     <div className="puerta-oscura" style={{ minHeight: "100vh", display: "flex" }}>
-      <PrecargarPantallas paginas={pantallasParaPrecargar({ pos: puedeEntrarA(perfil.rol, "pos"), taller: puedeEntrarA(perfil.rol, "taller") })} />
+      <PrecargarPantallas paginas={pantallasParaPrecargar({ pos: puedeEntrarA(perfil.rol, "pos"), taller: puedeEntrarA(perfil.rol, "taller"), admin: puedeEntrarA(perfil.rol, "admin") })} />
       <BarraLateral
         items={items}
         logoUrl={config.logoUrl}

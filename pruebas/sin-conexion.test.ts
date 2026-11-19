@@ -95,7 +95,8 @@ describe("pantallas sin internet", () => {
     expect(cajero).toEqual(expect.arrayContaining(["/", "/vender", "/recibir", "/entregar", "/turno"]));
     expect(cajero).not.toContain("/escanear");
     expect(pantallasParaPrecargar({ pos: false, taller: true })).toEqual(["/", "/escanear"]);
-    for (const p of pantallasParaPrecargar({ pos: true, taller: true })) expect(debeGuardarPagina(p)).toBe(true);
+    expect(pantallasParaPrecargar({ pos: false, taller: false, admin: true })).toEqual(["/", "/ordenes", "/inventario", "/clientes"]);
+    for (const p of pantallasParaPrecargar({ pos: true, taller: true, admin: true })) expect(debeGuardarPagina(p)).toBe(true);
   });
 
   it("el service worker encuentra el código de una pantalla en su HTML y en el CSS", async () => {
